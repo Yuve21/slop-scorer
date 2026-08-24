@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RULE_DESCRIPTORS } from "@slop/detectors-web";
+import { PrintedReceiptArtifact } from "@/components/artifact/printed-receipt";
 import { ScanForm } from "@/components/landing/scan-form";
 import { SelfScanCard } from "@/components/landing/self-scan-card";
 import { ReproductionFigure } from "@/components/receipt/reproduction-figure";
@@ -67,7 +68,11 @@ export default async function Home() {
   const ownGoal = self.view.findings.some((f) => f.ruleId === "builder.bare-platform-domain");
 
   return (
-    <div className="mx-auto flex max-w-page flex-col gap-24 px-6 py-16 md:px-16">
+    // Two columns with the printed artifact full-bleed between them. The audit (U5) found four
+    // sections at an identical gap-24 rhythm with no focal point at any viewport; the artifact
+    // is the break, so it has to sit OUTSIDE max-w-page rather than inside the stack.
+    <>
+      <div className="mx-auto flex max-w-page flex-col gap-24 px-6 pt-16 pb-24 md:px-16">
       <script
         type="application/ld+json"
         // Structured data on the homepage only. Never on a receipt: a machine-readable
@@ -141,7 +146,11 @@ export default async function Home() {
           </Link>
         </section>
       ) : null}
+      </div>
 
+      <PrintedReceiptArtifact />
+
+      <div className="mx-auto flex max-w-page flex-col gap-24 px-6 pt-24 pb-16 md:px-16">
       <section id="mcp" className="flex flex-col gap-8">
         <div className="flex flex-col gap-3">
           <h2 className="max-w-[24ch] text-h2 font-normal text-ink">
@@ -173,6 +182,7 @@ export default async function Home() {
           The method, in full, including the parts that argue against us
         </Link>
       </section>
-    </div>
+      </div>
+    </>
   );
 }
