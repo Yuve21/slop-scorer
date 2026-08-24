@@ -12,6 +12,7 @@
       "@slop/core": ["packages/core/src/index.ts"],
       "@slop/detectors-web": ["packages/detectors-web/src/index.ts"],
       "@slop/detectors-code": ["packages/detectors-code/src/index.ts"],
+      "@slop/reproduce": ["packages/reproduce/src/index.ts"],
       "slop-scorer-mcp": ["packages/mcp-server/src/index.ts"]
     }
   },

@@ -11,6 +11,7 @@ export default defineConfig({
       "@slop/core": r("./packages/core/src/index.ts"),
       "@slop/detectors-web": r("./packages/detectors-web/src/index.ts"),
       "@slop/detectors-code": r("./packages/detectors-code/src/index.ts"),
+      "@slop/reproduce": r("./packages/reproduce/src/index.ts"),
       "slop-scorer-mcp": r("./packages/mcp-server/src/index.ts"),
     },
   },

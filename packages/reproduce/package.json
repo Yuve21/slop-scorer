@@ -1,0 +1,23 @@
+{
+  "name": "@slop/reproduce",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The reproduction pipeline: attempt a close remake of a submitted artifact and report the effort gap. A demonstration, never an accusation.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "demo": "node ./demo.mjs"
+  },
+  "dependencies": {
+    "@slop/core": "*"
+  }
+}
