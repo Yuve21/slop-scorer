@@ -14,7 +14,7 @@
 
 import type { ProbeStatus } from "@slop/core";
 
-export const REPO_ARTIFACT_SCHEMA_VERSION = 1 as const;
+export const REPO_ARTIFACT_SCHEMA_VERSION = 2 as const;
 
 export type ProbeId =
   | "tree"
@@ -67,6 +67,15 @@ export interface CommentRecord {
   readonly givesRationale: boolean;
 }
 
+/**
+ * What a file IS, as distinct from what is in it.
+ *
+ * `fixture-data` files are inputs to a test, not shipped source. A `lorem ipsum` inside a
+ * fixture is the fixture doing its job. Recorded at scan time rather than inferred at rule
+ * time so a replayed artifact suppresses identically to a live one.
+ */
+export type FileRole = "ordinary" | "fixture-data";
+
 export interface SourceFileRecord {
   readonly path: string;
   readonly ext: string;
@@ -77,6 +86,7 @@ export interface SourceFileRecord {
   readonly blankLines: number;
   /** Identifiers imported by this file, used to decide whether a dependency is dead weight. */
   readonly imports: readonly string[];
+  readonly role: FileRole;
 }
 
 export interface PlaceholderRecord {
@@ -84,6 +94,26 @@ export interface PlaceholderRecord {
   readonly line: number;
   readonly marker: string;
   readonly text: string;
+  /**
+   * True when this line is the DEFINITION of the pattern that matched it: a regular
+   * expression literal, or a marker table entry, whose own value matches `marker`.
+   *
+   * A file that lists placeholder patterns reads as placeholder-riddled to a scanner that
+   * cannot tell a mention from a use. This repository's own first self-scan produced exactly
+   * that finding, citing the pattern table in `scan.ts` eight times. The observation is
+   * recorded here and acted on by the phase-2 suppressor, never dropped silently.
+   */
+  readonly definesItsOwnPattern: boolean;
+  /**
+   * True when the marker names an owner or a ticket: `FIXME(bnoordhuis)`, `TODO(#412)`,
+   * `TODO: implement, see issue 44`.
+   *
+   * An attributed placeholder is the OPPOSITE of scaffold residue. It is a known gap somebody
+   * put their name against, which is knowledge that is not recoverable from the code, and it
+   * is a normal artefact of a long-lived codebase: libuv carries several across fourteen
+   * years of platform ports.
+   */
+  readonly attributed: boolean;
 }
 
 export interface DuplicateBlock {
@@ -117,9 +147,21 @@ export interface ConfigRecord {
   readonly excerpt: string;
 }
 
+/**
+ * What a file under a test path is FOR.
+ *
+ * `benchmark` and `support` files legitimately assert nothing: a Go benchmark measures, a
+ * `conftest.py` supplies fixtures, a `helpers.rb` is called by the tests rather than being
+ * one. Counting their zero assertions as "a test that cannot fail" is a false accusation
+ * against the two most disciplined testing cultures in the corpus, and gin's
+ * `benchmarks_test.go` produced exactly that on the first calibration run.
+ */
+export type TestFileKind = "test" | "benchmark" | "support";
+
 export interface TestFileRecord {
   readonly path: string;
   readonly lines: number;
+  readonly kind: TestFileKind;
   /** Assertion call sites. A test file with zero of them asserts nothing. */
   readonly assertions: number;
   /** Assertions that can never fail: expect(true).toBe(true), assert(1 === 1). */
@@ -238,7 +280,7 @@ export function neutralRepo(overrides: Partial<RepoArtifact> = {}): RepoArtifact
     ],
     // One thin test file: enough that `verify.no-tests` and `verify.tautological-tests` stay
     // quiet, not enough that `counter.real-test-coverage` fires.
-    tests: [{ path: "test/ladder.test.ts", lines: 40, assertions: 2, tautologies: [] }],
+    tests: [{ path: "test/ladder.test.ts", lines: 40, kind: "test", assertions: 2, tautologies: [] }],
     readme: { path: "README.md", bytes: 3_800, lines: 92, templateMarkers: [] },
     // A short, recent history: too few commits for the history signals, too short a span for
     // the lived-in-history counter.
@@ -259,6 +301,7 @@ function src(path: string, lines: number, commentLines: number, blankLines: numb
     commentLines,
     blankLines,
     imports,
+    role: "ordinary",
   };
 }
 

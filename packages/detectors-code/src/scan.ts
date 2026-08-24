@@ -48,6 +48,25 @@ const DEFAULT_IGNORES = new Set([
   "vendor", "target", "__pycache__", ".venv", "venv", ".turbo", ".cache", ".output", "tmp",
 ]);
 
+/**
+ * Dot-directories are tooling state, not source, and are skipped UNLESS an agent-artifact
+ * path lives in one.
+ *
+ * Found the hard way: this repository keeps its calibration clones in a gitignored
+ * `.corpus-cache/`, and the scanner walked all ten of them. The scan did not fail, it took
+ * minutes and reported another project's code as this one's. The allowlist is derived from
+ * `AGENT_FILES` below rather than restated, so adding `.somenewtool/rules` to that list
+ * cannot leave this set behind.
+ */
+const walkableDotDirs = (): Set<string> => {
+  const out = new Set([".github"]);
+  for (const f of AGENT_FILES) {
+    const head = f.path.split("/")[0] ?? "";
+    if (head.startsWith(".") && f.path.includes("/")) out.add(head);
+  }
+  return out;
+};
+
 const SOURCE_EXTENSIONS = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
   ".py", ".go", ".rb", ".rs", ".java", ".kt", ".cs", ".php", ".swift", ".scala",
@@ -105,6 +124,8 @@ const SCAFFOLD_CONFIG_STUBS: readonly { readonly file: string; readonly normaliz
   { file: "vercel.json", normalized: "{}", label: "empty vercel config" },
 ];
 
+const DOT_DIRS = walkableDotDirs();
+
 const CONFIG_CANDIDATES: readonly string[] = [
   ".eslintrc.json", ".eslintrc.js", "eslint.config.js", "eslint.config.mjs",
   ".prettierrc", ".prettierrc.json", "prettier.config.js",
@@ -124,12 +145,155 @@ const PLACEHOLDER_PATTERNS: readonly { readonly re: RegExp; readonly marker: str
   { re: /\bcoming soon\b/i, marker: "coming soon" },
 ];
 
+/**
+ * A placeholder that names an owner or a ticket. `FIXME(bnoordhuis)`, `TODO(#412)`,
+ * `TODO: implement - see issue 44`, `XXX: tracked in JIRA-1201`.
+ */
+const ATTRIBUTED_RE =
+  /\b(?:TODO|FIXME|XXX|HACK|NOTE)\s*[([]\s*[@#]?[A-Za-z0-9_.\/-]{2,}\s*[)\]]|\b(?:see|tracked in|issue|bug|ticket)\b[^.]{0,40}?(?:#\d+|[A-Z][A-Z0-9]+-\d+|https?:\/\/)/i;
+
+/** A benchmark: it measures, it does not assert. Recognised by name and by content. */
+const BENCHMARK_PATH_RE = /bench/i;
+const BENCHMARK_BODY_RE = /func\s+Benchmark[A-Z]|b\.(?:ResetTimer|RunParallel|N)|describe\.bench|bench\s*\(|@pytest\.mark\.benchmark/;
+
+/** A support file: fixtures, helpers, factories, configuration for the tests around it. */
+const SUPPORT_PATH_RE =
+  /(?:^|\/)(?:conftest\.py|__init__\.py|setup\.py|helpers?|support|factories|test[-_]?helper[s]?|spec_helper|test_helper)\.[a-z]+$|(?:^|\/)(?:helpers?|support|factories|fixtures?)\//i;
+
+/**
+ * Paths whose contents are INPUTS TO A TEST rather than shipped source.
+ *
+ * A `lorem ipsum` in a fixture is the fixture doing its job, and a rule's own positive
+ * fixture is, by construction, a worked example of the thing the rule looks for. Recording
+ * the role here lets the phase-2 suppressor withdraw that evidence with a stated reason
+ * instead of the corpus quietly scoring every detector in the world as generated.
+ */
+const FIXTURE_PATH_RE =
+  /(?:^|\/)(?:fixtures?|__fixtures__|testdata|test[-_]data|__mocks__|mocks|snapshots?|__snapshots__)(?:\/|$)|\.(?:fixture|mock|snap)\.[cm]?[jt]sx?$/i;
+
+/**
+ * Regular-expression literals on a line, extracted by a LINEAR SCAN.
+ *
+ * The first version of this was itself a regular expression, with a `(?:\\.|[...])+` body,
+ * and it hung the scanner on the first long line it met: nested quantifiers over an
+ * alternation backtrack exponentially when the closing delimiter never arrives. A detector
+ * whose own pattern can lock up on an ordinary source file is not a detector. Character
+ * scan, one pass, no backtracking.
+ */
+function regexLiteralsOn(line: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < line.length; i += 1) {
+    if (line[i] !== "/" || line[i + 1] === "*" || line[i + 1] === "/") continue;
+    let inClass = false;
+    let body = "";
+    let j = i + 1;
+    for (; j < line.length; j += 1) {
+      const ch = line[j] as string;
+      if (ch === "\\") {
+        body += ch + (line[j + 1] ?? "");
+        j += 1;
+        continue;
+      }
+      if (ch === "[") inClass = true;
+      else if (ch === "]") inClass = false;
+      else if (ch === "/" && !inClass) break;
+      body += ch;
+    }
+    if (j < line.length && body.length > 0 && body.length <= 200) out.push(body);
+    i = j;
+  }
+  return out;
+}
+
+/** A data-table entry that names a marker as its own value: `marker: "FIXME"`. */
+const MARKER_TABLE_RE = /\b(?:marker|pattern|re|regex|matcher|token|needle|label)\s*:\s*(["'`])([^"'`\n]{2,60})\1/g;
+
+/**
+ * Is this line the definition of the pattern that just matched it?
+ *
+ * Two forms, both deterministic and both checkable by eye: a regular-expression literal on
+ * the line whose own source matches the marker, or a marker-table entry whose value is the
+ * marker. Everything else is a use, and a use is evidence.
+ */
+function definesItsOwnPattern(raw: string, marker: string): boolean {
+  for (const source of regexLiteralsOn(raw)) {
+    try {
+      if (new RegExp(source, "i").test(marker)) return true;
+    } catch {
+      /* not a valid expression: it was a division or a path, not a pattern definition */
+    }
+  }
+  const needle = marker.toLowerCase();
+  for (const m of raw.matchAll(MARKER_TABLE_RE)) {
+    const value = (m[2] ?? "").toLowerCase();
+    if (value && (value === needle || value.includes(needle) || needle.includes(value))) return true;
+  }
+  return false;
+}
+
+/**
+ * Does this normalised line carry executable content?
+ *
+ * String contents are already erased before a block is hashed, which is what lets a copy
+ * with different literals still match. The cost is that a run of declarations collapses to
+ * its punctuation: `id: "", family: "", title: "",` is the shape of EVERY rule object in
+ * every rule corpus, so three unrelated rule files hashed identically and this scanner
+ * reported "the same twelve lines in three files" about code that shares only a schema.
+ * A window has to contain some verbs before a repeat of it means anything.
+ */
+const SUBSTANTIVE_RE =
+  /\b(?:if|for|while|switch|case|try|catch|throw|return|await|new|typeof|delete|yield|else)\b|[A-Za-z_$][\w$]*\s*\(|===|!==|<=|>=|&&|\|\||\+\+|--|[-+*/%]=/;
+
 /** Comment openers per language family. Block comments are handled by the `/* ... *\/` case. */
 const LINE_COMMENT: Readonly<Record<string, string>> = {
   ".py": "#", ".rb": "#", ".sh": "#", ".sql": "--",
 };
 
-const ASSERTION_RE = /\b(?:expect|assert|should|t\.(?:is|deepEqual|truthy|throws)|chai\.assert)\s*\(/g;
+/**
+ * Comment text is stored up to this length.
+ *
+ * The longest excerpt any rule prints is 240 characters, so anything beyond it is storage
+ * that no receipt can ever cite. On the ten-repository calibration corpus, capping here cut
+ * the stored artifacts by roughly a third with no change to a single finding.
+ */
+const COMMENT_TEXT_CAP = 240;
+
+/**
+ * Test files, across the languages this scanner claims to read.
+ *
+ * The first version knew two conventions, `**\/test/**` and `*.test.ts`, and it was written
+ * in a TypeScript repository so nothing looked wrong. The calibration corpus made it visible
+ * in one run: gin is roughly half tests, every one of them named `*_test.go`, and the scan
+ * reported "40 source files, 0 test files" while counting the `http://example.com` in those
+ * tests as placeholder residue in shipped source. Two findings, both false, both caused by a
+ * pattern that could not express Go.
+ *
+ * A convention this list cannot express does not fail: it silently moves a repository's
+ * tests into its source and then reports it as untested. Every language in
+ * `SOURCE_EXTENSIONS` needs a line here.
+ */
+const TEST_PATH_RES: readonly RegExp[] = [
+  /(?:^|\/)(?:tests?|__tests__|spec|specs|testing)\//i, // directory conventions, most languages
+  /\.(?:test|spec)\.[cm]?[jt]sx?$/, //                     JavaScript, TypeScript
+  /(?:^|\/)test_[^/]+\.py$|_test\.py$/, //                 Python (pytest, unittest)
+  /_test\.go$/, //                                         Go
+  /_(?:test|spec)\.rb$/, //                                Ruby (minitest, rspec)
+  /_(?:test|spec)\.exs?$/, //                              Elixir
+  /(?:Test|Tests|Spec|IT)\.(?:java|kt|scala|cs)$/, //      JVM and .NET
+  /_test\.(?:c|cc|cpp)$|(?:^|\/)test-[^/]+\.(?:c|cc|cpp)$/, // C and C++
+  /_test\.rs$|(?:^|\/)tests\//, //                         Rust integration tests
+  /\.test\.php$|Test\.php$/, //                            PHP
+];
+
+/**
+ * Assertion call sites, across the same languages.
+ *
+ * Same failure shape as above: a test file whose assertion style this pattern cannot express
+ * reports zero assertions, which `verify.tautological-tests` treats as a test that cannot
+ * fail. A false accusation produced entirely by a missing alternation.
+ */
+const ASSERTION_RE =
+  /\b(?:expect|assert|should|require|t\.(?:is|deepEqual|truthy|throws|Error|Errorf|Fatal|Fatalf|Log)|chai\.assert|assert_[a-z_]+|self\.assert[A-Za-z]*|ASSERT(?:_[A-Z]+)?|EXPECT_[A-Z]+|assert_that)\s*\(|\b(?:assert|require)\.[A-Za-z]+\s*\(|\.\s*(?:should|must)\s*[.(]/g;
 const TAUTOLOGY_RE =
   /expect\(\s*(true|1|"[^"]*")\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\s*\(\s*\1\s*\)|assert\s*\(\s*true\s*\)|assert\s*\(\s*(\d+)\s*===\s*\2\s*\)/;
 
@@ -175,6 +339,7 @@ async function walk(root: string, maxFiles: number): Promise<{ files: string[]; 
       const childRel = rel ? `${rel}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
         if (DEFAULT_IGNORES.has(entry.name)) continue;
+        if (entry.name.startsWith(".") && !DOT_DIRS.has(entry.name)) continue;
         queue.push(childRel);
       } else if (entry.isFile()) {
         if (out.length >= maxFiles) {
@@ -209,6 +374,8 @@ function parseSource(relPath: string, text: string): ParsedFile {
   let commentLines = 0;
   let blankLines = 0;
   let inBlock = false;
+  let blockStart = 0;
+  let blockText: string[] = [];
 
   lines.forEach((raw, i) => {
     const line = raw.trim();
@@ -225,21 +392,59 @@ function parseSource(relPath: string, text: string): ParsedFile {
     // reported the other four as absent, which reads as a cleaner repository than it is.
     for (const p of PLACEHOLDER_PATTERNS) {
       if (p.re.test(raw)) {
-        placeholders.push({ file: relPath, line: lineNo, marker: p.marker, text: line.slice(0, 200) });
+        placeholders.push({
+          file: relPath,
+          line: lineNo,
+          marker: p.marker,
+          text: line.slice(0, 200),
+          definesItsOwnPattern: definesItsOwnPattern(raw, p.marker),
+          attributed: ATTRIBUTED_RE.test(raw),
+        });
         break;
       }
     }
 
+    // Block comments become COMMENT RECORDS, not just a line count.
+    //
+    // The first version counted them toward `commentLines` and threw the text away. The
+    // consequence only became visible when the calibration corpus was captured: libuv, a
+    // fourteen-year-old C codebase full of explanatory `/* ... */`, came back with ZERO
+    // comments, so both comment rules and the strongest counter rule in the corpus were dead
+    // on it, and on every Java, C, C++, CSS and JSDoc-commented codebase for the same reason.
+    // Nothing failed. The repository simply scored as though nobody had ever explained
+    // anything in it. A block comment is one record: the body joined, cited at its first line.
     const startsBlock = !inBlock && (line.startsWith("/*") || line.startsWith('"""') || line.startsWith("'''"));
     if (inBlock || startsBlock) {
       commentLines += 1;
-      if (startsBlock) inBlock = !(line.includes("*/") || (line.length > 3 && (line.endsWith('"""') || line.endsWith("'''"))));
-      else if (line.includes("*/") || line.endsWith('"""') || line.endsWith("'''")) inBlock = false;
+      if (startsBlock) {
+        blockStart = lineNo;
+        blockText = [];
+      }
+      blockText.push(line.replace(/^\/\*+|^\*+\/?|\*\/$|^"""|"""$|^'''|'''$/g, "").trim());
+      const ends = startsBlock
+        ? line.includes("*/") || (line.length > 3 && (line.endsWith('"""') || line.endsWith("'''")))
+        : line.includes("*/") || line.endsWith('"""') || line.endsWith("'''");
+      inBlock = !ends;
+      if (ends) {
+        const body = blockText.filter(Boolean).join(" ").slice(0, COMMENT_TEXT_CAP);
+        // The next CODE line, not the next physical line: a block comment is followed by the
+        // thing it describes, sometimes across a blank line.
+        const next = (lines.slice(i + 1).find((l) => l.trim() !== "") ?? "").trim();
+        if (body.length >= 3) {
+          comments.push({
+            file: relPath,
+            line: blockStart,
+            text: body,
+            restatesNextLine: restates(body, next),
+            givesRationale: RATIONALE_RE.test(body),
+          });
+        }
+      }
       return;
     }
     if (line.startsWith(lineComment) || (ext === ".sql" && line.startsWith("--"))) {
       commentLines += 1;
-      const body = line.slice(lineComment.length).trim();
+      const body = line.slice(lineComment.length).trim().slice(0, COMMENT_TEXT_CAP);
       const next = (lines[i + 1] ?? "").trim();
       comments.push({
         file: relPath,
@@ -267,26 +472,42 @@ function parseSource(relPath: string, text: string): ParsedFile {
 
   // Normalised 12-line windows, for cross-file duplicate detection.
   //
-  // Three normalisations, each one load-bearing. Whitespace collapses and string contents are
+  // Five normalisations, each one load-bearing. Whitespace collapses and string contents are
   // erased, so a copy with different literals still matches. COMMENT LINES ARE DROPPED: the
   // first version kept them, so three route files carrying an identical twelve-line body
   // hashed differently because each had its own one-line header comment above it, and the
   // rule reported no duplication at all. And the stride is 3, not 12: a window that only
   // starts every twelve lines misses any copy that is not twelve-line-aligned, which is most
   // of them.
+  //
+  // The last two came out of this repository's own first self-scan, and both were producing
+  // wrong output rather than no output:
+  //
+  //  - A WINDOW MUST CONTAIN VERBS. See `MIN_SUBSTANTIVE` below. Closing braces and a run of
+  //    `key: "",` declarations are the same in every codebase on earth.
+  //  - THE ORIGINAL LINE NUMBER IS CARRIED. The first version used the index into the
+  //    FILTERED list as the citation, so every duplicate finding cited a line that was not
+  //    the line it had read. A citation nobody can follow to the right place is worse than
+  //    no citation: it is a confident, checkable, wrong statement.
   const codeOnly = lines
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith("//") && !l.startsWith("#") && !l.startsWith("*") && !l.startsWith("/*"))
-    .map((l) => l.replace(/\s+/g, " ").replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""'));
+    .map((l, i) => ({ n: i + 1, t: l.trim() }))
+    .filter((x) => x.t && !x.t.startsWith("//") && !x.t.startsWith("#") && !x.t.startsWith("*") && !x.t.startsWith("/*"))
+    .map((x) => ({ n: x.n, t: x.t.replace(/\s+/g, " ").replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""') }));
   const blockHashes: { hash: string; startLine: number; excerpt: string }[] = [];
   const BLOCK = 12;
   const STRIDE = 3;
+  // At least half the window has to contain a verb: a call, a branch, an operator. Without
+  // this, a run of declarations with their strings erased (`id: "", family: "", title: "",`)
+  // is the shape of every rule object in every rule corpus, and three unrelated files get
+  // reported as copies of each other on the strength of sharing a schema.
+  const MIN_SUBSTANTIVE = 6;
   for (let i = 0; i + BLOCK <= codeOnly.length && blockHashes.length < 400; i += STRIDE) {
     const window = codeOnly.slice(i, i + BLOCK);
+    if (window.filter((x) => SUBSTANTIVE_RE.test(x.t)).length < MIN_SUBSTANTIVE) continue;
     blockHashes.push({
-      hash: createHash("sha1").update(window.join("\n")).digest("hex").slice(0, 12),
-      startLine: i + 1,
-      excerpt: window.slice(0, 2).join(" "),
+      hash: createHash("sha1").update(window.map((x) => x.t).join("\n")).digest("hex").slice(0, 12),
+      startLine: window[0]?.n ?? 1,
+      excerpt: window.slice(0, 2).map((x) => x.t).join(" "),
     });
   }
 
@@ -300,6 +521,7 @@ function parseSource(relPath: string, text: string): ParsedFile {
       commentLines,
       blankLines,
       imports: [...text.matchAll(/(?:from\s+|require\(\s*|import\s+)["']([^"']+)["']/g)].map((m) => m[1] as string),
+      role: FIXTURE_PATH_RE.test(relPath) ? "fixture-data" : "ordinary",
     },
     functions,
     comments,
@@ -402,7 +624,7 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
   const tests: TestFileRecord[] = [];
   const blockIndex = new Map<string, { file: string; startLine: number; excerpt: string }[]>();
 
-  const isTest = (p: string): boolean => /(?:^|\/)(?:tests?|__tests__|spec)\//.test(p) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(p) || /(?:^|\/)test_[^/]+\.py$/.test(p);
+  const isTest = (p: string): boolean => TEST_PATH_RES.some((re) => re.test(p));
 
   for (const rel of allPaths) {
     const ext = path.extname(rel);
@@ -426,9 +648,16 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
 
     if (isTest(rel)) {
       const lines = text.split(/\r?\n/);
+      const kind =
+        BENCHMARK_PATH_RE.test(path.basename(rel)) || BENCHMARK_BODY_RE.test(text)
+          ? "benchmark"
+          : SUPPORT_PATH_RE.test(rel)
+            ? "support"
+            : "test";
       tests.push({
         path: rel,
         lines: lines.length,
+        kind,
         assertions: (text.match(ASSERTION_RE) ?? []).length,
         // Tautologies are matched against the line with STRING CONTENTS ERASED. A test file
         // that writes another test file as a fixture contains the text `expect(true).toBe(true)`
@@ -456,16 +685,44 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
     }
   }
 
-  const duplicates: DuplicateBlock[] = [...blockIndex.entries()]
-    .map(([hash, occ]) => ({ hash, occ, files: new Set(occ.map((o) => o.file)) }))
-    .filter((d) => d.files.size >= 3)
-    .slice(0, 20)
-    .map((d) => ({
-      hash: d.hash,
-      lineCount: 12,
-      occurrences: d.occ.map((o) => ({ file: o.file, startLine: o.startLine })),
-      excerpt: d.occ[0]?.excerpt ?? "",
-    }));
+  // Overlapping windows of ONE duplicated region are merged into one block.
+  //
+  // The window stride is 3, so a thirty-line region copied into three files produces six
+  // hashes with six sets of near-identical occurrences. Reported raw, that is one fact
+  // printed six times, and the rule's multiplicity decay then treats it as six independent
+  // observations, which is exactly the arithmetic that turns a cross-platform port into a
+  // verdict. libuv's event loop, written once per platform, made this visible: four
+  // "duplicate blocks" that were four overlapping views of the same twenty lines.
+  const groups = [...blockIndex.entries()]
+    .map(([hash, occ]) => ({ hash, occ: [...occ].sort((a, b) => a.file.localeCompare(b.file) || a.startLine - b.startLine) }))
+    .filter((d) => new Set(d.occ.map((o) => o.file)).size >= 3)
+    .sort((a, b) => (a.occ[0]?.file ?? "").localeCompare(b.occ[0]?.file ?? "") || (a.occ[0]?.startLine ?? 0) - (b.occ[0]?.startLine ?? 0));
+
+  const merged: { hash: string; occ: { file: string; startLine: number; endLine: number; excerpt: string }[] }[] = [];
+  const fileSetKey = (occ: readonly { file: string }[]): string => [...new Set(occ.map((o) => o.file))].sort().join("|");
+  for (const g of groups) {
+    const key = fileSetKey(g.occ);
+    const into = merged.find(
+      (m) =>
+        fileSetKey(m.occ) === key &&
+        g.occ.every((o) => m.occ.some((x) => x.file === o.file && o.startLine <= x.endLine + 1 && o.startLine >= x.startLine - 12)),
+    );
+    if (into) {
+      for (const o of g.occ) {
+        const target = into.occ.find((x) => x.file === o.file);
+        if (target) target.endLine = Math.max(target.endLine, o.startLine + 11);
+      }
+      continue;
+    }
+    merged.push({ hash: g.hash, occ: g.occ.map((o) => ({ ...o, endLine: o.startLine + 11 })) });
+  }
+
+  const duplicates: DuplicateBlock[] = merged.slice(0, 20).map((d) => ({
+    hash: d.hash,
+    lineCount: Math.max(...d.occ.map((o) => o.endLine - o.startLine + 1)),
+    occurrences: d.occ.map((o) => ({ file: o.file, startLine: o.startLine })),
+    excerpt: d.occ[0]?.excerpt ?? "",
+  }));
 
   const present = new Set(allPaths);
   const gitignore = await readFile(path.join(root, ".gitignore"), "utf8").catch(() => "");

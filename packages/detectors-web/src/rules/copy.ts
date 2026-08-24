@@ -131,7 +131,11 @@ export const COPY_RULES: readonly WebRule[] = [
     prevention: "Let the verb do the work.",
     detect: (a) => {
       const out = [];
-      const re = /([A-Z][^\n.!?]{2,40}?)\s*(→|->)\s*(?:\n|$)/g;
+      // The arrow may end a line OR sit inline between two labels. The first version required
+      // a newline after it, and missed both arrows in this corpus's own synthetic template
+      // page ("Join the waitlist -> Learn more ->"), because `innerText` only breaks lines
+      // where the layout does and two inline links on one row do not.
+      const re = /([A-Z][^\n.!?]{2,40}?)\s*(→|->|›|»)(?=\s|$)/g;
       for (let m = re.exec(a.text.innerText); m && out.length < 4; m = re.exec(a.text.innerText)) {
         out.push(ev("text", "call to action label", m[0].trim(), { expected: "the label without the arrow" }));
       }
@@ -142,6 +146,24 @@ export const COPY_RULES: readonly WebRule[] = [
         artifact: patch(base, { text: { innerText: "Join the waitlist →\nGet started →\n", wordCount: 6 } }),
       }),
       mutated: (base) => ({ artifact: patch(base, { text: { innerText: "Join the waitlist\nGet started\n", wordCount: 6 } }) }),
+      extra: [
+        {
+          name: "two inline CTAs on one rendered line still fire",
+          shouldFire: true,
+          build: (base) => ({
+            artifact: patch(base, {
+              text: { innerText: "Join the waitlist -> Learn more ->", wordCount: 6 },
+            }),
+          }),
+        },
+        {
+          name: "an arrow inside a hyphenated word is not a call to action",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, { text: { innerText: "Our end->to->end pipeline runs nightly.", wordCount: 6 } }),
+          }),
+        },
+      ],
     },
   },
 ];

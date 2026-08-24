@@ -1,0 +1,198 @@
+{
+  "formatVersion": 1,
+  "recordedAt": "2026-08-24T03:37:15.009Z",
+  "corpusVersions": {
+    "web": "corpus-2026.09",
+    "code": "code-corpus-2026.09"
+  },
+  "baseRates": {
+    "web": 15,
+    "code": 15
+  },
+  "entries": [
+    {
+      "id": "chalk",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "express",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "flask",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "gin",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "jekyll",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "libuv",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 6,
+      "band": "few-signals",
+      "firedRules": [
+        "uniform.duplicate-blocks"
+      ]
+    },
+    {
+      "id": "lodash",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 3,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "requests",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "ripgrep",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "sinatra",
+      "corpus": "code",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "synthetic-agent-pass",
+      "corpus": "code",
+      "label": "generated",
+      "status": "assessed",
+      "score": 74,
+      "band": "many-signals",
+      "firedRules": [
+        "history.single-sitting",
+        "history.uniform-message-shape",
+        "uniform.file-length",
+        "uniform.function-length",
+        "verify.tautological-tests"
+      ]
+    },
+    {
+      "id": "synthetic-scaffold",
+      "corpus": "code",
+      "label": "generated",
+      "status": "assessed",
+      "score": 99,
+      "band": "heavy-template-signature",
+      "firedRules": [
+        "agent.instruction-file-committed",
+        "agent.transcript-committed",
+        "comment.restates-the-code",
+        "comment.section-banner-density",
+        "history.single-sitting",
+        "history.uniform-message-shape",
+        "scaffold.default-tooling-config",
+        "scaffold.placeholder-markers",
+        "scaffold.readme-template-markers",
+        "scaffold.unused-dependencies",
+        "uniform.duplicate-blocks",
+        "verify.no-tests"
+      ]
+    },
+    {
+      "id": "amata",
+      "corpus": "web",
+      "label": "human",
+      "status": "assessed",
+      "score": 8,
+      "band": "few-signals",
+      "firedRules": [
+        "css.hero-scale",
+        "css.one-family"
+      ]
+    },
+    {
+      "id": "overtone",
+      "corpus": "web",
+      "label": "human",
+      "status": "assessed",
+      "score": 4,
+      "band": "few-signals",
+      "firedRules": [
+        "craft.no-meta-description"
+      ]
+    },
+    {
+      "id": "rodeo",
+      "corpus": "web",
+      "label": "human",
+      "status": "assessed",
+      "score": 6,
+      "band": "few-signals",
+      "firedRules": [
+        "craft.no-meta-description"
+      ]
+    },
+    {
+      "id": "sitch",
+      "corpus": "web",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "stripe",
+      "corpus": "web",
+      "label": "human",
+      "status": "assessed",
+      "score": 7,
+      "band": "few-signals",
+      "firedRules": [
+        "craft.js-weight",
+        "dom.uniform-cards"
+      ]
+    }
+  ]
+}

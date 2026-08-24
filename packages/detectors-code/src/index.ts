@@ -8,6 +8,7 @@
 
 export type {
   AgentFileRecord,
+  FileRole,
   CommentRecord,
   CommitRecord,
   ConfigRecord,
@@ -34,6 +35,15 @@ export type { ScanOptions } from "./scan.js";
 export { scanRepo } from "./scan.js";
 
 export { asRepoArtifact, codeDetector } from "./detector.js";
+
+export type { RemovedRecord, SuppressionRecord, Suppressor } from "./suppression.js";
+export {
+  CODE_SUPPRESSORS,
+  fixtureData,
+  formatSuppressions,
+  pruneArtifact,
+  selfDefiningPattern,
+} from "./suppression.js";
 
 export {
   AGENT_RULES,

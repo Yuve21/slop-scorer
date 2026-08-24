@@ -103,6 +103,7 @@ describe("a repository with the full set of tells", () => {
       commentLines: 14,
       blankLines: 8,
       imports: ["./util"],
+      role: "ordinary" as const,
     })),
     functions: Array.from({ length: 24 }, (_, i) => ({
       file: `src/handlers/h${i % 18}.ts`,

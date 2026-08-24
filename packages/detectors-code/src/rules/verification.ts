@@ -32,6 +32,14 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
     prevention: "One test that would fail if the main path broke is worth more than a coverage number.",
     detect: (a) => {
       if (a.files.length < 15 || a.tests.length > 0) return [];
+      // A NARROWED SCAN CANNOT MAKE THIS CLAIM. When the caller passed include globs, the
+      // absence of tests is a fact about the globs, not about the repository: four of the ten
+      // repositories in this corpus were captured with a `src/**` glob and all four were
+      // reported as untested while carrying thousands of tests one directory across. The
+      // rule's own falsePositiveNote had said so in prose for a whole release, which is worth
+      // nothing to anyone reading the score.
+      const narrowed = a.include.length > 0 && !a.include.every((g) => g === "**/*" || g === "**");
+      if (narrowed) return [];
       return [
         ev("metric", `${a.files.length} source files, ${a.tests.length} test files`, "no test file in the scanned tree", {
           expected: "at least one test",
@@ -50,6 +58,7 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
             commentLines: 6,
             blankLines: 4,
             imports: [],
+            role: "ordinary" as const,
           })),
           tests: [],
         }),
@@ -65,10 +74,34 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
             commentLines: 6,
             blankLines: 4,
             imports: [],
+            role: "ordinary" as const,
           })),
-          tests: [{ path: "test/mod.test.ts", lines: 80, assertions: 9, tautologies: [] }],
+          tests: [{ path: "test/mod.test.ts", lines: 80, kind: "test" as const, assertions: 9, tautologies: [] }],
         }),
       }),
+      extra: [
+        {
+          name: "a scan narrowed by an include glob cannot claim the repository has no tests",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, {
+              include: ["src/**/*.py"],
+              tests: [],
+              files: Array.from({ length: 18 }, (_, i) => ({
+                path: `src/mod${i}.py`,
+                ext: ".py",
+                bytes: 3_000,
+                lines: 60 + i * 7,
+                codeLines: 50,
+                commentLines: 6,
+                blankLines: 4,
+                imports: [],
+                role: "ordinary" as const,
+              })),
+            }),
+          }),
+        },
+      ],
     },
   },
   {
@@ -85,11 +118,13 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
     explanation:
       "Assertions that are true regardless of the code: expect(true).toBe(true), assert(1 === 1), a test body with no assertion at all. A test that cannot fail is worse than no test, because it marks the area as covered.",
     falsePositiveNote:
-      "A deliberate smoke test that only checks a module imports without throwing looks like this, and an assertion helper the scanner does not recognise reads as zero assertions.",
+      "A deliberate smoke test that only checks a module imports without throwing looks like this, and an assertion helper the scanner does not recognise reads as zero assertions. Benchmarks and support files are excluded, because they assert nothing by design.",
     prevention:
       "Mutation-test the test: break the code it covers and confirm it goes red. If it stays green, delete it or fix it.",
     detect: (a) => {
-      const empty = a.tests.filter((t) => t.assertions === 0);
+      // Only files that CLAIM to be tests. A benchmark measures and a support file supplies
+      // fixtures; neither asserts, and neither is a test that cannot fail.
+      const empty = a.tests.filter((t) => t.assertions === 0 && t.kind === "test");
       const tauto = a.tests.flatMap((t) => t.tautologies.map((x) => ({ path: t.path, ...x })));
       return [
         ...tauto.slice(0, 4).map((t) => ev("line", `${t.path}:${t.line}`, t.text.slice(0, 120), { expected: "an assertion that can fail" })),
@@ -103,6 +138,7 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
             {
               path: "test/cart.test.ts",
               lines: 30,
+              kind: "test" as const,
               assertions: 2,
               tautologies: [{ line: 12, text: "expect(true).toBe(true);" }],
             },
@@ -110,8 +146,21 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
         }),
       }),
       mutated: (base) => ({
-        artifact: patch(base, { tests: [{ path: "test/cart.test.ts", lines: 30, assertions: 2, tautologies: [] }] }),
+        artifact: patch(base, {
+          tests: [{ path: "test/cart.test.ts", lines: 30, kind: "test" as const, assertions: 2, tautologies: [] }],
+        }),
       }),
+      extra: [
+        {
+          name: "a benchmark file with no assertions is not a test that cannot fail",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, {
+              tests: [{ path: "benchmarks_test.go", lines: 161, kind: "benchmark" as const, assertions: 0, tautologies: [] }],
+            }),
+          }),
+        },
+      ],
     },
   },
 ];

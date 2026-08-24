@@ -144,8 +144,8 @@ export const CODE_COUNTER_RULES: readonly CodeRule[] = [
       positive: (base) => ({
         artifact: patch(base, {
           tests: [
-            { path: "test/ladder.test.ts", lines: 180, assertions: 24, tautologies: [] },
-            { path: "test/csv-reader.test.ts", lines: 96, assertions: 11, tautologies: [] },
+            { path: "test/ladder.test.ts", lines: 180, kind: "test" as const, assertions: 24, tautologies: [] },
+            { path: "test/csv-reader.test.ts", lines: 96, kind: "test" as const, assertions: 11, tautologies: [] },
           ],
         }),
       }),
@@ -153,8 +153,8 @@ export const CODE_COUNTER_RULES: readonly CodeRule[] = [
       mutated: (base) => ({
         artifact: patch(base, {
           tests: [
-            { path: "test/ladder.test.ts", lines: 180, assertions: 24, tautologies: [{ line: 4, text: "expect(true).toBe(true)" }] },
-            { path: "test/csv-reader.test.ts", lines: 96, assertions: 11, tautologies: [] },
+            { path: "test/ladder.test.ts", lines: 180, kind: "test" as const, assertions: 24, tautologies: [{ line: 4, text: "expect(true).toBe(true)" }] },
+            { path: "test/csv-reader.test.ts", lines: 96, kind: "test" as const, assertions: 11, tautologies: [] },
           ],
         }),
       }),

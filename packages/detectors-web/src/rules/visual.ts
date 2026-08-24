@@ -33,8 +33,36 @@ import type { WebRule } from "../rule.js";
  */
 const HUE_BAND = { lo: 210, hi: 300 } as const;
 
-const AI_DEFAULT_SANS = /^(inter|geist|geist sans|space grotesk)$/i;
+const AI_DEFAULT_SANS = /^(inter|geist|geist sans|geistsans|space grotesk)$/i;
 const AI_DEFAULT_SERIF = /^(instrument serif|fraunces|playfair display|playfair)$/i;
+
+/**
+ * The family name as a human would say it, from the family name a browser actually computes.
+ *
+ * THIS IS THE SAME BUG AS THE HUE BAND, ONE FILE ACROSS. The rules above match `^inter$`, and
+ * the single most common way Inter reaches a page in 2026 is `next/font`, which rewrites the
+ * family to a build-hashed identifier: `__Inter_36bd41`, with `__Inter_Fallback_36bd41`
+ * behind it. The probe reads the first computed family, so the string these rules were handed
+ * on a real generated Next.js site was never `Inter` and the match was never going to happen.
+ * The rule fired on the fixture, passed the meta-suite, and was dead on the live web.
+ *
+ * It is worse than a missed signal on the counter side: `counter.licensed-foundry-face` asks
+ * whether a self-hosted face is absent from the free list, and `__Inter_36bd41` is absent
+ * from every list. A generated Next.js page was collecting CREDIT for licensing a typeface it
+ * had downloaded from Google.
+ *
+ * Handled: the next/font hash wrapper, the `Fallback` twin, underscore separators, and the
+ * `Variable`/`var`/`VF` suffixes foundries ship variable files under.
+ */
+export function normalizeFamily(raw: string): string {
+  let f = raw.replace(/["']/g, "").trim();
+  const hashed = /^__(.+?)_(?:[A-Za-z0-9]{6,})$/.exec(f);
+  if (hashed) f = hashed[1] as string;
+  f = f.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  f = f.replace(/\s+(?:fallback|variable|var|vf)$/i, "");
+  f = f.replace(/(?<=[a-z])(?:Variable|VF)$/, "");
+  return f.trim();
+}
 
 /** Rough hue of an rgb triple, 0..360. Enough to separate violet-blue from everything else. */
 function hueOf(r: number, g: number, b: number): number | null {
@@ -199,7 +227,7 @@ export const VISUAL_RULES: readonly WebRule[] = [
     prevention: "Any other competent face moves the read. It does not have to be expensive: none of the four funded comparables measured used Inter as their real face.",
     detect: (a) => {
       const h = a.type.hero;
-      if (!h || !AI_DEFAULT_SANS.test(h.family.trim())) return [];
+      if (!h || !AI_DEFAULT_SANS.test(normalizeFamily(h.family))) return [];
       return [ev("css", `font-family on ${h.selector}`, h.family, { expected: "a face chosen for this project" })];
     },
     fixtures: {
@@ -209,6 +237,36 @@ export const VISUAL_RULES: readonly WebRule[] = [
       mutated: (base) => ({
         artifact: patch(base, { type: { hero: { selector: "h1", family: "Focal Maxi", weightNum: 700, sizePx: 40, letterSpacingEm: -0.01 } } }),
       }),
+      extra: [
+        {
+          // The form the rule met on the live web and could not read.
+          name: "Inter shipped through next/font, as a build-hashed family name, still fires",
+          shouldFire: true,
+          build: (base) => ({
+            artifact: patch(base, {
+              type: { hero: { selector: "h1", family: "__Inter_36bd41", weightNum: 700, sizePx: 40, letterSpacingEm: -0.01 } },
+            }),
+          }),
+        },
+        {
+          name: "Space Grotesk through next/font, underscored and hashed, still fires",
+          shouldFire: true,
+          build: (base) => ({
+            artifact: patch(base, {
+              type: { hero: { selector: "h1", family: "__Space_Grotesk_e1a2b3", weightNum: 700, sizePx: 40, letterSpacingEm: -0.01 } },
+            }),
+          }),
+        },
+        {
+          name: "a different face that merely starts with the same letters does not fire",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, {
+              type: { hero: { selector: "h1", family: "Inter Tight", weightNum: 700, sizePx: 40, letterSpacingEm: -0.01 } },
+            }),
+          }),
+        },
+      ],
     },
   },
   {
@@ -228,7 +286,7 @@ export const VISUAL_RULES: readonly WebRule[] = [
     prevention: "If warmth is the goal, get it from a face nobody else on the page is using this month.",
     detect: (a) => {
       const h = a.type.hero;
-      if (!h || !AI_DEFAULT_SERIF.test(h.family.trim())) return [];
+      if (!h || !AI_DEFAULT_SERIF.test(normalizeFamily(h.family))) return [];
       return [ev("css", `font-family on ${h.selector}`, h.family, { expected: "a display face chosen for this project" })];
     },
     fixtures: {
@@ -238,6 +296,17 @@ export const VISUAL_RULES: readonly WebRule[] = [
       mutated: (base) => ({
         artifact: patch(base, { type: { hero: { selector: "h1", family: "Crimson Pro", weightNum: 300, sizePx: 44, letterSpacingEm: 0 } } }),
       }),
+      extra: [
+        {
+          name: "Playfair Display through next/font, hashed and underscored, still fires",
+          shouldFire: true,
+          build: (base) => ({
+            artifact: patch(base, {
+              type: { hero: { selector: "h1", family: "__Playfair_Display_9f2c1a", weightNum: 400, sizePx: 44, letterSpacingEm: 0 } },
+            }),
+          }),
+        },
+      ],
     },
   },
   {

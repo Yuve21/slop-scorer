@@ -56,6 +56,21 @@ export {
   runCalibration,
 } from "./calibration/index.js";
 
+export type {
+  BacktestResult,
+  BacktestRow,
+  BacktestVerdict,
+  Baseline,
+  BaselineEntry,
+} from "./calibration/backtest.js";
+export {
+  backtest,
+  BASELINE_FORMAT_VERSION,
+  formatBacktest,
+  makeBaseline,
+  toBaselineEntries,
+} from "./calibration/backtest.js";
+
 export type { DeepPartial, Rule, RuleContext, RuleFixtureCase } from "./rule.js";
 export { ev, patch } from "./rule.js";
 

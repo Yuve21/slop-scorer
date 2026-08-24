@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -189,6 +189,155 @@ describe("the scanner reads what is actually on disk", () => {
     expect(t, "the fixture-writing test file was not scanned at all").toBeTruthy();
     expect(t?.tautologies, "a tautology quoted inside a string is data, not a test").toEqual([]);
     expect(t?.assertions ?? 0, "its real assertions must still be counted").toBeGreaterThan(0);
+  });
+
+  it("cites the line the duplicate actually starts on, in the real file", async () => {
+    // The first version used the index into the FILTERED line list as the citation, so every
+    // duplicate finding named a line that was not the line it had read. Checked against the
+    // file on disk rather than against the scanner's own arithmetic.
+    const dup = artifact.duplicates.find((d) => new Set(d.occurrences.map((o) => o.file)).size >= 3);
+    for (const occ of dup?.occurrences ?? []) {
+      const body = (await readFile(path.join(root, occ.file), "utf8")).split(/\r?\n/);
+      const line = body[occ.startLine - 1] ?? "";
+      expect(line.trim(), `${occ.file}:${occ.startLine} is not the start of the duplicated block`).toContain(
+        "export async function handler",
+      );
+    }
+  });
+
+  it("does not report a run of declarations as a duplicated block", async () => {
+    // Three files that share only a SCHEMA. With string contents erased, `id: "", family: "",`
+    // is the shape of every rule object in every rule corpus on GitHub, and this scanner
+    // reported three unrelated files in this very repository as copies of each other on the
+    // strength of it.
+    const dir = await mkdtemp(path.join(tmpdir(), "slop-decl-"));
+    for (const name of ["alpha", "beta", "gamma"]) {
+      await mkdir(path.join(dir, "src"), { recursive: true });
+      await writeFile(
+        path.join(dir, "src", `${name}.ts`),
+        [
+          "export const rule = {",
+          `  id: "${name}",`,
+          '  family: "shapes",',
+          `  title: "The ${name} rule",`,
+          '  polarity: "signal",',
+          '  severity: "medium",',
+          "  baseWeight: 0.6,",
+          "  maxHits: 3,",
+          '  requiresProbe: "source",',
+          "  phase: 1,",
+          '  since: "corpus-2026.09",',
+          `  explanation: "${name}",`,
+          `  falsePositiveNote: "${name}",`,
+          "};",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+    }
+    const declared = await scanRepo(dir, { readHistory: false });
+    expect(declared.duplicates, "three files sharing a schema are not three copies of a block").toEqual([]);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("records block comments, not just line comments", async () => {
+    // A fourteen-year-old C codebase full of `/* ... */` came back with ZERO comments, so both
+    // comment rules and the strongest counter rule in the corpus were dead on it, and on every
+    // Java, C++, CSS and JSDoc-commented codebase for the same reason.
+    const dir = await mkdtemp(path.join(tmpdir(), "slop-block-"));
+    await writeFile(
+      path.join(dir, "loop.c"),
+      [
+        "/* Poll with a zero timeout, because a blocking poll here deadlocks",
+        " * against the signal handler on AIX. See the 2019 regression. */",
+        "static void uv__io_poll(uv_loop_t* loop) {",
+        "  return;",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const c = await scanRepo(dir, { readHistory: false });
+    expect(c.comments.length, "no block comment was recorded at all").toBeGreaterThan(0);
+    expect(c.comments[0]?.line, "the block comment must cite its first line").toBe(1);
+    expect(c.comments[0]?.givesRationale, "a comment naming a deadlock and a regression is a reason").toBe(true);
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("knows a Go test file when it sees one, and does not read it as shipped source", async () => {
+    // gin is roughly half tests, every one of them `*_test.go`. The scanner reported it as
+    // having no tests and counted the `http://example.com` inside those tests as placeholder
+    // residue in production code. Two false findings from one JavaScript-shaped pattern.
+    const dir = await mkdtemp(path.join(tmpdir(), "slop-go-"));
+    await writeFile(path.join(dir, "context.go"), "package gin\n\nfunc New() int {\n  return 1\n}\n", "utf8");
+    await writeFile(
+      path.join(dir, "context_test.go"),
+      [
+        "package gin",
+        "",
+        "func TestNew(t *testing.T) {",
+        '  req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)',
+        "  assert.Equal(t, 1, New())",
+        "  require.NotNil(t, req)",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      path.join(dir, "benchmarks_test.go"),
+      "package gin\n\nfunc BenchmarkNew(b *testing.B) {\n  for i := 0; i < b.N; i++ {\n    New()\n  }\n}\n",
+      "utf8",
+    );
+    const go = await scanRepo(dir, { readHistory: false });
+    expect(go.tests.map((t) => t.path).sort()).toEqual(["benchmarks_test.go", "context_test.go"]);
+    expect(go.files.map((f) => f.path)).toEqual(["context.go"]);
+    expect(go.placeholders, "an example.com inside a test is not residue in shipped source").toEqual([]);
+    expect(go.tests.find((t) => t.path === "context_test.go")?.assertions ?? 0).toBeGreaterThan(0);
+    expect(
+      go.tests.find((t) => t.path === "benchmarks_test.go")?.kind,
+      "a benchmark measures; it is not a test that cannot fail",
+    ).toBe("benchmark");
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("marks a placeholder that is the definition of its own pattern", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "slop-self-"));
+    await mkdir(path.join(dir, "src"), { recursive: true });
+    await writeFile(
+      path.join(dir, "src", "patterns.ts"),
+      [
+        "export const PATTERNS = [",
+        '  { re: /\\bFIXME\\b/, marker: "FIXME" },',
+        '  { re: /\\blorem ipsum\\b/i, marker: "lorem ipsum" },',
+        '  { re: /\\bChangeMe\\b/i, marker: "ChangeMe" },',
+        "];",
+        '// FIXME: this one is a real unfinished job in a file that also defines the pattern',
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(path.join(dir, "src", "app.ts"), '// FIXME: finish the retry path\nexport const x = 1;\n', "utf8");
+    const self = await scanRepo(dir, { readHistory: false });
+    const table = self.placeholders.filter((p) => p.file.endsWith("patterns.ts") && p.definesItsOwnPattern);
+    expect(table.length, "a marker table entry must be recognised as defining its own pattern").toBeGreaterThanOrEqual(3);
+    const elsewhere = self.placeholders.find((p) => p.file.endsWith("app.ts"));
+    expect(elsewhere?.definesItsOwnPattern, "an ordinary FIXME is a use, not a definition").toBe(false);
+  });
+
+  it("does not walk gitignored dot-directories, and still finds agent files inside allowed ones", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "slop-dot-"));
+    await mkdir(path.join(dir, ".corpus-cache", "someone-elses-repo", "src"), { recursive: true });
+    await writeFile(path.join(dir, ".corpus-cache", "someone-elses-repo", "src", "x.ts"), "export const x = 1;\n", "utf8");
+    await mkdir(path.join(dir, ".cursor"), { recursive: true });
+    await writeFile(path.join(dir, ".cursor", "rules"), "always write tests\n", "utf8");
+    await writeFile(path.join(dir, "index.ts"), "export const y = 2;\n", "utf8");
+    const walked = await scanRepo(dir, { readHistory: false });
+    expect(walked.files.map((f) => f.path)).toEqual(["index.ts"]);
+    expect(walked.agentFiles.map((f) => f.path), "an agent file inside .cursor/ must still be found").toContain(
+      ".cursor/rules",
+    );
+    await rm(dir, { recursive: true, force: true });
   });
 
   it("reports history as unavailable when the caller disabled it, and that is not a finding", () => {

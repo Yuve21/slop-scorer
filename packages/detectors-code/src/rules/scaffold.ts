@@ -162,11 +162,18 @@ export const SCAFFOLD_RULES: readonly CodeRule[] = [
     explanation:
       "Six or more literal placeholders in source: `your-api-key-here`, `TODO: implement`, `lorem ipsum`, `example.com` in a config value, `Replace this`. A placeholder is an instruction to a human that no human read.",
     falsePositiveNote:
-      "TODOs are a normal and healthy way to record known gaps, and a mature codebase carries plenty. The rule needs six and prefers the never-filled-in kind, but it cannot tell a tracked TODO from an abandoned one.",
+      "TODOs are a normal and healthy way to record known gaps, and a mature codebase carries plenty. Markers that name an owner or a ticket are excluded as tracked work, but an untracked TODO somebody fully intends to return to still counts here.",
     prevention: "Fail the build on the placeholder strings your scaffold ships with. They are the ones nobody notices.",
     detect: (a) => {
-      if (a.placeholders.length < 6) return [];
-      return a.placeholders
+      // Attributed markers are excluded before the threshold, not after.
+      //
+      // `FIXME(bnoordhuis)` and `TODO(#412)` are the opposite of scaffold residue: a named
+      // owner against a known gap is knowledge that is not recoverable from the code. libuv,
+      // fourteen years old and hand-written, was pushed a whole band by attributed FIXMEs its
+      // authors deliberately left signed.
+      const untracked = a.placeholders.filter((p) => !p.attributed);
+      if (untracked.length < 6) return [];
+      return untracked
         .slice(0, 8)
         .map((p) => ev("line", `${p.file}:${p.line}`, p.marker, { expected: "a real value", excerpt: p.text.slice(0, 160) }));
     },
@@ -178,10 +185,30 @@ export const SCAFFOLD_RULES: readonly CodeRule[] = [
             line: 10 + i * 4,
             marker: "your-api-key-here",
             text: `const key = "your-api-key-here"; // slot ${i}`,
+            definesItsOwnPattern: false,
+            attributed: false,
           })),
         }),
       }),
       mutated: (base) => ({ artifact: patch(base, { placeholders: [] }) }),
+      extra: [
+        {
+          name: "seven placeholders that all name an owner or a ticket are tracked work, not residue",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, {
+              placeholders: Array.from({ length: 7 }, (_, i) => ({
+                file: "src/unix/fs.c",
+                line: 40 + i * 9,
+                marker: "FIXME",
+                text: `/* FIXME(bnoordhuis): translate the error, see issue ${400 + i} */`,
+                definesItsOwnPattern: false,
+                attributed: true,
+              })),
+            }),
+          }),
+        },
+      ],
     },
   },
 ];

@@ -1,6 +1,7 @@
 import type { Finding } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { WebRule } from "../rule.js";
+import { normalizeFamily } from "./visual.js";
 
 /**
  * Counter-evidence: the rules that argue for the artifact.
@@ -104,7 +105,11 @@ export const COUNTER_RULES: readonly WebRule[] = [
       "A face can be absent from the free list because it is obscure rather than because it is paid for, and a trial or DEMO build is licence sloppiness rather than investment. Read the src, it is printed.",
     detect: (a) =>
       a.type.faces
-        .filter((f) => !FREE_FACES.has(f.family.trim().toLowerCase()) && isSelfHosted(f.src))
+        // Normalised first. `next/font` self-hosts Google faces under a build-hashed family
+        // name (`__Inter_36bd41`), which is absent from every free-face list ever written, so
+        // an unnormalised lookup handed a generated Next.js page counter-evidence for
+        // "licensing a typeface" it had downloaded for nothing.
+        .filter((f) => !FREE_FACES.has(normalizeFamily(f.family).toLowerCase()) && isSelfHosted(f.src))
         .map((f) => ev("css", `@font-face src for "${f.family}"`, f.src, { expected: "n/a: this argues FOR the artifact" })),
     fixtures: {
       positive: (base) => ({
@@ -114,6 +119,15 @@ export const COUNTER_RULES: readonly WebRule[] = [
         artifact: patch(base, { type: { faces: [{ family: "Inter", src: "/fonts/inter-var.woff2" }] } }),
       }),
       extra: [
+        {
+          name: "a free face self-hosted by next/font under a hashed name is not a licensed face",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, {
+              type: { faces: [{ family: "__Inter_36bd41", src: "/_next/static/media/a1b2c3.p.woff2" }] },
+            }),
+          }),
+        },
         {
           name: "a paid face loaded from a third-party CDN is not self-hosted and does not count",
           shouldFire: false,

@@ -1,0 +1,136 @@
+[
+  {
+    "id": "express",
+    "label": "human",
+    "source": "github.com/expressjs/express @ 023767fe",
+    "provenance": "Created by TJ Holowaychuk in 2009 and maintained since 2016 by the OpenJS Foundation under a published governance document with a named technical committee. Over fifteen years and more than five thousand commits predate any generally available generative coding tool.",
+    "sha": "023767fe9872e029271df1418f73401bff20ff40",
+    "include": [
+      "lib/**/*.js",
+      "index.js",
+      "test/*.js"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "lodash",
+    "label": "human",
+    "source": "github.com/lodash/lodash @ a666ba59",
+    "provenance": "Written by John-David Dalton from 2012 as a fork of Underscore, with a documented release history and a named author on every release since. The library is a dependency of a large share of the npm registry and predates generative coding by a decade.",
+    "sha": "a666ba591064c8011988275790ad7d625279f09c",
+    "include": [
+      "lib/**/*.js",
+      "*.js"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "chalk",
+    "label": "human",
+    "source": "github.com/chalk/chalk @ 661317e6",
+    "provenance": "Sindre Sorhus, author of record since 2013, with a public sponsorship page, a personal release history and a review culture visible in the pull request archive. Small enough that a reader can check every line of the scanned set by hand.",
+    "sha": "661317e6f91fe7c90306c2c48ea9354562ee9146",
+    "include": [
+      "source/**/*.js",
+      "*.js"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "requests",
+    "label": "human",
+    "source": "github.com/psf/requests @ 8f8b212d",
+    "provenance": "Written by Kenneth Reitz from 2011 and donated to the Python Software Foundation in 2019, which now holds the copyright and names the maintainers. The 2.x line was complete years before generative coding tools existed.",
+    "sha": "8f8b212de8c2129d7954c6cd373762880375620a",
+    "include": [
+      "src/requests/**/*.py"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "flask",
+    "label": "human",
+    "source": "github.com/pallets/flask @ d318b683",
+    "provenance": "Armin Ronacher, 2010, now maintained by the Pallets organisation with a named team, a funded maintenance programme and a public governance document. The framework's core shape has been stable since well before 2022.",
+    "sha": "d318b683471101618febed18996405ad26462110",
+    "include": [
+      "src/flask/**/*.py"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "sinatra",
+    "label": "human",
+    "source": "github.com/sinatra/sinatra @ cb22afd7",
+    "provenance": "Blake Mizerany, 2007, with a named maintainer team and a CHANGELOG that credits contributors by name across seventeen years. Included specifically because Ruby is outside the JavaScript and Python centre of gravity of most generated code.",
+    "sha": "cb22afd7902b566b6eaba6c4ea89739494a65d12",
+    "include": [
+      "lib/**/*.rb"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "jekyll",
+    "label": "human",
+    "source": "github.com/jekyll/jekyll @ 74d75133",
+    "provenance": "Tom Preston-Werner, 2008, later maintained by a named core team and used by GitHub Pages itself. Sixteen years of history with a documented release process and a signed contributor code of conduct.",
+    "sha": "74d751339d3e534aa51d5d7b0640e9bd743509e4",
+    "include": [
+      "lib/jekyll/*.rb"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "gin",
+    "label": "human",
+    "source": "github.com/gin-gonic/gin @ dcaa4296",
+    "provenance": "Manu Martinez-Almeida, 2014, with a named maintainer list in the repository and eight years of history before 2022. Go was chosen for the corpus because its formatter enforces exactly the structural uniformity this detector's weakest family measures.",
+    "sha": "dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9",
+    "include": [
+      "*.go"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "ripgrep",
+    "label": "human",
+    "source": "github.com/BurntSushi/ripgrep @ 3fce3b5b",
+    "provenance": "Andrew Gallant, 2016, single named author for the great majority of the code, with long design write-ups published under his own name explaining the decisions behind it. The knowledge in the comments is traceable to those essays.",
+    "sha": "3fce3b5bb0236da2df6d99672afb8a719642eca7",
+    "include": [
+      "crates/core/**/*.rs"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "libuv",
+    "label": "human",
+    "source": "github.com/libuv/libuv @ f87c8e4f",
+    "provenance": "Started in 2011 for Node.js and governed by the OpenJS Foundation, with a MAINTAINERS file, a formal collaborator process and a fourteen-year commit archive. C is in the corpus so the comment and uniformity families are exercised outside the languages generators are best at.",
+    "sha": "f87c8e4f70f234b952d9c47b15fb567f78e5f399",
+    "include": [
+      "src/*.c",
+      "src/unix/*.c",
+      "include/*.h"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "synthetic-scaffold",
+    "label": "generated",
+    "source": "written by scripts/fixtures/synthetic-scaffold.mjs, scanned off disk",
+    "provenance": "Generated by this repository's own capture script to the shape a scaffold plus an agent pass produces: a create-next-app README, an agent instruction file, a committed session transcript, eighteen handlers of restating comments, unfilled placeholders, three files carrying one identical block, four unused dependencies, no tests, and fourteen conventional commits inside ninety minutes. Its label is 'generated' because we generated it, which is the only label in this corpus that needs no trust at all.",
+    "sha": null,
+    "include": [],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "synthetic-agent-pass",
+    "label": "generated",
+    "source": "written by scripts/fixtures/synthetic-scaffold.mjs, scanned off disk",
+    "provenance": "Generated by this repository's own capture script as the case the product must survive after everyone learns to delete CLAUDE.md: no agent artifact of any kind, no scaffold README, no placeholders. Fourteen files of near-identical length, two near-identical functions each, and a test suite whose one assertion cannot fail. It can only be recognised by shape, so it is what keeps the shape families honest.",
+    "sha": null,
+    "include": [],
+    "capturedAt": "2026-08-24"
+  }
+]
