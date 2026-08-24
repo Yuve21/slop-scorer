@@ -1,0 +1,532 @@
+import { ev, patch } from "../rule.js";
+import type { WebRule } from "../rule.js";
+
+/**
+ * Family: visual-default.
+ *
+ * The highest false-positive risk in the corpus, and the reason the family is capped at 25%
+ * and can never reach the top band on its own. Skilled human designers converge. Everything
+ * in here is "this looks like the current default", which is a weaker claim than it feels.
+ *
+ * THE RULE THAT IS DELIBERATELY NOT HERE: the cream / warm-paper palette.
+ *
+ * Every competing vibe-code detector treats a cream background as a tell. It is measured
+ * that it is not. Of four well-funded, design-literate, human-made comparables read out of
+ * live CSS in August 2026, THREE use a warm off-white: #F0EBDC (Overtone, Hinge founder,
+ * $18M), #FFFBF0 (Rodeo, $8.5M seed) and #F6F2EA. Warm paper is category convention in
+ * 2026, not evidence of generation. Encoding it as a positive rule would fail three of four
+ * known-human sites on the corpus's own calibration set.
+ *
+ * It appears instead as `counter.category-convention-palette` in counter.ts, where a cream
+ * background STANDING ALONE lowers the score and says why. That is the honest encoding of a
+ * measured fact, and it is the difference between a corpus and a list of vibes.
+ */
+
+/**
+ * The blue-through-violet band, in degrees.
+ *
+ * Named rather than inlined because the first version of it (230-290) could not express
+ * Tailwind's blue-500 at hue 217, which is half of the single most common generated
+ * gradient there is. The rule therefore matched nothing and quietly lowered every score it
+ * touched. A threshold that cannot express its own canonical example is the same failure as
+ * a regex that cannot express its own input: it fails in silence and reads as a clean result.
+ */
+const HUE_BAND = { lo: 210, hi: 300 } as const;
+
+const AI_DEFAULT_SANS = /^(inter|geist|geist sans|space grotesk)$/i;
+const AI_DEFAULT_SERIF = /^(instrument serif|fraunces|playfair display|playfair)$/i;
+
+/** Rough hue of an rgb triple, 0..360. Enough to separate violet-blue from everything else. */
+function hueOf(r: number, g: number, b: number): number | null {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d < 24) return null; // near-grey: no meaningful hue
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60;
+  return h < 0 ? h + 360 : h;
+}
+
+function colorStops(css: string): { text: string; rgb: [number, number, number] }[] {
+  const out: { text: string; rgb: [number, number, number] }[] = [];
+  const rgbRe = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/g;
+  for (let m = rgbRe.exec(css); m; m = rgbRe.exec(css)) {
+    out.push({ text: m[0], rgb: [Number(m[1]), Number(m[2]), Number(m[3])] });
+  }
+  const hexRe = /#([0-9a-f]{6})\b/gi;
+  for (let m = hexRe.exec(css); m; m = hexRe.exec(css)) {
+    const h = m[1] as string;
+    out.push({
+      text: m[0],
+      rgb: [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)],
+    });
+  }
+  return out;
+}
+
+export const VISUAL_RULES: readonly WebRule[] = [
+  {
+    id: "css.violet-blue-gradient",
+    family: "visual-default",
+    title: "Hero uses the violet-to-blue gradient",
+    polarity: "signal",
+    severity: "medium",
+    baseWeight: 0.6,
+    maxHits: 1,
+    requiresProbe: "computed-style",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Two or more stops in the 210-300 degree hue band on the hero background. Blue through indigo through violet is the single most-reproduced default in generated marketing pages, and the canonical version of it is the Tailwind ramp's blue-500 to indigo-500.",
+    falsePositiveNote:
+      "Plenty of real brands are blue or purple, and a blue-to-indigo gradient is a perfectly ordinary thing to choose. The rule requires TWO stops inside the band, on the hero specifically, and a genuinely violet brand will still trip it.",
+    prevention: "Pick a palette from something real: a photograph, a material, a printed reference. Not two adjacent stops of the default ramp.",
+    detect: (a) => {
+      const g = a.color.heroGradient;
+      if (!g) return [];
+      const stops = colorStops(g).filter(({ rgb }) => {
+        const h = hueOf(rgb[0], rgb[1], rgb[2]);
+        return h !== null && h >= HUE_BAND.lo && h <= HUE_BAND.hi;
+      });
+      if (stops.length < 2) return [];
+      return [
+        ev("css", "background-image on the hero", g.slice(0, 160), {
+          expected: "a palette that is not two adjacent stops of the default blue-violet ramp",
+        }),
+      ];
+    },
+    fixtures: {
+      // Tailwind indigo-500 (hue 239) to blue-500 (hue 217). The band was originally written
+      // as 230-290 and could not express blue-500 at all, so this rule fired on nothing and
+      // was silently lowering the score of every page it should have flagged. Caught by the
+      // mutation meta-test on the first run, which is precisely what that test is for.
+      positive: (base) => ({
+        artifact: patch(base, {
+          color: { heroGradient: "linear-gradient(135deg, rgb(99, 102, 241) 0%, rgb(59, 130, 246) 100%)" },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, {
+          color: { heroGradient: "linear-gradient(135deg, rgb(214, 84, 58) 0%, rgb(232, 168, 74) 100%)" },
+        }),
+      }),
+      extra: [
+        {
+          name: "one stop in the band alongside a warm stop does not fire",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, {
+              // stripe.com's actual hero: cyan (189), blue (211), orange (21). One stop.
+              color: {
+                heroGradient: "linear-gradient(190deg, rgb(0, 217, 255) 0%, rgb(0, 122, 255) 40%, rgb(255, 88, 0) 100%)",
+              },
+            }),
+          }),
+        },
+        {
+          name: "violet to fuchsia, the other canonical pair, fires",
+          shouldFire: true,
+          build: (base) => ({
+            artifact: patch(base, {
+              color: { heroGradient: "linear-gradient(135deg, rgb(139, 92, 246) 0%, rgb(168, 85, 247) 100%)" },
+            }),
+          }),
+        },
+      ],
+    },
+  },
+  {
+    id: "css.crushed-tracking",
+    family: "visual-default",
+    title: "Headline letter-spacing is crushed at a heavy weight",
+    polarity: "signal",
+    severity: "medium",
+    baseWeight: 0.6,
+    maxHits: 1,
+    requiresProbe: "computed-style",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Computed letter-spacing at or below -0.03em on a headline set at weight 700 or heavier. Tight tracking on a heavy grotesque is the default 'looks designed' move and it is applied without measuring.",
+    falsePositiveNote:
+      "Some faces genuinely want negative tracking at display size, and a type-literate designer may choose exactly this. It is a taste signal, not a provenance signal.",
+    prevention: "Loosen to about -0.02em, or drop the weight. Optical tracking is a per-face decision, not a global -0.04em.",
+    detect: (a) => {
+      const h = a.type.hero;
+      if (!h || h.weightNum < 700 || h.letterSpacingEm > -0.03) return [];
+      return [
+        ev("css", `letter-spacing on ${h.selector}`, `${h.letterSpacingEm}em at weight ${h.weightNum}`, {
+          expected: "-0.02em or looser at weight 700+",
+        }),
+      ];
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Grafier", weightNum: 800, sizePx: 40, letterSpacingEm: -0.04 } } }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Grafier", weightNum: 800, sizePx: 40, letterSpacingEm: -0.01 } } }),
+      }),
+      extra: [
+        {
+          name: "crushed tracking at a light weight does not fire",
+          shouldFire: false,
+          build: (base) => ({
+            artifact: patch(base, { type: { hero: { selector: "h1", family: "Grafier", weightNum: 300, sizePx: 40, letterSpacingEm: -0.05 } } }),
+          }),
+        },
+      ],
+    },
+  },
+  {
+    id: "css.default-sans",
+    family: "visual-default",
+    title: "The real headline face is one of the AI-default sans set",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.5,
+    maxHits: 1,
+    requiresProbe: "font-faces",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Inter, Geist or Space Grotesk as the actual rendered headline face. Free, excellent, and the default output of every generator, which is exactly why it reads as one.",
+    falsePositiveNote:
+      "Inter is a genuinely great typeface used deliberately by serious teams. This is the weakest kind of evidence in the corpus and it is weighted accordingly.",
+    prevention: "Any other competent face moves the read. It does not have to be expensive: none of the four funded comparables measured used Inter as their real face.",
+    detect: (a) => {
+      const h = a.type.hero;
+      if (!h || !AI_DEFAULT_SANS.test(h.family.trim())) return [];
+      return [ev("css", `font-family on ${h.selector}`, h.family, { expected: "a face chosen for this project" })];
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Inter", weightNum: 700, sizePx: 40, letterSpacingEm: -0.01 } } }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Focal Maxi", weightNum: 700, sizePx: 40, letterSpacingEm: -0.01 } } }),
+      }),
+    },
+  },
+  {
+    id: "css.ai-serif",
+    family: "visual-default",
+    title: "The display face is one of the AI-default serif set",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.5,
+    maxHits: 1,
+    requiresProbe: "font-faces",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Instrument Serif, Fraunces or Playfair Display as the display face. The 'add warmth' move that replaced the purple gradient, and now just as automatic.",
+    falsePositiveNote: "All three are good faces. Using one is a convention, not a confession.",
+    prevention: "If warmth is the goal, get it from a face nobody else on the page is using this month.",
+    detect: (a) => {
+      const h = a.type.hero;
+      if (!h || !AI_DEFAULT_SERIF.test(h.family.trim())) return [];
+      return [ev("css", `font-family on ${h.selector}`, h.family, { expected: "a display face chosen for this project" })];
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Instrument Serif", weightNum: 400, sizePx: 44, letterSpacingEm: 0 } } }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Crimson Pro", weightNum: 300, sizePx: 44, letterSpacingEm: 0 } } }),
+      }),
+    },
+  },
+  {
+    id: "dom.eyebrow-count",
+    family: "visual-default",
+    title: "Tracked-uppercase eyebrow labels above headings, repeatedly",
+    polarity: "signal",
+    severity: "medium",
+    baseWeight: 0.5,
+    maxHits: 3,
+    requiresProbe: "dom-survey",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Three or more small tracked-uppercase kicker labels sitting above section headings. One is a design choice. Several is a template filling a slot it was given.",
+    falsePositiveNote:
+      "Editorial and enterprise design systems use eyebrows correctly and often. The signal is the COUNT, and the threshold is a judgement call.",
+    prevention: "Keep at most two on a page. If a section needs a label to be understood, the heading is not doing its job.",
+    detect: (a) => {
+      if (a.dom.eyebrows.length < 3) return [];
+      return a.dom.eyebrows.map((e) => ev("selector", e.selector, e.text, { expected: "at most two per page" }));
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          dom: {
+            eyebrows: [
+              { selector: "section:nth-child(1) .eyebrow", text: "EARLY ACCESS" },
+              { selector: "section:nth-child(2) .eyebrow", text: "HOW IT WORKS" },
+              { selector: "section:nth-child(3) .eyebrow", text: "WHY IT MATTERS" },
+              { selector: "section:nth-child(4) .eyebrow", text: "READY WHEN YOU ARE" },
+            ],
+          },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, {
+          dom: { eyebrows: [{ selector: "section:nth-child(1) .eyebrow", text: "EARLY ACCESS" }] },
+        }),
+      }),
+    },
+  },
+  {
+    id: "dom.uniform-cards",
+    family: "visual-default",
+    title: "A grid of identical cards, same radius, border and shadow",
+    polarity: "signal",
+    severity: "medium",
+    baseWeight: 0.5,
+    maxHits: 3,
+    requiresProbe: "dom-survey",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Six or more blocks sharing one exact radius-border-shadow signature. Content of different importance rendered at identical visual weight is what a template does when it has nothing to say about hierarchy.",
+    falsePositiveNote:
+      "This is also what a good design system produces. A consistent card is a feature. The tell is that EVERYTHING is a card, including the things that should not be.",
+    prevention: "Break the grid. Give the one thing that matters a different treatment, and let the rest be a list.",
+    detect: (a) => {
+      const groups = new Map<string, string[]>();
+      for (const c of a.dom.cards) {
+        const sig = `${c.radius}|${c.border}|${c.shadow}`;
+        groups.set(sig, [...(groups.get(sig) ?? []), c.selector]);
+      }
+      const out = [];
+      for (const [sig, selectors] of groups) {
+        if (selectors.length < 6) continue;
+        out.push(
+          ev("css", selectors.slice(0, 3).join(", "), `${selectors.length} blocks share ${sig}`, {
+            expected: "hierarchy: not every block at the same visual weight",
+          }),
+        );
+      }
+      return out;
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          dom: {
+            cards: Array.from({ length: 8 }, (_, i) => ({
+              selector: `.card:nth-of-type(${i + 1})`,
+              radius: "16px",
+              border: "1px solid rgba(0,0,0,0.06)",
+              shadow: "rgba(0,0,0,0.04) 0px 1px 2px 0px, rgba(0,0,0,0.06) 0px 6px 16px 0px",
+            })),
+          },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, {
+          dom: {
+            cards: Array.from({ length: 3 }, (_, i) => ({
+              selector: `.card:nth-of-type(${i + 1})`,
+              radius: "16px",
+              border: "1px solid rgba(0,0,0,0.06)",
+              shadow: "rgba(0,0,0,0.04) 0px 1px 2px 0px, rgba(0,0,0,0.06) 0px 6px 16px 0px",
+            })),
+          },
+        }),
+      }),
+    },
+  },
+  {
+    id: "dom.ping-dot",
+    family: "visual-default",
+    title: "A pulsing status dot in a pill",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.4,
+    maxHits: 2,
+    requiresProbe: "dom-survey",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "A small element running a ping or pulse keyframe, usually inside a 'Launching soon' pill. Two named tells in one 120px component, and it is almost never signalling anything live.",
+    falsePositiveNote: "A dashboard with a real live-status indicator has a genuine reason for this and should be read as such.",
+    prevention: "If nothing is actually live, make it a static dot or plain type.",
+    detect: (a) => a.dom.pingDots.map((d) => ev("selector", d.selector, d.animation, { expected: "no animation, unless something is genuinely live" })),
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, { dom: { pingDots: [{ selector: ".pill span.dot", animation: "ping 1s cubic-bezier(0,0,0.2,1) infinite" }] } }),
+      }),
+      mutated: (base) => ({ artifact: patch(base, { dom: { pingDots: [] } }) }),
+    },
+  },
+  {
+    id: "css.one-family",
+    family: "visual-default",
+    title: "One typeface for the entire page",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.4,
+    maxHits: 1,
+    requiresProbe: "computed-style",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "A single computed font-family across headings, body and UI. Every premium reference page in the calibration set has two voices; a monoculture is what you get when nobody chose.",
+    falsePositiveNote:
+      "One-face systems are a legitimate and sometimes excellent decision, particularly with a variable face carrying real optical range.",
+    prevention: "Add one second voice for display, or use a real optical-size axis so the headline is not just the body text made large.",
+    detect: (a) => {
+      if (a.type.familiesInUse.length !== 1) return [];
+      const only = a.type.familiesInUse[0] as string;
+      return [ev("css", "font-family across h1, body and UI", only, { expected: "at least two voices, or a real optical axis" })];
+    },
+    fixtures: {
+      positive: (base) => ({ artifact: patch(base, { type: { familiesInUse: ["Inter"] } }) }),
+      mutated: (base) => ({ artifact: patch(base, { type: { familiesInUse: ["Focal Maxi", "Focal"] } }) }),
+    },
+  },
+  {
+    id: "css.hero-scale",
+    family: "visual-default",
+    title: "Hero headline is oversized at mobile width",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.4,
+    maxHits: 1,
+    requiresProbe: "computed-style",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "A headline at 54px or more inside a 480px viewport. Scale used as a substitute for having something to say.",
+    falsePositiveNote:
+      "Editorial and fashion sites set enormous type on purpose and it works. This only counts alongside other visual defaults, which the family cap enforces.",
+    prevention: "Set the headline at the size the sentence needs. Four of four funded comparables measured set theirs lighter and smaller than the generated default.",
+    detect: (a) => {
+      const h = a.type.hero;
+      if (!h || a.viewport.width > 480 || h.sizePx < 54) return [];
+      return [ev("css", `font-size on ${h.selector}`, `${h.sizePx}px at ${a.viewport.width}px viewport`, { expected: "under 54px at mobile width" })];
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Grafier", weightNum: 400, sizePx: 58, letterSpacingEm: -0.01 } } }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, { type: { hero: { selector: "h1", family: "Grafier", weightNum: 400, sizePx: 40, letterSpacingEm: -0.01 } } }),
+      }),
+    },
+  },
+  {
+    id: "dom.icon-tile-stack",
+    family: "visual-default",
+    title: "Rounded icon tile stacked above every section heading",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.35,
+    maxHits: 3,
+    requiresProbe: "dom-survey",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Three or more sections opening with a rounded tile containing a line icon. A slot in the template, filled with whichever icon was nearest in meaning.",
+    falsePositiveNote: "A documentation or feature page with genuinely parallel sections has a real reason to repeat a pattern.",
+    prevention: "Drop the tiles. If an icon is not adding meaning that the heading lacks, it is decoration standing where content should be.",
+    detect: (a) => (a.dom.iconTiles.length < 3 ? [] : a.dom.iconTiles.map((t) => ev("selector", t.selector, "icon tile above a heading"))),
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          dom: { iconTiles: [{ selector: "section:nth-child(1) .tile" }, { selector: "section:nth-child(2) .tile" }, { selector: "section:nth-child(3) .tile" }] },
+        }),
+      }),
+      mutated: (base) => ({ artifact: patch(base, { dom: { iconTiles: [{ selector: "section:nth-child(1) .tile" }] } }) }),
+    },
+  },
+  {
+    id: "css.stock-shadow",
+    family: "visual-default",
+    title: "The two-layer diffuse stock shadow",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.35,
+    maxHits: 2,
+    requiresProbe: "computed-style",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "A tight 1-2px contact shadow paired with a wide soft one, at the default offsets. The elevation recipe every component library ships and nobody tunes.",
+    falsePositiveNote: "It is the recipe because it is a good recipe. Using a sensible default is not a defect on its own.",
+    prevention: "Tune the shadow to the surface, or use a hairline border instead. Elevation should say something about hierarchy.",
+    detect: (a) => {
+      const seen = new Set<string>();
+      const out = [];
+      for (const c of a.dom.cards) {
+        if (!/0px 1px 2px/.test(c.shadow)) continue;
+        if (!/0px (?:[4-9]|1\d)px (?:1[0-9]|2\d)px/.test(c.shadow)) continue;
+        if (seen.has(c.shadow)) continue;
+        seen.add(c.shadow);
+        out.push(ev("css", `box-shadow on ${c.selector}`, c.shadow, { expected: "a shadow tuned to this surface" }));
+      }
+      return out;
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          dom: {
+            cards: [
+              {
+                selector: ".card",
+                radius: "16px",
+                border: "1px solid rgba(0,0,0,0.06)",
+                shadow: "rgba(0,0,0,0.04) 0px 1px 2px 0px, rgba(0,0,0,0.06) 0px 6px 16px 0px",
+              },
+            ],
+          },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, {
+          dom: { cards: [{ selector: ".card", radius: "16px", border: "1px solid rgba(0,0,0,0.06)", shadow: "none" }] },
+        }),
+      }),
+    },
+  },
+  {
+    id: "dom.numbered-steps",
+    family: "visual-default",
+    title: "Tiny zero-padded numerals labelling sections",
+    polarity: "signal",
+    severity: "info",
+    baseWeight: 0.3,
+    maxHits: 3,
+    requiresProbe: "dom-survey",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation: "Three or more '01' style section numerals. A layout convention applied to content that is not actually sequential.",
+    falsePositiveNote: "A genuine step-by-step process is legitimately numbered, and numbering it is a kindness to the reader.",
+    prevention: "Number things that are steps. Do not number things that are simply next to each other.",
+    detect: (a) => {
+      const labels = a.dom.numberedLabels.filter((l) => /^0[1-9]$/.test(l.text.trim()));
+      if (labels.length < 3) return [];
+      return labels.map((l) => ev("selector", l.selector, l.text));
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          dom: {
+            numberedLabels: [
+              { selector: ".step:nth-of-type(1) .num", text: "01" },
+              { selector: ".step:nth-of-type(2) .num", text: "02" },
+              { selector: ".step:nth-of-type(3) .num", text: "03" },
+            ],
+          },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, { dom: { numberedLabels: [{ selector: ".step:nth-of-type(1) .num", text: "01" }] } }),
+      }),
+    },
+  },
+];

@@ -1,0 +1,147 @@
+import { ev, patch } from "../rule.js";
+import type { WebRule } from "../rule.js";
+
+/**
+ * Family: copy-tell. Capped at 5%, the smallest positive cap in the corpus.
+ *
+ * Cheap to compute and noisy as evidence. Prose style is the weakest signal available: it
+ * moves with the writer's habits, with house style, and with whatever the last editor read.
+ * These rules earn their place because they are ACTIONABLE for an agent in the prevention
+ * loop, not because they are good evidence. The cap says which of those two it is.
+ */
+
+const SLOP_LEXICON = [
+  /\bdelve\b/gi,
+  /\btapestry\b/gi,
+  /\bfurthermore\b/gi,
+  /\bseamless(?:ly)?\b/gi,
+  /\bnot only\b[^.!?]{0,80}\bbut also\b/gi,
+  /\bunlock the (?:power|potential)\b/gi,
+  /\bin today's fast-paced\b/gi,
+  /\belevate your\b/gi,
+  /\bgame-?changer\b/gi,
+];
+
+export const COPY_RULES: readonly WebRule[] = [
+  {
+    id: "copy.slop-lexicon",
+    family: "copy-tell",
+    title: "House vocabulary of generated marketing prose",
+    polarity: "signal",
+    severity: "low",
+    baseWeight: 0.25,
+    maxHits: 3,
+    requiresProbe: "text",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "Phrases that appear far more often in generated copy than in written-by-a-person copy: delve, tapestry, seamless, 'not only X but also Y', 'unlock the power of'.",
+    falsePositiveNote:
+      "All of these are ordinary English words. A human marketer reaching for the same register writes the same sentence, and this is why the family is capped near zero.",
+    prevention: "Say the specific thing. Most of these phrases are placeholders standing where a fact should be.",
+    detect: (a) => {
+      const text = a.text.innerText;
+      const out = [];
+      for (const re of SLOP_LEXICON) {
+        re.lastIndex = 0;
+        const m = re.exec(text);
+        if (!m) continue;
+        const at = m.index;
+        out.push(
+          ev("text", `rendered text at offset ${at}`, m[0], {
+            excerpt: text.slice(Math.max(0, at - 40), at + m[0].length + 40).replace(/\s+/g, " "),
+          }),
+        );
+      }
+      return out;
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          text: { innerText: "We delve into your workflow to unlock the power of seamless collaboration.", wordCount: 12 },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, { text: { innerText: "We make hinges in Leeds. Ring us on a weekday.", wordCount: 10 } }),
+      }),
+    },
+  },
+  {
+    id: "copy.em-dash-density",
+    family: "copy-tell",
+    title: "Em-dash density well above written-by-hand rates",
+    polarity: "signal",
+    severity: "info",
+    baseWeight: 0.2,
+    maxHits: 1,
+    requiresProbe: "text",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation:
+      "More than 1.5 em dashes per 100 rendered words. The em dash is the most reliable punctuation tell because it is almost never typed on a keyboard and almost always emitted by a model.",
+    falsePositiveNote:
+      "Editors and typographically careful writers use em dashes correctly and often. Publishing houses set them automatically. Density on a marketing page is the signal, not the character.",
+    prevention: "Commas, colons, periods and parentheses. Most em dashes are a sentence that did not want to end.",
+    detect: (a) => {
+      const words = a.text.wordCount;
+      if (words < 40) return [];
+      const dashes = (a.text.innerText.match(/—/g) ?? []).length;
+      const per100 = (dashes / words) * 100;
+      if (per100 < 1.5) return [];
+      return [
+        ev("metric", "em dashes per 100 rendered words", `${per100.toFixed(1)} (${dashes} in ${words} words)`, { expected: "under 1.5" }),
+      ];
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, {
+          text: {
+            innerText:
+              "Our platform — built for teams — helps you move faster. It is simple — and powerful. Everything you need — nothing you do not. " +
+              "We believe work should feel effortless, and that starts with tools that get out of the way so people can actually think about the problem in front of them today.",
+            wordCount: 60,
+          },
+        }),
+      }),
+      mutated: (base) => ({
+        artifact: patch(base, {
+          text: {
+            innerText:
+              "Our platform, built for teams, helps you move faster. It is simple and powerful. Everything you need, nothing you do not. " +
+              "We believe work should feel effortless, and that starts with tools that get out of the way so people can actually think about the problem in front of them today.",
+            wordCount: 60,
+          },
+        }),
+      }),
+    },
+  },
+  {
+    id: "copy.arrow-cta",
+    family: "copy-tell",
+    title: "Call to action ending in a trailing arrow",
+    polarity: "signal",
+    severity: "info",
+    baseWeight: 0.15,
+    maxHits: 2,
+    requiresProbe: "text",
+    phase: 1,
+    since: "corpus-2026.09",
+    explanation: "A button or link label ending in an arrow glyph. A decoration the template supplied, on a control that already looks like a control.",
+    falsePositiveNote: "A directional affordance is a reasonable design choice and reads fine. On its own this is nearly no evidence, which is what the weight says.",
+    prevention: "Let the verb do the work.",
+    detect: (a) => {
+      const out = [];
+      const re = /([A-Z][^\n.!?]{2,40}?)\s*(→|->)\s*(?:\n|$)/g;
+      for (let m = re.exec(a.text.innerText); m && out.length < 4; m = re.exec(a.text.innerText)) {
+        out.push(ev("text", "call to action label", m[0].trim(), { expected: "the label without the arrow" }));
+      }
+      return out;
+    },
+    fixtures: {
+      positive: (base) => ({
+        artifact: patch(base, { text: { innerText: "Join the waitlist →\nGet started →\n", wordCount: 6 } }),
+      }),
+      mutated: (base) => ({ artifact: patch(base, { text: { innerText: "Join the waitlist\nGet started\n", wordCount: 6 } }) }),
+    },
+  },
+];

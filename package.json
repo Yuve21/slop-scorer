@@ -1,0 +1,28 @@
+{
+  "name": "slop-scorer",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Score any artifact 0-100 for generated/template character, with citable evidence.",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "tsc -b --clean",
+    "verify": "npm run typecheck && npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "playwright": "^1.62.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

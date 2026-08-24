@@ -1,0 +1,19 @@
+{
+  "name": "@slop/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Detector plugin contract, rules-as-data scoring engine, and the receipt.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

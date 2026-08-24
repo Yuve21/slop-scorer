@@ -1,0 +1,37 @@
+{
+  "name": "slop-scorer-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server exposing scan_codebase, scan_ui and list_rules: cited, deterministic vibe-coded tells for coding agents.",
+  "license": "UNLICENSED",
+  "bin": {
+    "slop-scorer-mcp": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node ./dist/bin.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@slop/core": "*",
+    "@slop/detectors-code": "*",
+    "@slop/detectors-web": "*",
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": { "optional": true }
+  }
+}

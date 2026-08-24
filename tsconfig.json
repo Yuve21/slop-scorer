@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/detectors-web"
+    },
+    {
+      "path": "./packages/detectors-code"
+    },
+    {
+      "path": "./packages/mcp-server"
+    }
+  ]
+}

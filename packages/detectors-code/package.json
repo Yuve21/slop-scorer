@@ -1,0 +1,22 @@
+{
+  "name": "@slop/detectors-code",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repo detector: deterministic static analysis of a checkout for machine-generated tells.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@slop/core": "*"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@slop/detectors-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "First detector: scores a rendered web page against the web tell corpus.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@slop/core": "*"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": { "optional": true }
+  }
+}
