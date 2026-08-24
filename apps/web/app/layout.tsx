@@ -10,9 +10,14 @@ import { SITE_NAME, siteUrl } from "@/lib/site";
  * Three things here are load-bearing against our own detector rather than merely tidy:
  *
  *  - NO `next/font/google`. Any Google Fonts request is a third-party font request, which is
- *    a tell we encode. The faces are declared in globals.css against local sources only.
- *    The scaffold this file replaced imported Geist and Geist Mono, which is doubly wrong:
- *    Geist is on the banned list in the design mandate.
+ *    a tell we encode. The faces are IBM Plex Sans and IBM Plex Mono, self-hosted as subset
+ *    woff2 out of /public/fonts and declared in globals.css. The scaffold this file replaced
+ *    imported Geist and Geist Mono, which is doubly wrong: Geist is on the banned list in the
+ *    design mandate.
+ *    The two Regular files are preloaded by hand rather than by next/font, because they are
+ *    referenced from a plain @font-face and the browser would otherwise not discover them
+ *    until the stylesheet had parsed. Only the two Regulars: Medium is below the fold on
+ *    every surface, and preloading a file the first screen does not use is a wasted request.
  *  - `title.template`, so no route can ship "Create Next App" (craft.scaffold-title).
  *  - `alternates.canonical` is deliberately NOT set here. Metadata is inherited, so a
  *    canonical in the root layout silently points every route at "/" and every receipt
@@ -45,6 +50,22 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full">
+      <head>
+        <link
+          rel="preload"
+          href="/fonts/IBMPlexSans-Regular.subset.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/IBMPlexMono-Regular.subset.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="flex min-h-full flex-col bg-surface text-ink">
         <SiteNav />
         <main className="flex-1">{children}</main>

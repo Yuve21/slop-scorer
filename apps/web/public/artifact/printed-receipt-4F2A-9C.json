@@ -1,0 +1,13 @@
+{
+  "what": "A rendered image of a printed receipt. NOT a photograph, and never to be presented as one.",
+  "producedBy": "scripts/render-printed-receipt.mjs",
+  "renderer": "headless chromium via playwright, 680x980 at deviceScaleFactor 1.6",
+  "format": "PNG, deliberately. Our own probe classifies any jpg/webp/avif over 320px as photographic, so shipping this as a JPEG would make counter.real-photography fire on a picture nobody photographed. Exporting it as a PNG is how we avoid gaming our own rule with our own image.",
+  "typeface": "IBM Plex Mono, the site's own shipping face, inlined as base64",
+  "contentSource": "the live 4F2A-9C sample report, rebuilt from @slop/core and @slop/detectors-web",
+  "findings": 6,
+  "total": 82,
+  "corpusVersion": "corpus-2026.09",
+  "counterRulesEarned": "none. counter.real-photography and counter.handmade-artifact require a real photograph or a real hand-made mark, and a render is neither. We do not claim them.",
+  "bytes": 530815
+}

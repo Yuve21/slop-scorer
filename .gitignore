@@ -11,3 +11,10 @@ coverage/
 
 .vercel
 .env*
+
+# Audit and verification captures. Hundreds of full-page PNGs, regenerated on every run and
+# never referenced by the site. The 2026-08-24 UI audit left this decision open; this is it.
+.audit-shots/
+
+# A stray next build at the repo root (rather than in apps/web) leaves one of these behind.
+.next/

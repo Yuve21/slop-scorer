@@ -92,10 +92,16 @@ export default function MethodPage() {
       <section className="flex flex-col gap-5">
         <h2 className="text-h3 font-medium text-ink">The typeface, stated plainly</h2>
         <p className="max-w-[72ch] text-body text-ink">
-          The shipping faces are ABC Diatype and ABC Diatype Mono, self hosted, no third party
-          font request. The licence is not bought yet, so this build runs a documented local
-          fallback stack instead. We will not ship a trial or demo build of a commercial face:
-          that is a tell in our own corpus, and doing it while selling this product would be
+          The shipping faces are IBM Plex Sans and IBM Plex Mono, drawn by Bold Monday for IBM
+          and released under the SIL Open Font License. They are self hosted as four subset
+          woff2 files totalling 62.9 KB, served from this origin. There is no Google Fonts
+          link and no third party font request of any kind, because a third party font request
+          is itself something this corpus flags. We chose Plex because the sans and the mono
+          are one family on one skeleton, and a receipt is a document with a machine read
+          citation column running down it: the sentence and the locator under it have to be
+          the same voice. ABC Diatype remains the face we would rather license, and until
+          somebody pays for it we will not ship a trial or demo build of a commercial face.
+          That is a tell in our own corpus, and doing it while selling this product would be
           the least defensible thing on the site.
         </p>
       </section>

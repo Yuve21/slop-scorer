@@ -37,17 +37,67 @@ skill first.
 
 ## 1. Typeface
 
-### The decision
+### What actually shipped, 2026-08-24
 
-| Role | Face | Foundry | Weights shipped |
-|---|---|---|---|
-| Text + display | **ABC Diatype** | Dinamo (Berlin/Basel) | Regular 400, Medium 500 |
-| Evidence, locators, code, all numerals in a receipt | **ABC Diatype Mono** | Dinamo | Regular 400, Medium 500 |
+| Role | Face | Designer / foundry | Weights shipped | Licence |
+|---|---|---|---|---|
+| Text + display | **IBM Plex Sans** | Mike Abbink with Bold Monday | Regular 400, Medium 500 | SIL OFL 1.1 |
+| Evidence, locators, code, all numerals in a receipt | **IBM Plex Mono** | Bold Monday | Regular 400, Medium 500 | SIL OFL 1.1 |
 
-Self-hosted `woff2` out of `/public/fonts`. **Zero third-party font requests.** No Google Fonts CDN,
-no Adobe kit, no Fontshare link tag.
+Self-hosted `woff2` out of `/public/fonts`, subset by `scripts/vendor-fonts.mjs` from the official
+`@ibm/plex-sans@1.1.0` and `@ibm/plex-mono@2.5.0` npm packages. **Zero third-party font requests.**
+No Google Fonts CDN, no Adobe kit, no Fontshare link tag. Verified in a browser against the built
+site: `document.fonts` reports all four faces `loaded`, the computed stack head on every heading is
+`IBM Plex Sans`, the mono column is `IBM Plex Mono`, and the page makes zero off-origin requests.
 
-### Why this and not the alternatives
+| File | Subset | Shipped |
+|---|---|---|
+| `IBMPlexSans-Regular.subset.woff2` | see below | 17.6 KB |
+| `IBMPlexSans-Medium.subset.woff2` | | 18.7 KB |
+| `IBMPlexMono-Regular.subset.woff2` | | 13.1 KB |
+| `IBMPlexMono-Medium.subset.woff2` | | 13.4 KB |
+| **Total** | | **62.9 KB** |
+
+Half the 120 KB cap and 40 KB under the Diatype budget below. Hinting is kept (it costs about 5 KB a
+file) because most of this site is 13-16px text and a large share of the audience is on Windows,
+where DirectWrite uses it.
+
+**The subset range is measured, not copied.** It is the union of Latin-1, the two Latin-Extended-A
+letters Plex's kerning expects, General Punctuation, the currency and trademark marks, and
+`U+2190-2193`. That last one is load-bearing: `→` is set ten times in this codebase and is **absent
+from Google Fonts' "latin" subset**, which carries only `U+2191` and `U+2193`. Shipping the
+`@fontsource` latin build would have dropped every arrow on the site to a fallback face at a
+different width — the exact class of defect this product sells the detection of. Emoji and CJK are
+deliberately excluded: they appear in this repo only as detector *inputs*, never as UI chrome.
+
+Loading: `font-display: swap` on all four, the two Regulars preloaded from the root layout (Medium is
+below the fold on every surface), and a metric-matched fallback pair whose four override numbers are
+measured rather than invented — `ascent/descent/line-gap` from the shipped subsets' `hhea` table with
+fonttools, `size-adjust` from rendering the same string in both faces in headless chromium against
+the running build. The numbers and their provenance are in the `globals.css` header.
+
+### Why IBM Plex, in one paragraph
+
+Plex is the only free, self-hostable, genuinely-drawn family on the shortlist whose sans and mono are
+**one design on one skeleton**, and that is the whole argument. This product's core UI is a document
+with a machine-read citation column running down it: a finding title in sans, its locator in mono,
+one baseline grid, one voice. Satoshi, Switzer and Cabinet Grotesk are all good faces with no mono
+sibling, so choosing one means a Frankenstein pairing in the single place the design cannot afford
+one. Plex is also a commissioned face with a designer and a brief rather than a default — it was
+drawn for IBM by Bold Monday, it has a slightly awkward humanist-grotesque temperament that reads as
+somebody's decision, and it carries none of the AI-default associations. It is not Inter, not Geist,
+not Space Grotesk, not General Sans (Lark's face — these two products must never look related), and
+not Söhne. Its one genuine cost: it is free, so it does **not** earn our own
+`counter.licensed-foundry-face`, which requires a self-hosted non-free face. We are not going to
+pretend otherwise, and the Diatype note below is what closes that gap when somebody pays for it.
+
+### The intended upgrade, still open: ABC Diatype
+
+Everything from here to the end of §1 describes the face we would rather have licensed. It is kept
+because the argument is still right and the purchase is still a live decision, **not** because it
+describes what is on the site. Nothing below is shipped.
+
+### Why Diatype and not the alternatives
 
 - **Inter / Geist / Space Grotesk are banned** by the founder mandate and by our own corpus — they are
   the three most common faces on vibe-coded sites. Using one is self-incrimination.
@@ -78,9 +128,18 @@ number I state as an estimate, not a quote.
 **Hard rule, from the corpus:** Overtone ships a `Focal *Trial*` build to production and Sitch ships
 `Belmonte Ballpoint *Trial*` and `Padlock Script *DEMO*`. We will not. There is no development period
 during which we run an unlicensed build "just locally" — the licensed webfont lands with the first
-commit that sets type, or we run the system stack until it does.
+commit that sets type, or we run a face we are entitled to run until it does.
 
-### Weight budget
+**How the interim was got wrong, so nobody repeats it.** The original wording of that rule was "or we
+run the system stack until it does", and `ABC Diatype` was left at the head of the CSS stack with its
+`@font-face` blocks commented out. The result was not a documented interim: it was a production site
+whose every headline silently rendered in **Segoe UI**, which `SELF-AUDIT.md` §4 had predicted in
+advance ("do not launch in the interim state and call it the design") and which the 2026-08-24 UI
+audit found first and ranked as the single largest contributor to the founder's verdict on the site.
+A font stack must only ever name faces that are actually being served. If a face is unbought, it does
+not appear in `--font-doc-sans`; it appears in this document.
+
+### Weight budget, as originally planned for Diatype
 
 | File | Subset | Est. |
 |---|---|---|
@@ -98,11 +157,54 @@ Loading: `font-display: swap`, plus a `@font-face` **fallback override** on the 
 using `size-adjust` / `ascent-override` / `descent-override` so the swap costs 0 CLS. Preload the two
 Regular files only; Medium is used below the fold on both surfaces.
 
-Fallback stack (also the pre-licence dev stack):
+Fallback stack (unchanged, and now sitting behind Plex rather than in front of nothing):
 `ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` and
 `ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace`.
 Note the absence of `Inter` and `system-ui` — `system-ui` resolves to Roboto/Inter-alikes and quietly
 reintroduces the tell on some Linux and Android configurations.
+
+**If the Diatype licence is bought:** run `scripts/vendor-fonts.mjs` as the model, drop the four
+woff2s into `public/fonts/`, swap the four `@font-face` blocks and the two custom properties in
+`globals.css`, re-measure the two `size-adjust` values against Diatype rather than reusing Plex's, and
+update the table at the top of this section. Plex stays in the stack behind it as the second name.
+
+---
+
+## 1b. The non-UI artifact
+
+`SELF-AUDIT.md` §Risk 1 named the largest open gap in this foundation: every human-made comparable
+carries **one object that is not UI** (Amata's photographed handwriting, Rodeo's joke domain,
+Overtone's 1,854-word essay) and we had none — the entire site was two SVG wireframes. Its proposal
+was to print a receipt, photograph it, and let that photograph be the only image on the site. The
+2026-08-24 UI audit repeated it as change 2 of 5.
+
+**What shipped is the render, not the photograph, and the difference is stated everywhere it appears.**
+
+| | |
+|---|---|
+| Asset | `apps/web/public/artifact/printed-receipt-4F2A-9C.png`, 518 KB, 1088×1568 |
+| Produced by | `scripts/render-printed-receipt.mjs` — headless chromium, committed, reproducible |
+| Component | `apps/web/components/artifact/printed-receipt.tsx`, a self-contained full-bleed `<section>` |
+| Provenance sidecar | `apps/web/public/artifact/printed-receipt-4F2A-9C.json`, served publicly |
+
+Four decisions in it are not cosmetic:
+
+1. **It is labelled as a render in three places**: the figure caption, the `alt` text, and printed on
+   the receipt inside the picture, in the same face and size as the rest of its footer, where a crop
+   cannot separate the label from the image. A product that sells the detection of unlabelled
+   synthetic imagery cannot carry an unlabelled synthetic image on its own homepage.
+2. **The content is real.** Every line is rebuilt from the live `4F2A-9C` report through `@slop/core`
+   and the corpus — the same six rule ids, the same points, the same 82.0 — rather than typed into a
+   mockup. The script asserts the finding count and the total and fails rather than draw a stale one.
+3. **It is a PNG, and it is served through a plain `<img>` rather than `next/image`.** Our own probe
+   classifies any jpg/webp/avif over 320px as `photographic`; a JPEG here, or a `next/image` re-encode
+   to webp, would make `counter.real-photography` fire on a picture nobody photographed. Not gaming
+   our own corpus with our own image is worth more than the bytes.
+4. **It claims no counter-evidence, and the page says so.** `counter.real-photography` and
+   `counter.handmade-artifact` both want something a person shot or made by hand. A render is neither
+   and we do not claim either. What it buys is a focal point on a page the audit measured as having
+   none. When somebody prints one on real stock and photographs it, the picture is replaced, the rule
+   fires honestly, and §1's `counter.licensed-foundry-face` gap is the only one left.
 
 ---
 
