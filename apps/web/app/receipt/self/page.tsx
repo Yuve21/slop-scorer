@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ReceiptView } from "@/components/receipt/receipt-view";
 import type { Reproduction } from "@/lib/reproduction";
-import { selfScan } from "@/lib/self-scan";
+import { capturedSelfScan, scanHost } from "@/lib/self-scan";
 import { absolute, siteUrl } from "@/lib/site";
 import { seconds } from "@/lib/view";
 
@@ -9,7 +9,13 @@ import { seconds } from "@/lib/view";
  * Our own receipt, in full, on the same surface any other artifact gets.
  *
  * This is a static segment sitting beside [id], so Next resolves /receipt/self here and never
- * to the sample lookup. That is deliberate: "self" is not a sample, it is a live run.
+ * to the sample lookup. That is deliberate: "self" is not a sample, it is a reading of us.
+ *
+ * It reads the SAME capture the fold does, scored on this request. The browser render happens
+ * in the build container (`scripts/capture-self-scan.mjs`) because the serverless runtime has
+ * no browser, and asking for a live one here produced a receipt that said, on every visit,
+ * that we could not finish. The claim below therefore states when the render happened instead
+ * of implying it happened just now.
  *
  * The reproduction state is `not_configured`, honestly. There is no image or layout
  * reproduction pipeline wired for a live web scan in this build, and rendering an empty pair
@@ -29,7 +35,8 @@ export const metadata: Metadata = {
   },
 };
 
-// A live measurement of the running deployment. Prerendering it would freeze a timestamp.
+// Scored per request from the captured artifact, so this receipt reflects the corpus this
+// deployment ships rather than whatever it said when a prerender happened to run.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -41,17 +48,20 @@ const REPRODUCTION: Reproduction = {
 };
 
 export default async function SelfReceiptPage() {
-  const { view } = await selfScan();
-  const assessed = view.status === "assessed";
+  const { view, commit } = await capturedSelfScan();
+  const ran = view.status !== "not_assessed";
+  const when = new Date(view.ranAt).toISOString().replace("T", " ").slice(0, 16);
 
   return (
     <ReceiptView
       id="SELF"
-      artifact={`this deployment of ${new URL(siteUrl()).host}, scanned by itself`}
-      headline={assessed ? "We ran it on us." : "We could not finish this one."}
+      artifact={`${scanHost(view.target || siteUrl())}, scanned by itself`}
+      headline={ran ? "We ran it on us." : "We could not finish this one."}
       claim={
-        assessed
-          ? `That took ${seconds(view.elapsedMs)} seconds of a real browser rendering this site and reading its computed styles. Everything below was measured in that run. We publish it whether or not it flatters us, because a detector that cannot survive its own test is not worth running.`
+        ran
+          ? `A real browser rendered this site and read its computed styles on ${when} UTC${
+              commit ? `, building commit ${commit.slice(0, 7)}` : ""
+            }, and that render took ${seconds(view.elapsedMs)} seconds. Everything below was measured in it and scored by the corpus this deployment ships. We publish it whether or not it flatters us, because a detector that cannot survive its own test is not worth running.`
           : "The scan of our own page did not produce a publishable read. That is a result about us, and we are showing it rather than the last run that happened to look good. The band below says exactly what did not run."
       }
       view={view}

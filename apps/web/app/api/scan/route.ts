@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
-import { lastSelfScan, selfScan, SELF_SCAN_UA } from "@/lib/self-scan";
+import { capturedSelfScan, lastSelfScan, selfScan, SELF_SCAN_UA } from "@/lib/self-scan";
 
 /**
  * The self-scan endpoint. This is the same code path an arbitrary URL would hit, pointed at
  * our own origin, and it is what the landing page's fold actually calls.
  *
- * GET  returns the last completed run in this process, and NEVER starts one. Cheap, safe to
- *      call from anywhere, returns 204 when this process has not run a scan yet.
- * POST runs a scan (or reuses one inside the freshness window; `?force=1` bypasses it).
+ * GET  returns a reading and NEVER starts a run: the last live run in this process if there
+ *      has been one, otherwise the artifact this deployment's build captured, scored by the
+ *      shipped corpus. It always answers, and it always says which of the two it is, because
+ *      "measured a moment ago" and "measured when this was built" are not the same claim.
+ * POST runs a LIVE scan (or reuses one inside the freshness window; `?force=1` bypasses it).
  *      POST because it starts a real browser and does real work, so it is not a safe method
- *      and must not be prefetched by a link, a crawler or a browser's speculative fetch.
+ *      and must not be prefetched by a link, a crawler or a browser's speculative fetch. On a
+ *      runtime with no browser it answers with the detector's refusal, which the caller is
+ *      expected to print rather than retry: this endpoint has no state that spins.
  *
  * THE RECURSION GUARD IS THE IMPORTANT PART OF THIS FILE. A scan renders our own page in a
  * real browser. If that render could start another scan, one visitor would fork-bomb the
@@ -24,9 +28,8 @@ const isSelfScanner = (request: Request): boolean =>
   (request.headers.get("user-agent") ?? "").includes("SlopScorerSelfScan");
 
 export async function GET() {
-  const last = lastSelfScan();
-  if (!last) return new NextResponse(null, { status: 204 });
-  return NextResponse.json(last, { headers: { "cache-control": "no-store" } });
+  const result = lastSelfScan() ?? (await capturedSelfScan());
+  return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(request: Request) {

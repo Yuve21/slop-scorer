@@ -58,7 +58,8 @@ export function ScanForm() {
       <FieldDescription className="max-w-[72ch] text-sm text-ink-muted">
         There is no queue behind this control yet, so it opens a worked example rather than
         scanning what you typed. We would rather tell you that than take an address and do
-        nothing with it. The scan above this one is real and runs on every page load.
+        nothing with it. The scan above this one is real: a browser rendered this site when this
+        version was built, and the card says exactly when.
       </FieldDescription>
     </Field>
   );

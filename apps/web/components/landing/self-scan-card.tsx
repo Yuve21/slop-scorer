@@ -7,28 +7,33 @@ import { BLOCK_ATTR, ElapsedFigure, ReceiptReveal } from "@/components/receipt/r
 import { ago, type ScanView } from "@/lib/view";
 
 /**
- * The live self-scan, in the fold.
+ * The self-scan, in the fold.
  *
- * This is not a screenshot and there is no filter between the response and the render. It
- * POSTs to /api/scan, which runs the same detector any URL would get, against this origin,
- * and prints whatever comes back. If a deploy regresses a check, this card says so, in
- * public, above the fold. That is the point of putting it here rather than in a case study.
+ * This is not a screenshot of a result and there is no filter between the report and the
+ * render. The reading arrives from the server already complete: the browser render happened
+ * in the build container (`scripts/capture-self-scan.mjs`) and the shipped corpus scored the
+ * captured artifact on this request. So the server HTML in the fold already contains the real
+ * finding count, the real score and the real citations, with no hydration and no fetch.
  *
- * WHY IT IS A CLIENT COMPONENT AND WHY THAT IS NOT A CORNER BEING CUT: a scan renders this
- * page in a real browser. Starting one while server-rendering this page would have the page
- * wait on a browser that is waiting on the page. So the server renders the last completed
- * run (or the honest "no run yet" state), and the browser asks for a fresh one. Nothing here
- * is hidden behind hydration: the server HTML already contains the real result.
+ * WHY THERE IS NO LOADING STATE ON FIRST PAINT ANY MORE. There used to be one: the card asked
+ * the server for a live render on mount, the serverless runtime has no browser, and the fold
+ * sat on "Running…" forever under a headline claiming the page had already been scanned. A
+ * spinner with no terminal case is a lie with a progress animation. Every state this
+ * component can reach now ends somewhere: a result, or a stated reason there is none.
  *
- * The failure path is the honest one. If the endpoint is down the card renders INCONCLUSIVE
- * in the same treatment the receipt uses, saying we could not scan ourselves just now, rather
- * than falling back to the last run that happened to look good.
+ * A LIVE RUN IS STILL A BUTTON, because on any host that does have a browser (local dev, a
+ * self-hosted deployment) it works, and when it refuses, the refusal is printed verbatim.
+ * The request is bounded by `LIVE_TIMEOUT_MS`: if it has not answered by then it is aborted
+ * and the card says the run did not come back, rather than spinning behind the number.
  */
 
 const ROWS = 4;
+/** The route's own ceiling is 60 s. This waits past it, then stops waiting, always. */
+const LIVE_TIMEOUT_MS = 75_000;
 
 interface Payload {
   readonly view: ScanView;
+  readonly origin: "build-capture" | "live";
   readonly fresh: boolean;
 }
 
@@ -38,134 +43,178 @@ export function SelfScanCard({
   initial,
   ruleTitles,
   target,
+  commit,
+  capturedAt,
 }: {
-  readonly initial: ScanView | null;
+  readonly initial: ScanView;
   readonly ruleTitles: Readonly<Record<string, string>>;
   readonly target: string;
+  readonly commit: string | null;
+  readonly capturedAt: string;
 }) {
-  const [view, setView] = React.useState<ScanView | null>(initial);
+  const [view, setView] = React.useState<ScanView>(initial);
+  const [live, setLive] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [age, setAge] = React.useState<string | null>(null);
 
-  const run = React.useCallback(async (force: boolean) => {
+  const run = React.useCallback(async () => {
     setPhase("running");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), LIVE_TIMEOUT_MS);
     try {
-      const response = await fetch(`/api/scan${force ? "?force=1" : ""}`, { method: "POST" });
+      const response = await fetch("/api/scan?force=1", {
+        method: "POST",
+        signal: controller.signal,
+      });
       if (!response.ok) {
         setPhase("unreachable");
         return;
       }
       const payload = (await response.json()) as Payload;
       setView(payload.view);
+      setLive(payload.origin === "live");
       setPhase("idle");
     } catch {
+      // Aborted, offline, or a body that did not parse. All three are "no answer came back",
+      // and the reading already on screen stays on screen, labelled with its real age.
       setPhase("unreachable");
+    } finally {
+      window.clearTimeout(timer);
     }
   }, []);
 
-  React.useEffect(() => {
-    void run(false);
-  }, [run]);
-
   // The age is computed after mount and ticks. Rendering it on the server would bake a
-  // timestamp into static HTML and the card would claim to be seconds old forever.
+  // timestamp into the HTML and the card would claim to be that old forever.
   React.useEffect(() => {
-    if (!view) return;
     const tick = () => setAge(ago(view.ranAt));
     tick();
     const id = window.setInterval(tick, 5000);
     return () => window.clearInterval(id);
   }, [view]);
 
-  if (phase === "unreachable") {
-    return (
-      <Frame target={target} status="Inconclusive" meta="the run did not complete">
-        <p className="max-w-[72ch] p-5 text-body text-ink">
-          We could not scan ourselves just now. That is a result, and we are showing it rather
-          than a cached one. Nothing on this page is a stored screenshot, which is exactly why
-          it can fail in front of you.
-        </p>
-      </Frame>
-    );
-  }
-
-  if (!view) {
-    return (
-      <Frame target={target} status="Running" meta="rendering this page in a real browser">
-        <p className="max-w-[72ch] p-5 text-body text-ink">
-          A scan means launching a browser, loading this page, and reading its computed styles.
-          That takes a few seconds and we are not going to pretend otherwise with a progress bar
-          that is not measuring anything.
-        </p>
-      </Frame>
-    );
-  }
-
+  // NO SCORE IN THE FOLD. Not a number, not a gauge, not a band: `design/SURFACES.md` §A and
+  // the product spec both forbid it, because a 0-100 readout as the face of the product is
+  // exactly the claim the detection research says nobody can honestly make. What the fold
+  // shows is what was found and how much was checked, which are facts.
+  //
+  // Two outcomes have rows: a scored report and an `inconclusive` one look the same here, and
+  // when the engine declined to publish a number the reason is printed under the rows in
+  // plain words. `not_assessed` means it never looked, and then there is a reason instead.
+  const assessed = view.status !== "not_assessed";
   const findings = [...view.findings, ...view.counterEvidence];
   const quiet = view.evaluated
     .filter((id) => !findings.some((f) => f.ruleId === id))
     .slice(0, Math.max(0, ROWS - findings.length));
 
+  const provenance = live
+    ? `live run${age ? `, ${age}` : ""}`
+    : `${age ? `captured ${age}` : "captured"} at build${commit ? `, commit ${commit.slice(0, 7)}` : ""}`;
+
   return (
     <ReceiptReveal>
       <Frame
         target={target}
-        status={`${findings.length} ${findings.length === 1 ? "finding" : "findings"}`}
+        status={
+          assessed
+            ? `${findings.length} ${findings.length === 1 ? "finding" : "findings"}`
+            : "Not assessed"
+        }
         meta={
           <>
-            <ElapsedFigure value={(view.elapsedMs / 1000).toFixed(1)} suffix=" s to run" />
-            {age ? ` · ${age}` : ""}
+            {assessed ? (
+              <ElapsedFigure value={(view.elapsedMs / 1000).toFixed(1)} suffix=" s to render" />
+            ) : null}
+            <span title={view.ranAt}>{assessed ? ` · ${provenance}` : provenance}</span>
           </>
         }
-        checks={`${view.evaluated.length} of ${view.corpusSize} checks`}
-        onRerun={() => void run(true)}
+        checks={assessed ? `${view.evaluated.length} of ${view.corpusSize} checks` : undefined}
+        onRerun={() => void run()}
         busy={phase === "running"}
       >
-        <ItemGroup {...{ [BLOCK_ATTR]: "" }} className="gap-px bg-hairline has-data-[size=sm]:gap-px has-data-[size=xs]:gap-px">
-          {findings.slice(0, ROWS).map((finding) => (
-            <Item
-              key={finding.ruleId}
-              variant="outline"
-              size="sm"
-              className="items-start gap-5 border-hairline bg-surface-raised px-5 py-[18px]"
-            >
-              <a
-                href={`/method#${finding.ruleId}`}
-                className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-accent underline-offset-4 hover:underline"
+        {assessed ? (
+          <ItemGroup
+            {...{ [BLOCK_ATTR]: "" }}
+            className="gap-px bg-hairline has-data-[size=sm]:gap-px has-data-[size=xs]:gap-px"
+          >
+            {findings.slice(0, ROWS).map((finding) => (
+              <Item
+                key={finding.ruleId}
+                variant="outline"
+                size="sm"
+                className="items-start gap-5 border-hairline bg-surface-raised px-5 py-[18px]"
               >
-                {finding.ruleId}
-              </a>
-              <ItemContent className="min-w-0 gap-1">
-                <ItemTitle className="text-body font-medium text-ink">{finding.title}</ItemTitle>
-                <ItemDescription className="font-mono text-mono-sm text-ink-muted [overflow-wrap:anywhere]">
-                  {finding.evidence[0]
-                    ? `${finding.evidence[0].locator} resolves to ${finding.evidence[0].observed}`
-                    : "no evidence attached, which is itself a defect in us"}
-                </ItemDescription>
-              </ItemContent>
-            </Item>
-          ))}
-          {quiet.map((id) => (
-            <Item
-              key={id}
-              variant="outline"
-              size="sm"
-              className="items-start gap-5 border-hairline bg-surface-raised px-5 py-[18px]"
-            >
-              <span className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-muted">
-                {id}
-              </span>
-              <ItemContent className="min-w-0 gap-1">
-                <ItemTitle className="text-body font-medium text-ink">
-                  {ruleTitles[id] ?? "This check ran."}
-                </ItemTitle>
-                <ItemDescription className="font-mono text-mono-sm text-ink-muted">
-                  ran against the rendered page, nothing to cite
-                </ItemDescription>
-              </ItemContent>
-            </Item>
-          ))}
-        </ItemGroup>
+                <a
+                  href={`/method#${finding.ruleId}`}
+                  className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-accent underline-offset-4 hover:underline"
+                >
+                  {finding.ruleId}
+                </a>
+                <ItemContent className="min-w-0 gap-1">
+                  <ItemTitle className="text-body font-medium text-ink">{finding.title}</ItemTitle>
+                  <ItemDescription className="font-mono text-mono-sm text-ink-muted [overflow-wrap:anywhere]">
+                    {finding.evidence[0]
+                      ? `${finding.evidence[0].locator} resolves to ${finding.evidence[0].observed}`
+                      : "no evidence attached, which is itself a defect in us"}
+                  </ItemDescription>
+                </ItemContent>
+              </Item>
+            ))}
+            {quiet.map((id) => (
+              <Item
+                key={id}
+                variant="outline"
+                size="sm"
+                className="items-start gap-5 border-hairline bg-surface-raised px-5 py-[18px]"
+              >
+                <span className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-muted">
+                  {id}
+                </span>
+                <ItemContent className="min-w-0 gap-1">
+                  <ItemTitle className="text-body font-medium text-ink">
+                    {ruleTitles[id] ?? "This check ran."}
+                  </ItemTitle>
+                  <ItemDescription className="font-mono text-mono-sm text-ink-muted">
+                    ran against the rendered page, nothing to cite
+                  </ItemDescription>
+                </ItemContent>
+              </Item>
+            ))}
+          </ItemGroup>
+        ) : (
+          // The terminal abstention. Whatever the detector refused to do, in its own words.
+          <p className="max-w-[72ch] p-5 text-body text-ink">
+            {view.abstention[0]?.detail ??
+              "No reading of this page was recorded, and we are not going to invent one."}
+          </p>
+        )}
+
+        {assessed && view.score === null ? (
+          // Why the receipt for this page carries no number. Said here rather than quoted from
+          // the engine, because the engine's sentence names the figure it withheld, and a
+          // withheld figure printed above the fold is still a figure above the fold.
+          <p className="max-w-[72ch] border-t border-hairline px-5 py-4 text-sm text-ink-muted">
+            {view.abstention[0]?.code === "single_family_only"
+              ? "The engine declined to publish a number for this page: everything above came from a single rule family, and one family on its own is a correlated observation rather than corroboration. What was found is still what was found, and it is listed above."
+              : (view.abstention[0]?.detail ??
+                "The engine declined to publish a number for this page.")}
+          </p>
+        ) : null}
+
+        {phase === "running" ? (
+          <p className="border-t border-hairline px-5 py-4 text-sm text-ink-muted">
+            Running a live scan: a browser is being launched to load this page and read its
+            computed styles. That takes a few seconds, and if nothing comes back within{" "}
+            {LIVE_TIMEOUT_MS / 1000} seconds we stop waiting and say so. The reading above stays
+            where it is until a newer one replaces it.
+          </p>
+        ) : null}
+        {phase === "unreachable" ? (
+          <p className="border-t border-hairline px-5 py-4 text-sm text-ink-muted">
+            The live run did not come back. That is a result and this is us showing it: the
+            reading above is still the one from this deployment's build, at the age printed next
+            to it, and nothing has been quietly refreshed.
+          </p>
+        ) : null}
       </Frame>
     </ReceiptReveal>
   );
@@ -209,7 +258,7 @@ function Frame({
               disabled={busy}
               className="rounded-sm font-mono text-mono-sm text-ink-accent underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-60"
             >
-              {busy ? "running" : "re-run"}
+              {busy ? "running" : "run it live"}
             </button>
           ) : null}
         </div>

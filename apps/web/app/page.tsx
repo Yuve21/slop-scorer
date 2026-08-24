@@ -6,7 +6,7 @@ import { SelfScanCard } from "@/components/landing/self-scan-card";
 import { ReproductionFigure } from "@/components/receipt/reproduction-figure";
 import { reproductionFor } from "@/lib/reproduction";
 import { sampleReceipt } from "@/lib/receipts";
-import { lastSelfScan } from "@/lib/self-scan";
+import { capturedSelfScan, scanHost } from "@/lib/self-scan";
 import { absolute, siteUrl } from "@/lib/site";
 
 /**
@@ -22,8 +22,10 @@ import { absolute, siteUrl } from "@/lib/site";
  * pricing grid, a testimonial carousel or a stats row: every one of those is an
  * identical-card-grid tell, and with zero users any of them would be a fabrication.
  *
- * `lastSelfScan()` never starts a run, which is what makes it safe to call while server
- * rendering the page the scan targets. The browser asks for a fresh one.
+ * The reading in the fold is server-rendered and complete. `capturedSelfScan()` scores the
+ * artifact this deployment's build captured from a real browser render, which is what makes
+ * it safe to call while server rendering the page the scan targets: it starts no browser and
+ * cannot recurse. The card offers a live run for hosts that have one.
  */
 
 export const metadata: Metadata = {
@@ -31,14 +33,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: "This page has already been scanned by the thing it sells",
     description:
-      "Not a score. We reproduce the artifact and show you how long it took. The result for this URL is rendered live in the fold, and nothing is cached.",
+      "Not a score. We reproduce the artifact and show you how long it took. The fold carries our own result, measured in a real browser when this version was built, with the time and the commit printed on it.",
     url: absolute("/"),
     type: "website",
   },
 };
 
-// The self-scan is a live measurement of this deployment, so this route cannot be a build
-// artifact. A prerendered "scanned 12 seconds ago" would be a lie the moment it was cached.
+// Scored per request from the captured artifact, so the fold reflects the corpus this
+// deployment ships rather than whatever the corpus said when a prerender happened to run.
 export const dynamic = "force-dynamic";
 
 const RULE_TITLES = Object.fromEntries(RULE_DESCRIPTORS.map((rule) => [rule.id, rule.title]));
@@ -54,10 +56,15 @@ const JSON_LD = {
   url: siteUrl(),
 };
 
-export default function Home() {
-  const last = lastSelfScan();
+export default async function Home() {
+  const self = await capturedSelfScan();
   const sample = sampleReceipt("4F2A-9C");
-  const target = new URL(siteUrl()).host;
+  // The host the reading is OF, not the host serving this request. On a preview deployment
+  // those differ, and the card must name the one that was rendered.
+  const target = scanHost(self.view.target || siteUrl());
+  // Derived from the reading, never hardcoded: if the domain is ever bought, the note below
+  // disappears on the next deploy rather than becoming a paragraph about a fixed problem.
+  const ownGoal = self.view.findings.some((f) => f.ruleId === "builder.bare-platform-domain");
 
   return (
     <div className="mx-auto flex max-w-page flex-col gap-24 px-6 py-16 md:px-16">
@@ -74,12 +81,34 @@ export default function Home() {
           This page has already been scanned by the thing it sells.
         </h1>
         <p className="max-w-[760px] text-lg text-ink-muted">
-          Not a score. We reproduce the artifact and show you how long it took. Below is the
-          live result for this URL. Nothing is cached, and if a deploy breaks one of our own
-          checks this is where you will find out.
+          Not a score. We reproduce the artifact and show you how long it took. Below is our own
+          result for this URL: a real browser loaded this site while this version was being
+          built, and the card says when that was and at which commit. Every deploy takes a new
+          reading, so if one of them breaks a check of ours, this is where you will find out.
         </p>
 
-        <SelfScanCard initial={last?.view ?? null} ruleTitles={RULE_TITLES} target={target} />
+        <SelfScanCard
+          initial={self.view}
+          ruleTitles={RULE_TITLES}
+          target={target}
+          commit={self.commit}
+          capturedAt={self.view.ranAt}
+        />
+
+        {ownGoal ? (
+          // OUR OWN FINDING, NAMED. It would be trivially easy to buy a domain, make this one
+          // finding disappear and print a clean card, and that is exactly the move this
+          // product exists to catch: teaching to your own test. So it stays up, with the
+          // reason, until the domain is bought for a reason other than the scoreboard.
+          <p className="max-w-[72ch] text-sm text-ink-muted">
+            The finding in that card is about us. This site is served from a bare{" "}
+            <span className="font-mono text-mono-sm text-ink">vercel.app</span> subdomain, which
+            is one of the {RULE_DESCRIPTORS.length} tells in the corpus: skipping the one step
+            that costs money and takes a human decision. We have not bought a domain yet. We are
+            not going to buy one to make our own card look clean, and we are not going to
+            quietly drop the rule that catches us.
+          </p>
+        ) : null}
 
         <ScanForm />
 

@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd ../.. && npm install",
-  "buildCommand": "cd ../.. && npx tsc -b packages/detectors-web && cd apps/web && npm run build"
+  "buildCommand": "cd ../.. && npx tsc -b packages/detectors-web && node scripts/capture-self-scan.mjs && cd apps/web && npm run build"
 }
