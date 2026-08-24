@@ -3,7 +3,7 @@
  *
  *   scan_codebase  - point it at a repo, get cited findings with file and line
  *   scan_ui        - point it at a URL or a localhost port, get cited findings with selectors
- *   list_rules     - the whole corpus, with weights and rationale
+ *   list_rules     - the corpus, compact by default, full entries on request
  *   propose_fixes  - the same findings as precise, caveated edits for THIS agent to apply
  *   verify_fix     - re-scan after the edits and show the two finding sets side by side
  *
@@ -21,6 +21,12 @@
  * an agent that reads the rules before it writes produces work the rules do not fire on. That
  * is a better outcome than catching it afterwards, and it is the only loop here that gets
  * stronger as it is used.
+ *
+ * Which is why its DEFAULT SHAPE is a usability decision rather than a formatting one. The
+ * full listing measured 63,110 characters, about 15,800 tokens, and the instructions below ask
+ * an agent to call it BEFORE generating anything. Nobody spends a fifth of a small context
+ * window speculatively, so the tool that was the point of the product was the one tool nobody
+ * would call. It is compact by default now and the full entries are one parameter away.
  *
  * Two things the tools will not do:
  *
@@ -90,6 +96,30 @@ export async function verifyFix(args: ScanCodebaseArgs | ScanUiArgs): Promise<Ve
 export interface ListRulesArgs {
   readonly modality?: "web" | "code" | "all";
   readonly family?: string;
+  /** Full entries for every rule the other filters select. Expensive; see the note below. */
+  readonly verbose?: boolean;
+  /** Full entries for these rule ids only, and compact ones for the rest. */
+  readonly ruleIds?: readonly string[];
+}
+
+/** What every listed rule carries: enough to know it exists, what it costs and roughly why. */
+export interface CompactRule {
+  readonly id: string;
+  readonly modality: string;
+  readonly family: string;
+  readonly severity: string;
+  readonly baseWeight: number;
+  readonly polarity: string;
+  /** One line. The rule's own title, which is written as a sentence about the artifact. */
+  readonly rationale: string;
+}
+
+/** The full entry, including the two things that make a finding arguable. */
+export interface FullRule extends CompactRule {
+  readonly since: string;
+  readonly whyItReadsAsGenerated: string;
+  readonly counterEvidenceThatWouldRebutIt: string;
+  readonly prevention?: string;
 }
 
 export interface RulesListing {
@@ -97,30 +127,48 @@ export interface RulesListing {
   readonly scoring: {
     readonly ceiling: number;
     readonly note: string;
-    readonly families: readonly { readonly id: string; readonly title: string; readonly capShare: number; readonly caveat: string }[];
+    readonly families: readonly {
+      readonly id: string;
+      readonly title: string;
+      readonly capShare: number;
+      readonly caveat?: string;
+    }[];
   };
-  readonly rules: readonly {
-    readonly id: string;
-    readonly modality: string;
-    readonly family: string;
-    readonly title: string;
-    readonly polarity: string;
-    readonly severity: string;
-    readonly baseWeight: number;
-    readonly since: string;
-    readonly whyItReadsAsGenerated: string;
-    readonly counterEvidenceThatWouldRebutIt: string;
-    readonly prevention?: string;
-  }[];
+  /** How to get what this response left out. Present on every response, verbose included. */
+  readonly retrieval: string;
+  readonly rules: readonly (CompactRule | FullRule)[];
 }
 
-/** The whole corpus, weights and rationale included. The prevention loop's payload. */
+/**
+ * The corpus, compact by default.
+ *
+ * WHY THE DEFAULT CHANGED. This tool's own instructions say to call it BEFORE generating code or
+ * UI, and the full listing measured **63,110 characters, about 15,800 tokens** — a fifth of a
+ * small context window, spent speculatively, before any work has been done. No agent pays that,
+ * so the prevention half of this product was priced out of the loop it exists for. The compact
+ * form is under a tenth of it.
+ *
+ * NOTHING IS LOST, IT MOVED. `verbose: true` returns exactly what this function used to return,
+ * and `ruleIds: [...]` returns the full entry for named rules while the rest stay compact —
+ * which is the shape an agent actually needs after a scan: it has five rule ids and wants the
+ * rebuttal and the prevention note for those five. Every response says so in `retrieval`, so an
+ * agent that read only the compact form still knows the rest is one call away.
+ *
+ * The two fields the full entry adds are the two that make a finding arguable: the counter-
+ * evidence that would rebut the rule, and how to avoid producing it. They are the most valuable
+ * text in the corpus and the reason the full listing is worth its size when it is asked for.
+ */
 export function listRules(args: ListRulesArgs = {}): RulesListing {
   const modality = args.modality ?? "all";
+  const verbose = args.verbose === true;
+  const named = new Set(args.ruleIds ?? []);
   const sets = [
     { modality: "web" as const, detectorId: WEB_DETECTOR_ID, corpusVersion: webDetector.corpusVersion, rules: RULE_DESCRIPTORS },
     { modality: "code" as const, detectorId: CODE_DETECTOR_ID, corpusVersion: codeDetector.corpusVersion, rules: CODE_RULE_DESCRIPTORS },
   ].filter((s) => modality === "all" || s.modality === modality);
+
+  const families = [...DEFAULT_CONFIG.families, ...CODE_CONFIG.families]
+    .filter((f, i, all) => all.findIndex((x) => x.id === f.id && x.title === f.title) === i);
 
   return {
     corpora: sets.map((s) => ({ detectorId: s.detectorId, modality: s.modality, corpusVersion: s.corpusVersion })),
@@ -128,26 +176,40 @@ export function listRules(args: ListRulesArgs = {}): RulesListing {
       ceiling: 99,
       note:
         "Scores are bounded at 99 and cannot reach certainty. Rules are grouped into families, each family is capped at a share of the total budget so no family can carry a verdict alone, repeated evidence within a rule decays harmonically, and counter-evidence rules subtract. Low coverage withholds the score entirely rather than reporting a low one.",
-      families: [...DEFAULT_CONFIG.families, ...CODE_CONFIG.families]
-        .map((f) => ({ id: f.id, title: f.title, capShare: f.capShare, caveat: f.caveat }))
-        .filter((f, i, all) => all.findIndex((x) => x.id === f.id && x.title === f.title) === i),
+      families: families.map((f) =>
+        verbose
+          ? { id: f.id, title: f.title, capShare: f.capShare, caveat: f.caveat }
+          : { id: f.id, title: f.title, capShare: f.capShare },
+      ),
     },
+    retrieval:
+      "Rules are listed compactly by default. For the full entry on a rule - the counter-evidence " +
+      "that would rebut it, and how to avoid producing it - call this tool again with " +
+      "ruleIds:[\"rule.id\", ...] for the ones you need, or verbose:true for all of them. " +
+      "verbose:true over the whole corpus is roughly 15,800 tokens; the compact form is about a " +
+      "tenth of that. Family caveats are returned with verbose:true.",
     rules: sets
       .flatMap((s) => s.rules.map((r) => ({ ...r, modality: s.modality })))
       .filter((r) => !args.family || r.family === args.family)
-      .map((r) => ({
-        id: r.id,
-        modality: r.modality,
-        family: r.family,
-        title: r.title,
-        polarity: r.polarity,
-        severity: r.severity,
-        baseWeight: r.baseWeight,
-        since: r.since,
-        whyItReadsAsGenerated: r.explanation,
-        counterEvidenceThatWouldRebutIt: r.falsePositiveNote,
-        ...(r.prevention ? { prevention: r.prevention } : {}),
-      })),
+      .map((r) => {
+        const compact: CompactRule = {
+          id: r.id,
+          modality: r.modality,
+          family: r.family,
+          severity: r.severity,
+          baseWeight: r.baseWeight,
+          polarity: r.polarity,
+          rationale: r.title,
+        };
+        if (!verbose && !named.has(r.id)) return compact;
+        return {
+          ...compact,
+          since: r.since,
+          whyItReadsAsGenerated: r.explanation,
+          counterEvidenceThatWouldRebutIt: r.falsePositiveNote,
+          ...(r.prevention ? { prevention: r.prevention } : {}),
+        } satisfies FullRule;
+      }),
   };
 }
 
@@ -158,7 +220,7 @@ export function createServer(): McpServer {
     {
       instructions:
         "Deterministic, evidence-cited detection of template and machine-generated tells in code and rendered web pages, and the loop that closes on them: scan -> propose_fixes -> apply the edits yourself -> verify_fix. " +
-        "Call list_rules BEFORE generating code or UI to learn what not to produce; that is the primary use. " +
+        "Call list_rules BEFORE generating code or UI to learn what not to produce; that is the primary use, and its default compact form is about 1.5k tokens so it is cheap to call speculatively. After a scan, call it again with ruleIds:[...] for the rules that fired, which returns their rebuttal and how to avoid producing them. " +
         "After a scan, offer to act on it: propose_fixes returns precise, caveated edits and this server never writes anything, so apply them with your own editing tools under the user's normal approval flow, then call verify_fix to see which findings are no longer present. " +
         "Every finding carries a file and line or a CSS selector you can go and check. " +
         "Results are bounded at 99 and can be inconclusive or not_assessed; always branch on `status` before reading `score`. " +
@@ -179,7 +241,15 @@ export function createServer(): McpServer {
           .optional()
           .describe("Optional glob-ish include patterns, e.g. ['src/**/*.ts']. Narrowing the scan lowers coverage and can force an inconclusive result."),
         readHistory: z.boolean().optional().describe("Read git history for the commit-shape rules. Default true; absence of git is never itself a finding."),
-        maxFiles: z.number().int().positive().optional().describe("Cap on files walked. Default 5000."),
+        maxFiles: z
+          .number()
+          .int()
+          .positive()
+          .max(200_000)
+          .optional()
+          .describe(
+            "Cap on files walked. Default 5000, hard ceiling 200000. The ceiling is in the schema as well as in the scanner so an out-of-range request is refused by the protocol rather than after a scan has started allocating.",
+          ),
       },
     },
     async (args) => result(await scanCodebase(args as ScanCodebaseArgs)),
@@ -204,12 +274,24 @@ export function createServer(): McpServer {
   server.registerTool(
     "list_rules",
     {
-      title: "List the full rule corpus with weights and rationale",
+      title: "List the rule corpus: compact by default, full detail on request",
       description:
-        "Returns every rule in both corpora: id, family, weight, severity, why it reads as machine-generated, the counter-evidence that would rebut it, and how to avoid producing it. Call this BEFORE writing code or building a UI. This is the prevention half of the product and the reason the plugin exists: a corpus you can read is worth more than a score you cannot argue with.",
+        "Returns every rule in both corpora. COMPACT BY DEFAULT - id, modality, family, severity, weight, polarity and a one-line rationale - which is roughly 1.5k tokens and is meant to be called speculatively BEFORE writing code or building a UI. For the full entry on a rule, including why it reads as machine-generated, the counter-evidence that would rebut it and how to avoid producing it, pass ruleIds:[...] for the ones you care about (the usual case after a scan) or verbose:true for all of them (roughly 15.8k tokens). Nothing is lost in the compact form; it is retrievable rather than resident, and every response says so in its `retrieval` field. This is the prevention half of the product and the reason the plugin exists: a corpus you can read is worth more than a score you cannot argue with.",
       inputSchema: {
         modality: z.enum(["web", "code", "all"]).optional().describe("Restrict to one corpus. Default all."),
         family: z.string().optional().describe("Restrict to one rule family, e.g. 'agent-artifact'."),
+        verbose: z
+          .boolean()
+          .optional()
+          .describe(
+            "Full entry for every rule returned, including rebuttal and prevention. Roughly 15.8k tokens over the whole corpus, so prefer ruleIds unless you genuinely want all of it.",
+          ),
+        ruleIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Full entry for these rule ids only; everything else stays compact. This is the cheap way to read the rebuttal and prevention note for the handful of rules a scan actually cited.",
+          ),
       },
     },
     async (args) => {

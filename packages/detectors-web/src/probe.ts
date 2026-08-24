@@ -27,8 +27,11 @@
  */
 
 import type { ProbeStatus } from "@slop/core";
+import { redactSecrets, sanitizeUntrusted } from "@slop/core";
 import { recoverText } from "@slop/ocr-text";
 import { ARTIFACT_SCHEMA_VERSION, PROBE_WEIGHTS } from "./artifact.js";
+import { assertFetchable, isFetchable } from "./net-policy.js";
+import type { NetworkPolicy } from "./net-policy.js";
 import type {
   ChunkRecord,
   ImageTextRecord,
@@ -59,6 +62,46 @@ export interface ProbeOptions {
   /** Skip the browser entirely. Guarantees an inconclusive result; used for smoke tests. */
   readonly staticOnly?: boolean;
   readonly signal?: AbortSignal;
+  /** See `net-policy.ts`. Loopback is always allowed; RFC1918 needs this. */
+  readonly network?: NetworkPolicy;
+  /** Wall-clock ceiling for the WHOLE probe, not per navigation. Default 90s. */
+  readonly totalBudgetMs?: number;
+  /** Bytes of script body this probe will hold. Default 32 MB across all responses. */
+  readonly maxTotalResponseBytes?: number;
+}
+
+/**
+ * Resource ceilings for one probe.
+ *
+ * The page is hostile in this threat model, and a hostile page's cheapest attack is not a
+ * clever one: it is a script response with no `content-length` and an endless body, or three
+ * hundred script tags, or a `setTimeout` loop that keeps `networkidle` from ever arriving.
+ * None of those is a security bug in the usual sense and all of them take down the machine
+ * the plugin is installed on, which from the user's side is the same thing.
+ */
+const MAX_TOTAL_RESPONSE_BYTES = 32 * 1024 * 1024;
+const MAX_SINGLE_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_CAPTURED_CHUNKS = 300;
+const DEFAULT_TOTAL_BUDGET_MS = 90_000;
+const MAX_SOURCE_MAP_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Read a response body only if it declares a size we are willing to hold.
+ *
+ * `response.text()` on a body with no `content-length` and no end is an unbounded allocation
+ * inside a promise nobody is watching. Declining to read it is a worse measurement and a
+ * finite one, and the chunk is still recorded with the reason, so the denominator this file
+ * is built around does not silently drop.
+ */
+async function boundedText(
+  response: { headers(): Record<string, string>; text(): Promise<string> },
+  limit: number,
+): Promise<string | null> {
+  const declared = Number(response.headers()["content-length"] ?? "");
+  if (Number.isFinite(declared) && declared > limit) return null;
+  const body = await response.text().catch(() => "");
+  if (!body) return null;
+  return body.length > limit ? null : body;
 }
 
 export class PlaywrightUnavailableError extends Error {
@@ -559,6 +602,16 @@ const probe = (id: ProbeId, ran: boolean, denominator: number, opts: Partial<Pro
 export async function probeUrl(url: string, options: ProbeOptions = {}): Promise<WebArtifact> {
   const viewport = options.viewport ?? { width: 390, height: 844 };
   const timeout = options.timeoutMs ?? 30_000;
+  const policy = options.network ?? {};
+  const budgetMs = options.totalBudgetMs ?? DEFAULT_TOTAL_BUDGET_MS;
+  const maxTotalBytes = options.maxTotalResponseBytes ?? MAX_TOTAL_RESPONSE_BYTES;
+  const deadline = Date.now() + budgetMs;
+  const outOfTime = (): boolean => Date.now() > deadline;
+
+  // The FIRST gate, before a browser is even launched: a `file://` target or a metadata
+  // address never gets as far as costing a process. The gate is applied again per document
+  // request below, which is the half that survives a redirect.
+  await assertFetchable(url, policy);
 
   type PlaywrightModule = typeof import("playwright");
   let chromium: PlaywrightModule["chromium"];
@@ -578,12 +631,39 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
   try {
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
+      // A scan must never leave a file behind on the machine it ran on. A page answering with
+      // `Content-Disposition: attachment` gets its download cancelled rather than written to a
+      // temporary directory nobody is going to clean up.
+      acceptDownloads: false,
       ...(options.userAgent ? { userAgent: options.userAgent } : {}),
     });
     const page = await context.newPage();
     const origin = new URL(url).origin;
 
+    /**
+     * The second half of the SSRF gate, and the half that matters.
+     *
+     * The pre-flight check in `probeUrl` validated a URL. This validates every DOCUMENT the
+     * browser is about to load, which is the only place a redirect chain can be caught:
+     * `page.goto` on a public URL that answers `302 http://169.254.169.254/` is one request
+     * from the caller's point of view and two from the network's, and only the second one is
+     * dangerous. Re-checking per request is also the practical answer to DNS rebinding, where
+     * the name that passed the pre-flight means something else by the time it is used.
+     *
+     * Sub-resources are deliberately NOT gated. A page loading an image from a private address
+     * is a fact about the page and its bytes never reach us as text; gating them would make
+     * every intranet-hosted asset look like a network failure and would change what the corpus
+     * measures. What is gated is everything whose CONTENT this probe reads back: documents
+     * here, and every explicit `page.request.get` below.
+     */
+    await page.route("**/*", async (route, request) => {
+      if (request.resourceType() !== "document") return route.continue();
+      if (await isFetchable(request.url(), policy)) return route.continue();
+      return route.abort("blockedbyclient");
+    });
+
     const pending: Promise<void>[] = [];
+    let capturedBytes = 0;
     page.on("response", (response) => {
       const rUrl = response.url();
       try {
@@ -593,19 +673,32 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
         /* data: and blob: URLs have no host. Not evidence of anything. */
       }
       if (!/\.m?js(\?|$)/i.test(rUrl)) return;
+      // Three ceilings, because the cheapest attack on this probe is not a clever one: three
+      // hundred script tags, one endless response body, or a page that simply outlasts us.
+      if (chunks.length >= MAX_CAPTURED_CHUNKS || capturedBytes >= maxTotalBytes || outOfTime()) return;
       pending.push(
         (async () => {
-          const body = await response.text().catch(() => "");
+          const body = await boundedText(response, MAX_SINGLE_RESPONSE_BYTES);
           if (!body) return;
+          capturedBytes += body.length;
           const mapRef = /[#@]\s*sourceMappingURL=(\S+)/.exec(body);
           let mapReachable = false;
           let mapExcerpt: string | undefined;
-          if (mapRef?.[1] && !mapRef[1].startsWith("data:")) {
+          // A source map is fetched by a URL THE PAGE CHOSE, so it goes through the same gate
+          // the page did. Without this, `//# sourceMappingURL=http://10.0.0.1/x.map` turns a
+          // comment in a bundle into an internal GET whose body we then quote into a report.
+          if (mapRef?.[1] && !mapRef[1].startsWith("data:") && !outOfTime()) {
             const mapUrl = new URL(mapRef[1], rUrl).href;
-            const map = await page.request.get(mapUrl, { timeout: 5000 }).catch(() => null);
+            const map = (await isFetchable(mapUrl, policy))
+              ? await page.request.get(mapUrl, { timeout: 5000, maxRedirects: 0 }).catch(() => null)
+              : null;
             if (map?.ok()) {
-              mapReachable = true;
-              mapExcerpt = (await map.text().catch(() => "")).slice(0, 4000);
+              const mapBody = await boundedText(map, MAX_SOURCE_MAP_BYTES);
+              if (mapBody !== null) {
+                mapReachable = true;
+                // A source map carries original source. Original source carries keys.
+                mapExcerpt = redactSecrets(mapBody.slice(0, 4000));
+              }
             }
           }
           chunks.push({
@@ -619,12 +712,51 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
       );
     });
 
+    // Well-known paths and the soft-404 probe depend on nothing but `origin`, which is known
+    // before the page has navigated anywhere. The original code issued these AFTER the render,
+    // the motion passes and the image fetches had all finished, so their combined latency (nine
+    // sequential round trips) sat entirely on the critical path. Firing them here instead lets
+    // them run inside the time `page.goto` below is already spending waiting on the network, so
+    // on every site slower than nine tiny requests (i.e. nearly all of them) this costs nothing:
+    // same requests, same responses, same `WellKnownRecord[]`/`notFound` shape, only fired
+    // earlier. They are read with `await` further down, after the render-dependent work.
+    const wellKnownPromise: Promise<(WellKnownRecord | null)[]> = Promise.all(
+      WELL_KNOWN_PATHS.map(async (wellKnownPath): Promise<WellKnownRecord | null> => {
+        const res = await page.request.get(new URL(wellKnownPath, origin).href, { timeout: 8000 }).catch(() => null);
+        if (!res) return null;
+        const raw = res.ok() ? await boundedText(res, MAX_SINGLE_RESPONSE_BYTES) : "";
+        // THE FINDING IS THAT THE FILE IS REACHABLE, NOT WHAT IS IN IT.
+        //
+        // `/.env` is on the probe list because a deployment that serves one has shipped its
+        // working directory as the web root, which is worth reporting. Its CONTENTS are
+        // somebody's live credentials, and this excerpt travels into a report, into a receipt,
+        // and into the context of a language model at a third party. The status code and the
+        // content type carry the whole finding; the body carries only liability.
+        const body = wellKnownPath === "/.env" ? "" : redactSecrets((raw ?? "").slice(0, 400));
+        return {
+          path: wellKnownPath,
+          status: res.status(),
+          contentType: res.headers()["content-type"] ?? "",
+          ...(body ? { excerpt: body } : {}),
+        };
+      }),
+    );
+    const notFoundPromise = page.request
+      .get(new URL(`/slop-scorer-probe-${Date.now()}`, origin).href, { timeout: 8000, maxRedirects: 0 })
+      .catch(() => null);
+
     const main = await page.goto(url, { waitUntil: "networkidle", timeout }).catch(() => null);
     if (main) {
       status = main.status();
       headers = main.headers();
       finalUrl = page.url();
     }
+    // Where the browser ACTUALLY ended up, checked as a fact rather than inferred from the
+    // route hook having not fired. A `<meta http-equiv="refresh">`, a `location.replace` in a
+    // script, or a service worker can move the document by a path the request interceptor does
+    // not classify as a document navigation, and the whole premise of this probe is that it
+    // reports the document that was really rendered.
+    if (finalUrl !== url) await assertFetchable(finalUrl, policy);
     // Lazy sections and intersection-observer reveals are part of the rendered page. A read
     // that stops at the fold measures a document the visitor does not have.
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => undefined);
@@ -717,49 +849,70 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
       sampled: motionFull.sampled,
     };
 
-    // ---- text inside the images ---------------------------------------------------------
-    const imageTextRecords: ImageTextRecord[] = [];
-    for (const image of readout.dom.images.slice(0, 8)) {
-      if (!image.src || image.src.startsWith("data:")) continue;
-      const response = await page.request.get(new URL(image.src, finalUrl).href, { timeout: 8000 }).catch(() => null);
-      if (!response || !response.ok()) {
-        imageTextRecords.push({
-          src: image.src,
-          method: "raster-ocr",
-          text: "",
-          confidence: 0,
-          abstained: `the image could not be fetched for reading (${response ? response.status() : "no response"}), so its pixels were never examined`,
-        });
-        continue;
-      }
-      const body = await response.body().catch(() => null);
-      if (!body) continue;
-      const recovered = recoverText({
-        src: image.src,
-        contentType: response.headers()["content-type"] ?? "",
-        bytes: new Uint8Array(body),
-      });
-      imageTextRecords.push(recovered as ImageTextRecord);
-    }
+    // ---- text inside the images -----------------------------------------------------------
+    // One fetch per image, run CONCURRENTLY rather than one at a time. `Promise.all` over a
+    // `.map` preserves the input order in its result array regardless of which request answers
+    // first, so the records land in the same order the sequential version produced them in; a
+    // `src`-less or `data:` image still contributes no record at all, matching the old `continue`.
+    const imageCandidates = readout.dom.images.slice(0, 8).filter((image) => image.src && !image.src.startsWith("data:"));
+    const imageTextRecords: ImageTextRecord[] = (
+      await Promise.all(
+        imageCandidates.map(async (image): Promise<ImageTextRecord | null> => {
+          const href = new URL(image.src, finalUrl).href;
+          // `img.src` is a value the PAGE chose, and this line reads the response body back.
+          // `<img src="http://169.254.169.254/latest/meta-data/">` is a one-attribute SSRF
+          // whose answer comes back as recovered "text inside an image", quoted verbatim into
+          // the report. Same gate as the document, for the same reason.
+          if (!(await isFetchable(href, policy))) {
+            return {
+              src: image.src,
+              method: "raster-ocr",
+              text: "",
+              confidence: 0,
+              abstained:
+                "this image is served from an address this detector will not fetch (a loopback-exempt private or link-local range, or a non-http scheme), so its pixels were never examined",
+            };
+          }
+          const response = await page.request.get(href, { timeout: 8000, maxRedirects: 0 }).catch(() => null);
+          if (!response || !response.ok()) {
+            return {
+              src: image.src,
+              method: "raster-ocr",
+              text: "",
+              confidence: 0,
+              abstained: `the image could not be fetched for reading (${response ? response.status() : "no response"}), so its pixels were never examined`,
+            };
+          }
+          const declared = Number(response.headers()["content-length"] ?? "");
+          if (Number.isFinite(declared) && declared > MAX_SINGLE_RESPONSE_BYTES) {
+            return {
+              src: image.src,
+              method: "raster-ocr",
+              text: "",
+              confidence: 0,
+              abstained: `the image declares ${declared} bytes, over the ${MAX_SINGLE_RESPONSE_BYTES} byte limit this probe will hold in memory, so its pixels were never examined`,
+            };
+          }
+          const body = await response.body().catch(() => null);
+          if (!body || body.byteLength > MAX_SINGLE_RESPONSE_BYTES) return null;
+          const recovered = recoverText({
+            src: image.src,
+            contentType: response.headers()["content-type"] ?? "",
+            bytes: new Uint8Array(body),
+          }) as ImageTextRecord;
+          // Text recovered from inside an image is artifact content like any other, and it
+          // has one extra property: nobody reviewing the page can see it in the markup.
+          return { ...recovered, text: sanitizeUntrusted(recovered.text, { cap: 600 }) };
+        }),
+      )
+    ).filter((record): record is ImageTextRecord => record !== null);
 
     await Promise.allSettled(pending);
 
-    const wellKnown: WellKnownRecord[] = [];
-    for (const path of WELL_KNOWN_PATHS) {
-      const res = await page.request.get(new URL(path, origin).href, { timeout: 8000 }).catch(() => null);
-      if (!res) continue;
-      const body = res.ok() ? (await res.text().catch(() => "")).slice(0, 400) : "";
-      wellKnown.push({
-        path,
-        status: res.status(),
-        contentType: res.headers()["content-type"] ?? "",
-        ...(body ? { excerpt: body } : {}),
-      });
-    }
+    // Well-known paths and the soft-404 were fired before `page.goto`, above; read them here.
+    const wellKnown = (await wellKnownPromise).filter((record): record is WellKnownRecord => record !== null);
 
-    const missing = await page.request
-      .get(new URL(`/slop-scorer-probe-${Date.now()}`, origin).href, { timeout: 8000, maxRedirects: 0 })
-      .catch(() => null);
+    const missing = await notFoundPromise;
     const notFound = missing
       ? { status: missing.status(), bodyBytes: Buffer.byteLength(await missing.text().catch(() => "")) }
       : null;

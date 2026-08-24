@@ -28,8 +28,11 @@
  *     argument FOR the artifact. There is nothing to fix, and "fixing" one would mean
  *     deleting the best thing on the page. `makeFinding` throws.
  *
- *  5. NOTHING OUTSIDE THE SCANNED ROOT. Every path is repository-relative and is checked for
- *     absolute prefixes and `..` traversal before it can leave this module.
+ *  5. NOTHING OUTSIDE THE SCANNED ROOT. Every path is repository-relative and is checked by
+ *     `assertWithinTarget` before it can leave this module. That function is the single most
+ *     security-critical thing in this package, because the union above contains a kind that
+ *     DELETES, and it is documented and tested as an adversarial surface rather than as a
+ *     tidiness check. Read its comment before changing it.
  */
 
 /** How much of the artifact an applier is being asked to touch. Reported, never inferred. */
@@ -207,26 +210,85 @@ export const pathOf = (r: Remediation): string | null =>
     ? r.path
     : null;
 
+/** The longest path this product will name. Beyond it, something is generating, not reading. */
+export const MAX_REMEDIATION_PATH_LENGTH = 400;
+
+/**
+ * The largest patch body this product will hand to an applier.
+ *
+ * A remediation is a description of a small, checkable change. A megabyte of `after` is not
+ * that, and a rule that produces one has either lost a loop bound or is being driven by an
+ * artifact that wants to fill somebody's context window.
+ */
+export const MAX_PATCH_BYTES = 64 * 1024;
+
+/**
+ * Windows device names. Opening one of these is not opening a file: `CON`, `NUL`, `PRN` and
+ * the numbered serial and printer ports resolve to devices no matter what directory the
+ * relative path appears to be in, and a rewrite aimed at `docs/NUL` goes to the null device
+ * rather than to `docs/`. Checked with and without an extension, which is how Windows
+ * resolves them.
+ */
+const WINDOWS_DEVICE_RE = /^(?:CON|PRN|AUX|NUL|COM[0-9\u00b2\u00b3\u00b9]|LPT[0-9\u00b2\u00b3\u00b9])(?:\.|$)/i;
+
+/** Percent-encoded separators and dots: `..%2f`, `%2e%2e/`, `%5c`. */
+const ENCODED_TRAVERSAL_RE = /%2e|%2f|%5c|%00/i;
+
 /**
  * Guardrail: a remediation may only name something inside the scanned target root.
  *
  * Every path in every artifact this repository produces is root-relative, so the check is a
- * shape check and does not need the root itself: no absolute prefix, no drive letter, no
- * `..` segment, no leading separator. A patch that can name `/etc/hosts` is not a patch, it
- * is a vulnerability with a rationale field.
+ * shape check and does not need the root itself. A patch that can name `/etc/hosts` is not a
+ * patch, it is a vulnerability with a rationale field, and the destructive kind makes it a
+ * vulnerability that deletes things.
+ *
+ * NINE WAYS OUT, ALL OF THEM CLOSED HERE. The first four were already covered; the rest were
+ * found by attacking this function, and every one of them produces a path that a host agent's
+ * `path.resolve(root, p)` lands OUTSIDE `root`:
+ *
+ *  1. A leading separator, `/etc/passwd` or `\Windows\System32`.
+ *  2. A drive-rooted path, `C:\Windows`.
+ *  3. A home reference, `~/.ssh/authorized_keys`.
+ *  4. A literal `..` segment, at any depth, before or after anything else.
+ *  5. A DRIVE-RELATIVE path, `C:evil`. There is no separator after the colon so the old drive
+ *     check did not fire, and on Windows it resolves against the current directory OF DRIVE C,
+ *     which is not the target and is not knowable from here. This is the subtle one.
+ *  6. A UNC or extended path, `\\server\share`, `//server/share`, `\\?\C:\`. The first two are
+ *     caught as absolute; `\\?\` is called out by name because it also disables the
+ *     normalisation every other layer assumes is happening.
+ *  7. An NTFS ALTERNATE DATA STREAM, `notes.txt:hidden.exe`. A colon inside a segment writes a
+ *     stream nobody lists and nobody reviews.
+ *  8. A CONTROL CHARACTER, most importantly NUL and newline. NUL truncates the path in any C
+ *     API downstream (`a.txt\0.png` opens `a.txt`), and a newline in a path that is being
+ *     INSERTED into `.gitignore` forges extra ignore lines. POSIX permits both in a filename,
+ *     so a hostile repository can put them there and this scanner will read them back out.
+ *  9. A PERCENT-ENCODED separator or dot. Nothing in this product decodes them, but an
+ *     applier that treats the path as a URL fragment first would, and that is one library
+ *     choice away rather than impossible.
+ *
+ * Plus a Windows device name and a length ceiling, neither of which escapes the root but both
+ * of which write somewhere other than where the text says.
  */
 export function assertWithinTarget(ruleId: string, p: string): void {
   const bad = (why: string): never => {
     throw new Error(
-      `Rule "${ruleId}" proposed a remediation for "${p}", which ${why}. A remediation may only name a path inside the scanned target.`,
+      `Rule "${ruleId}" proposed a remediation for "${JSON.stringify(p)}", which ${why}. A remediation may only name a path inside the scanned target.`,
     );
   };
   if (!p || p.trim() === "") bad("is empty");
+  if (p.length > MAX_REMEDIATION_PATH_LENGTH) bad(`is longer than the ${MAX_REMEDIATION_PATH_LENGTH} character limit`);
+  // eslint-disable-next-line no-control-regex -- the whole point of the check
+  if (/[\u0000-\u001f\u007f]/.test(p)) bad("contains a control character, which can truncate or forge the path");
   if (p.startsWith("/") || p.startsWith("\\")) bad("is absolute");
-  if (/^[a-zA-Z]:[\\/]/.test(p)) bad("names a drive");
+  if (/^[a-zA-Z]:/.test(p)) bad("names a drive, and a drive-relative path resolves against that drive's own cwd");
   if (p.startsWith("~")) bad("names a home directory");
   const parts = p.split(/[\\/]/);
   if (parts.includes("..")) bad("traverses out of the target with a '..' segment");
+  if (ENCODED_TRAVERSAL_RE.test(p)) bad("contains a percent-encoded separator or dot, which is a traversal in disguise");
+  for (const segment of parts) {
+    if (segment.includes(":")) bad("contains a ':' inside a path segment, which names an alternate data stream");
+    if (WINDOWS_DEVICE_RE.test(segment)) bad(`names the Windows device "${segment}" rather than a file`);
+  }
 }
 
 /**
@@ -251,20 +313,44 @@ export function assertWellFormedRemediation(ruleId: string, r: Remediation): Rem
   const p = pathOf(r);
   if (p !== null) assertWithinTarget(ruleId, p);
 
+  // `destructive` is a `true` literal on exactly one kind, which the compiler already enforces
+  // for code inside this repository. This is the check for everything else: a remediation that
+  // arrived as JSON, through an `as` cast, or from a rule in a package compiled against an
+  // older version of this type. The failure it prevents is a `replace_file` that a host agent
+  // routes down its deletion path because it read a `destructive` flag and trusted it.
+  const flagged = (r as { readonly destructive?: unknown }).destructive;
+  if (r.kind === "delete_file") {
+    if (flagged !== true) bad("is a deletion whose `destructive` flag is not the literal true");
+  } else if (flagged !== undefined) {
+    bad("carries a `destructive` flag while not being a delete_file, which is the only destructive kind");
+  }
+
   switch (r.kind) {
     case "replace_range":
       if (r.startLine < 1) bad("starts before line 1");
+      if (!Number.isInteger(r.startLine) || !Number.isInteger(r.endLine)) bad("names a line that is not an integer");
       if (r.endLine < r.startLine) bad("ends before it starts");
       if (r.before.length === 0) bad("has an empty `before`, so an applier cannot tell whether the file has moved on");
       if (r.before === r.after) bad("proposes exactly what is already there");
+      if (r.after.length > MAX_PATCH_BYTES) bad(`writes more than the ${MAX_PATCH_BYTES} character limit`);
       break;
     case "insert":
       if (r.atLine < 0) bad("inserts at a negative line");
+      if (!Number.isInteger(r.atLine)) bad("inserts at a line that is not an integer");
       if (r.text.trim().length === 0) bad("inserts nothing");
+      if (r.text.length > MAX_PATCH_BYTES) bad(`inserts more than the ${MAX_PATCH_BYTES} character limit`);
+      // The `.gitignore` inserts in the code corpus interpolate a path READ FROM THE SCANNED
+      // TREE into their text. POSIX allows a newline or an escape in a filename, so a repo can
+      // ship `evil\n!important-secret` and turn one ignore line into two. `assertWithinTarget`
+      // refuses such a path, and this refuses the text it would have been written into.
+      if (/[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]/.test(r.text)) {
+        bad("inserts text containing a control character, which can forge lines in the file it is written to");
+      }
       break;
     case "replace_file":
       if (r.after.length === 0) bad("would replace the file with nothing; delete_file is the honest kind for that");
       if (r.before !== undefined && r.before === r.after) bad("proposes exactly what is already there");
+      if (r.after.length > MAX_PATCH_BYTES) bad(`writes more than the ${MAX_PATCH_BYTES} character limit`);
       break;
     case "ui_change":
       if (!r.selector.trim()) bad("names no selector");

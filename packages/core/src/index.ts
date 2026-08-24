@@ -92,9 +92,24 @@ export {
   assertWithinTarget,
   isApplicable,
   isDestructive,
+  MAX_PATCH_BYTES,
+  MAX_REMEDIATION_PATH_LENGTH,
   pathOf,
   REMEDIATION_KINDS,
 } from "./remediation.js";
+
+export type { SanitizeOptions } from "./untrusted.js";
+export {
+  fenceUntrusted,
+  isSecretFile,
+  redactSecrets,
+  sanitizeUntrusted,
+  SECRET_FILE_RE,
+  stripControlCharacters,
+  UNTRUSTED_CONTENT_WARNING,
+  UNTRUSTED_EVIDENCE_FIELDS,
+  UNTRUSTED_TEXT_CAP,
+} from "./untrusted.js";
 
 export { formatReceipt } from "./receipt.js";
 export { makeFinding } from "./finding.js";

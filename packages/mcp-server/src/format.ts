@@ -15,8 +15,30 @@
  *  3. No accuracy claim, ever. The only numbers in here are the ones this run computed.
  */
 
-import { applicabilityOf, formatReceipt, isDestructive, MAX_SCORE } from "@slop/core";
+import {
+  applicabilityOf,
+  formatReceipt,
+  isDestructive,
+  MAX_SCORE,
+  sanitizeUntrusted,
+  UNTRUSTED_CONTENT_WARNING,
+  UNTRUSTED_EVIDENCE_FIELDS,
+} from "@slop/core";
 import type { Applicability, RemediationKind, Report } from "@slop/core";
+
+/**
+ * The one transformation every attacker-controlled string in this package passes through.
+ *
+ * `locator`, `observed`, `expected` and `excerpt` are QUOTES FROM THE SCANNED ARTIFACT. On the
+ * code side that artifact is somebody's private source tree, read from disk; on the web side
+ * it is a page from an arbitrary URL, including the body of `/.env` if the site serves one.
+ * Both are then handed to a model that has file-editing tools, which makes every one of those
+ * fields an input channel from whoever wrote the thing being scanned.
+ *
+ * Exported and used in exactly one place per field, so "which strings are untrusted" is a
+ * question with a grep-able answer rather than a convention.
+ */
+export const untrusted = (value: string): string => sanitizeUntrusted(value, { cap: 400 });
 
 export interface ToolFinding {
   readonly ruleId: string;
@@ -31,6 +53,14 @@ export interface ToolFinding {
     readonly observed: string;
     readonly expected?: string;
     readonly excerpt?: string;
+    /**
+     * Always `true`, and present for exactly that reason.
+     *
+     * The values above are copied out of the scanned artifact. A flag that is only set
+     * sometimes is a flag whose absence means "trusted", and nothing on this object ever is.
+     * An agent can branch on this without parsing the warning prose.
+     */
+    readonly untrusted: true;
   }[];
   readonly whyItReadsAsGenerated: string;
   readonly counterEvidenceThatWouldRebutIt: string;
@@ -83,6 +113,14 @@ export interface ToolPayload {
   };
   readonly warnings: readonly string[];
   readonly disclaimer: string;
+  /**
+   * The standing instruction about every quoted value in this payload.
+   *
+   * Present on every response rather than only on the ones that quote something hostile,
+   * because there is no way to tell the difference and a warning that appears conditionally
+   * teaches a reader to trust its absence.
+   */
+  readonly untrustedContent: { readonly warning: string; readonly fields: readonly string[] };
   readonly receipt: string;
 }
 
@@ -95,10 +133,11 @@ const toFinding = (l: Report["receipt"]["lines"][number]): ToolFinding => ({
   points: l.points,
   evidence: l.evidence.map((e) => ({
     kind: e.kind,
-    locator: e.locator,
-    observed: e.observed,
-    ...(e.expected ? { expected: e.expected } : {}),
-    ...(e.excerpt ? { excerpt: e.excerpt } : {}),
+    locator: untrusted(e.locator),
+    observed: untrusted(e.observed),
+    ...(e.expected ? { expected: untrusted(e.expected) } : {}),
+    ...(e.excerpt ? { excerpt: untrusted(e.excerpt) } : {}),
+    untrusted: true as const,
   })),
   whyItReadsAsGenerated: l.explanation,
   counterEvidenceThatWouldRebutIt: l.falsePositiveNote,
@@ -156,6 +195,7 @@ export function toToolPayload(report: Report): ToolPayload {
     remediation: remediationSummary(report),
     warnings: report.warnings,
     disclaimer: report.disclaimer,
+    untrustedContent: { warning: UNTRUSTED_CONTENT_WARNING, fields: UNTRUSTED_EVIDENCE_FIELDS },
     receipt: formatReceipt(report),
   };
 }

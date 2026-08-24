@@ -24,9 +24,18 @@
  *     an agent should branch on before telling anyone the work is done.
  */
 
-import { MAX_SCORE, applicabilityOf, isDestructive } from "@slop/core";
+import {
+  MAX_SCORE,
+  applicabilityOf,
+  assertWellFormedRemediation,
+  isDestructive,
+  sanitizeUntrusted,
+  UNTRUSTED_CONTENT_WARNING,
+  UNTRUSTED_EVIDENCE_FIELDS,
+} from "@slop/core";
 import type { Applicability, BlastRadius, Remediation, Report } from "@slop/core";
 import { formatReceipt } from "@slop/core";
+import { untrusted } from "./format.js";
 import { codeReport, codeTargetKey, resolveTarget, uiReport, uiTargetKey } from "./targets.js";
 import type { CodeTarget, UiTarget } from "./targets.js";
 
@@ -34,6 +43,58 @@ export interface ProposedEvidence {
   readonly locator: string;
   readonly observed: string;
   readonly expected?: string;
+  /** Always true. These three values are quotes from the artifact. See `format.ts`. */
+  readonly untrusted: true;
+}
+
+const evidenceOf = (e: { locator: string; observed: string; expected?: string }): ProposedEvidence => ({
+  locator: untrusted(e.locator),
+  observed: untrusted(e.observed),
+  ...(e.expected ? { expected: untrusted(e.expected) } : {}),
+  untrusted: true as const,
+});
+
+/**
+ * The last gate a proposal passes before it leaves this process, and it is a REPEAT.
+ *
+ * `makeFinding` already validates every remediation a rule builds, which is where the check
+ * belongs and where it catches the honest mistakes. This runs the same assertion again, at the
+ * boundary, because that first call is only reached by findings built through `makeFinding`.
+ * A detector that assembles a `Finding` object literally, a package compiled against an older
+ * copy of the type, or a result that arrived as replayed JSON all skip it, and what they skip
+ * is the containment check on a union that contains `delete_file`. Validating twice costs
+ * microseconds; validating once costs whatever is at `../../../.ssh/authorized_keys`.
+ */
+function sanitizeRemediation(ruleId: string, r: Remediation): Remediation {
+  assertWellFormedRemediation(ruleId, r);
+  // `before`, `after` and `text` are NOT collapsed: an applier matches `before` against the
+  // real file, and a patch whose whitespace has been rewritten either fails to apply or, with
+  // a looser applier, applies to the wrong place. Control characters and credentials still go,
+  // and a redacted `before` simply stops matching, which is the safe direction to fail in.
+  const keep = { keepNewlines: true, cap: 8_000 } as const;
+  switch (r.kind) {
+    case "replace_range":
+      return { ...r, before: sanitizeUntrusted(r.before, keep), after: sanitizeUntrusted(r.after, keep) };
+    case "replace_file":
+      return {
+        ...r,
+        ...(r.before === undefined ? {} : { before: sanitizeUntrusted(r.before, keep) }),
+        after: sanitizeUntrusted(r.after, keep),
+      };
+    case "insert":
+      return { ...r, text: sanitizeUntrusted(r.text, keep) };
+    case "ui_change":
+      return {
+        ...r,
+        selector: untrusted(r.selector),
+        before: untrusted(r.before),
+        after: untrusted(r.after),
+      };
+    case "manual":
+      return { ...r, locator: untrusted(r.locator) };
+    case "delete_file":
+      return r;
+  }
 }
 
 export interface FixProposal {
@@ -97,6 +158,8 @@ export interface ProposeFixesPayload {
   readonly howToApply: string;
   readonly verifyWith: { readonly tool: string; readonly arguments: Record<string, unknown> };
   readonly disclaimer: string;
+  /** See `format.ts`. Every quoted value in every proposal below came from the artifact. */
+  readonly untrustedContent: { readonly warning: string; readonly fields: readonly string[] };
 }
 
 const APPLICABILITY_ORDER: readonly Applicability[] = ["auto", "confirm", "locate", "manual"];
@@ -131,7 +194,8 @@ function proposalsFrom(report: Report): FixProposal[] {
     // thing about the artifact.
     if (line.polarity === "counter") continue;
     const remedies = line.remediation ?? [];
-    remedies.forEach((remediation, i) => {
+    remedies.forEach((raw, i) => {
+      const remediation = sanitizeRemediation(line.ruleId, raw);
       out.push({
         id: `${line.ruleId}#${i + 1}`,
         ruleId: line.ruleId,
@@ -146,7 +210,7 @@ function proposalsFrom(report: Report): FixProposal[] {
         remediation,
         evidence: line.evidence
           .filter((e) => remediation.addresses.length === 0 || remediation.addresses.includes(e.locator))
-          .map((e) => ({ locator: e.locator, observed: e.observed, ...(e.expected ? { expected: e.expected } : {}) })),
+          .map(evidenceOf),
         caveat: {
           thisMayBeAFalsePositive: remediation.rebuttal || line.falsePositiveNote,
           doNotApplyIf: remediation.doNotApplyIf,
@@ -169,7 +233,7 @@ function proposalsFrom(report: Report): FixProposal[] {
         blastRadius: "none",
         remediation: {
           kind: "manual",
-          locator: line.evidence[0]?.locator ?? line.ruleId,
+          locator: untrusted(line.evidence[0]?.locator ?? line.ruleId),
           summary: "This rule proposed no remediation.",
           guidance: `${line.prevention ?? "No prevention hint is recorded for this rule either."} No remediation was attached to this finding, so there is nothing here to apply.`,
           doNotApplyIf: "always, since there is nothing to apply.",
@@ -177,7 +241,7 @@ function proposalsFrom(report: Report): FixProposal[] {
           blastRadius: "none",
           addresses: line.evidence.map((e) => e.locator),
         },
-        evidence: line.evidence.map((e) => ({ locator: e.locator, observed: e.observed })),
+        evidence: line.evidence.map(evidenceOf),
         caveat: { thisMayBeAFalsePositive: line.falsePositiveNote, doNotApplyIf: "always, since there is nothing to apply." },
       });
     }
@@ -237,6 +301,7 @@ function assemble(report: Report, target: string, verifyArgs: Record<string, unk
     howToApply: HOW_TO_APPLY,
     verifyWith: { tool: "verify_fix", arguments: verifyArgs },
     disclaimer: DISCLAIMER,
+    untrustedContent: { warning: UNTRUSTED_CONTENT_WARNING, fields: UNTRUSTED_EVIDENCE_FIELDS },
   };
 }
 
@@ -310,6 +375,22 @@ export interface VerifyFixPayload {
   readonly newlyPresent: readonly FindingSnapshot[];
   /** True when anything is newly present. A change that introduces a finding has regressed. */
   readonly regression: boolean;
+  /**
+   * True when the re-scan EXAMINED MATERIALLY LESS than the reading it is being compared to.
+   *
+   * The obvious way to pass a verification is to fix the code. The cheap way is to delete the
+   * evidence, and this tool proposes deletions, so the cheap way is one accepted `delete_file`
+   * away. A finding whose file no longer exists is "no longer present" by exactly the same
+   * test as a finding that was genuinely resolved, and nothing in a rule-id diff can tell the
+   * two apart. What CAN tell them apart is the denominator: a scan that parsed 40 source files
+   * and now parses 12 did not fix 28 files.
+   *
+   * Set from the probe denominators, which every collection in this product already reports
+   * for an unrelated reason. When it is true, `noLongerPresent` is not evidence of anything.
+   */
+  readonly evidenceMayHaveBeenRemoved: boolean;
+  /** Which probes shrank, and by how much. Empty when nothing did. */
+  readonly coverageLost: readonly { readonly probeId: string; readonly before: number; readonly after: number }[];
   readonly scoreDelta: number | null;
   readonly scoreCeiling: typeof MAX_SCORE;
   readonly headline: string;
@@ -329,12 +410,36 @@ const snapshot = (report: Report): Map<string, FindingSnapshot> =>
           title: l.title,
           severity: l.severity,
           citations: l.evidence.length,
-          evidence: l.evidence
-            .slice(0, 5)
-            .map((e) => ({ locator: e.locator, observed: e.observed, ...(e.expected ? { expected: e.expected } : {}) })),
+          evidence: l.evidence.slice(0, 5).map(evidenceOf),
         } satisfies FindingSnapshot,
       ]),
   );
+
+/**
+ * How much a probe may shrink between two readings before the comparison stops meaning
+ * anything.
+ *
+ * Not zero: an accepted fix legitimately removes files, and `agent.instruction-file-committed`
+ * proposing a deletion is the whole point of that rule. A tenth of the tree is the line
+ * between "a file went" and "the thing being measured went".
+ */
+const COVERAGE_LOSS_TOLERANCE = 0.1;
+
+/** Probes whose denominator IS the amount of artifact examined, rather than a count of hits. */
+const COVERAGE_BEARING_PROBES = new Set(["tree", "source", "tests", "dom-survey", "computed-style", "text", "motion"]);
+
+function coverageLost(before: Report, after: Report): { probeId: string; before: number; after: number }[] {
+  const afterByeId = new Map(after.coverage.probes.map((p) => [p.id, p.denominator ?? 0] as const));
+  const lost: { probeId: string; before: number; after: number }[] = [];
+  for (const p of before.coverage.probes) {
+    if (!COVERAGE_BEARING_PROBES.has(p.id)) continue;
+    const was = p.denominator ?? 0;
+    if (was === 0) continue;
+    const now = afterByeId.get(p.id) ?? 0;
+    if (now < was * (1 - COVERAGE_LOSS_TOLERANCE)) lost.push({ probeId: p.id, before: was, after: now });
+  }
+  return lost;
+}
 
 const VERIFY_DISCLAIMER =
   "This is a re-scan, not a review. A finding that is no longer present is a finding this corpus no longer matches at that locator, which is not the same as a problem being solved, and a finding that persists may be a rule this artifact was always going to trip.";
@@ -354,9 +459,17 @@ function compare(target: string, before: Baseline | undefined, after: Report): V
   const scoreDelta =
     before && before.report.score !== null && after.score !== null ? after.score - before.report.score : null;
 
+  const lost = before ? coverageLost(before.report, after) : [];
+  const evidenceMayHaveBeenRemoved = lost.length > 0;
+
   const headline = !beforeSet
     ? `No earlier reading of ${target} is held in this session, so there is nothing to compare against. This run found ${afterSet.size} finding(s). Scan first, apply changes, then verify.`
     : [
+        evidenceMayHaveBeenRemoved
+          ? `EVIDENCE MAY HAVE BEEN REMOVED: this run examined less than the earlier one (${lost
+              .map((l) => `${l.probeId} ${l.before} -> ${l.after}`)
+              .join(", ")}). A finding cannot be counted as resolved when the thing it was measured on is no longer being read. Read the rest of this against that.`
+          : "",
         `Before: ${beforeSet.size} finding(s). After: ${afterSet.size}.`,
         `${noLongerPresent.length} no longer present, ${stillPresent.length} still present, ${newlyPresent.length} newly present.`,
         newlyPresent.length > 0
@@ -387,10 +500,19 @@ function compare(target: string, before: Baseline | undefined, after: Report): V
     stillPresent,
     newlyPresent,
     regression: newlyPresent.length > 0,
+    evidenceMayHaveBeenRemoved,
+    coverageLost: lost,
     scoreDelta,
     scoreCeiling: MAX_SCORE,
     headline,
-    warnings: after.warnings,
+    warnings: evidenceMayHaveBeenRemoved
+      ? [
+          `The re-scan examined less of the target than the earlier reading did (${lost
+            .map((l) => `${l.probeId}: ${l.before} -> ${l.after}`)
+            .join(", ")}). Findings listed as no longer present may simply no longer be readable.`,
+          ...after.warnings,
+        ]
+      : after.warnings,
     receipt: formatReceipt(after),
     disclaimer: VERIFY_DISCLAIMER,
   };

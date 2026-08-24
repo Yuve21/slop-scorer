@@ -32,7 +32,7 @@ export { CODE_CONFIG, CODE_FAMILIES } from "./families.js";
 export { analyzeRepoArtifact, CODE_DETECTOR_ID, coverageOf } from "./analyze.js";
 
 export type { ScanOptions } from "./scan.js";
-export { scanRepo } from "./scan.js";
+export { ScanLimitError, scanRepo } from "./scan.js";
 
 export { asRepoArtifact, codeDetector } from "./detector.js";
 

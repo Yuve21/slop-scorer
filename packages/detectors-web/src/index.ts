@@ -29,6 +29,9 @@ export { analyzeArtifact, coverageOf, WEB_DETECTOR_ID } from "./analyze.js";
 export type { ProbeOptions } from "./probe.js";
 export { PlaywrightUnavailableError, probeUrl, WELL_KNOWN_PATHS } from "./probe.js";
 
+export type { NetworkPolicy } from "./net-policy.js";
+export { addressClass, ALLOWED_SCHEMES, assertFetchable, isFetchable, UnsafeTargetError } from "./net-policy.js";
+
 export { asWebArtifact, webDetector } from "./detector.js";
 
 export {

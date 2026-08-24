@@ -24,6 +24,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { ProbeStatus } from "@slop/core";
+import { isSecretFile, redactSecrets } from "@slop/core";
 import { PROBE_WEIGHTS, REPO_ARTIFACT_SCHEMA_VERSION } from "./artifact.js";
 import type {
   AgentFileRecord,
@@ -314,7 +315,68 @@ export interface ScanOptions {
   readonly maxFileBytes?: number;
   readonly readHistory?: boolean;
   readonly historyLimit?: number;
+  /** Total bytes of source this scan will read. Default 256 MB. */
+  readonly maxTotalBytes?: number;
+  /** How deep the walk descends. Default 40. */
+  readonly maxDepth?: number;
 }
+
+/**
+ * A limit a caller asked for that this scanner will not honour.
+ *
+ * Distinct from the SOFT limits, which truncate and say so in `artifact.skipped`. This is for
+ * the case where the argument itself is the problem: `maxFiles: 10_000_000` is not a request
+ * for a thorough scan, it is a request for the process to die somewhere in the middle of one,
+ * and the honest answer is a refusal a caller can catch rather than an out-of-memory two
+ * minutes later with no artifact and no explanation.
+ */
+export class ScanLimitError extends Error {
+  constructor(
+    readonly option: string,
+    readonly requested: number,
+    readonly ceiling: number,
+  ) {
+    super(
+      `scanRepo was asked for ${option}=${requested}, above the hard ceiling of ${ceiling}. This scanner runs on the caller's machine against a tree it does not control, so its limits are refusals rather than suggestions.`,
+    );
+    this.name = "ScanLimitError";
+  }
+}
+
+/**
+ * Ceilings, and the hostile tree each one exists for.
+ *
+ * The whole of this section is about a repository that was ASSEMBLED to be scanned rather
+ * than one that happened to be large. `walk` already caps the file count, which is what a
+ * large monorepo needs; none of the following is reachable by an honest checkout:
+ *
+ *  - `HARD_MAX_FILES` / `HARD_MAX_FILE_BYTES`: an argument, not a tree. See `ScanLimitError`.
+ *  - `MAX_TOTAL_BYTES`: five thousand files of 512 KB each is 2.5 GB read and largely retained
+ *    as comment, function and placeholder records. The file cap and the per-file cap are both
+ *    satisfied the whole way; only their product is the problem, so only their product catches
+ *    it.
+ *  - `MAX_DEPTH`: the file cap counts FILES, and a tree of a hundred thousand empty
+ *    directories contains none. The walk would enumerate every one of them having collected
+ *    nothing to stop for.
+ *  - `MAX_DIRECTORIES`: the same shape, one level up, for a tree that is wide instead of deep.
+ *  - `MAX_RECORDS`: one generated 500 KB file can hold fifty thousand `// TODO: implement`
+ *    lines, all of them under every byte limit, all of them retained.
+ *
+ * A symlink loop needs no ceiling at all, and the reason is worth stating because it is easy
+ * to break: `walk` reads directory entries with `withFileTypes`, whose types come from `lstat`,
+ * and it descends only on `isDirectory()` and collects only on `isFile()`. A symlink is
+ * NEITHER, so it is skipped without being followed, and a cycle cannot form. Anything that
+ * changes those two predicates re-opens both the loop and the path-escape it implies.
+ */
+const HARD_MAX_FILES = 200_000;
+const HARD_MAX_FILE_BYTES = 16 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 256 * 1024 * 1024;
+const MAX_DEPTH = 40;
+const MAX_DIRECTORIES = 50_000;
+const MAX_RECORDS = 20_000;
+
+/** Milliseconds `git log` gets before this scanner decides git is not answering. */
+const GIT_TIMEOUT_MS = 15_000;
 
 /** Translate a small glob subset to a RegExp. Deliberately limited and documented as such. */
 function globToRegExp(glob: string): RegExp {
@@ -323,34 +385,81 @@ function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${body.replace(/\u0000/g, "(?:.*/)?").replace(/\u0001/g, ".*")}$`);
 }
 
-async function walk(root: string, maxFiles: number): Promise<{ files: string[]; truncated: boolean }> {
+/**
+ * Enumerate the tree, breadth first, bounded on four axes.
+ *
+ * `isDirectory()` and `isFile()` here come from `lstat` (that is what `withFileTypes` gives
+ * you), and a symlink satisfies NEITHER predicate. That single property is why this walk
+ * cannot loop on `a -> b -> a`, cannot be led out of the root by `docs -> /etc`, and never
+ * reads a file the root does not contain. It reads as an omission and it is a guarantee;
+ * `scan.test.ts` holds it in place with a fixture that is nothing but symlinks.
+ *
+ * `reason` is reported rather than inferred, so a truncated walk says WHICH limit stopped it.
+ * Coverage that is silently partial is the failure this whole file is written against.
+ */
+async function walk(
+  root: string,
+  maxFiles: number,
+  maxDepth: number,
+): Promise<{ files: string[]; truncated: boolean; reason: string | null }> {
   const out: string[] = [];
-  const queue: string[] = [""];
+  const queue: { rel: string; depth: number }[] = [{ rel: "", depth: 0 }];
   let truncated = false;
+  let reason: string | null = null;
+  let directories = 0;
+  let symlinksSkipped = 0;
+
+  const stop = (why: string): void => {
+    truncated = true;
+    reason ??= why;
+  };
+
   while (queue.length > 0 && out.length < maxFiles) {
-    const rel = queue.shift() as string;
+    const next = queue.shift() as { rel: string; depth: number };
+    if (directories >= MAX_DIRECTORIES) {
+      stop(`the walk reached the ${MAX_DIRECTORIES} directory limit`);
+      break;
+    }
+    directories += 1;
     let entries;
     try {
-      entries = await readdir(path.join(root, rel), { withFileTypes: true });
+      entries = await readdir(path.join(root, next.rel), { withFileTypes: true });
     } catch {
       continue;
     }
     for (const entry of entries) {
-      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      const childRel = next.rel ? `${next.rel}/${entry.name}` : entry.name;
+      // Neither branch below matches a symlink, and that is the containment guarantee. Counted
+      // rather than ignored so the artifact can say a tree was full of them.
+      if (entry.isSymbolicLink()) {
+        symlinksSkipped += 1;
+        continue;
+      }
       if (entry.isDirectory()) {
         if (DEFAULT_IGNORES.has(entry.name)) continue;
         if (entry.name.startsWith(".") && !DOT_DIRS.has(entry.name)) continue;
-        queue.push(childRel);
+        if (next.depth + 1 > maxDepth) {
+          stop(`the walk reached the ${maxDepth} level depth limit`);
+          continue;
+        }
+        queue.push({ rel: childRel, depth: next.depth + 1 });
       } else if (entry.isFile()) {
+        // A credential file is not evidence of anything this corpus measures, and the cheapest
+        // way to guarantee its contents never reach a report is to never put it on the list.
+        if (isSecretFile(childRel)) continue;
         if (out.length >= maxFiles) {
-          truncated = true;
+          stop(`the walk stopped at ${maxFiles} files; the tree is larger than the scan limit`);
           break;
         }
         out.push(childRel);
       }
     }
   }
-  return { files: out, truncated: truncated || queue.length > 0 };
+  if (queue.length > 0) stop(`the walk stopped at ${maxFiles} files; the tree is larger than the scan limit`);
+  if (symlinksSkipped > 0 && reason === null) {
+    reason = `${symlinksSkipped} symbolic link(s) were not followed, which is how this walk stays inside the target`;
+  }
+  return { files: out, truncated, reason };
 }
 
 interface ParsedFile {
@@ -396,7 +505,10 @@ function parseSource(relPath: string, text: string): ParsedFile {
           file: relPath,
           line: lineNo,
           marker: p.marker,
-          text: line.slice(0, 200),
+          // A placeholder line is quoted verbatim into a report and from there into an LLM's
+          // context. `PLACEHOLDER_PATTERNS` includes `your-api-key-here`, so the lines this rule
+          // finds are, by construction, the lines around which people keep real keys.
+          text: redactSecrets(line.slice(0, 200)),
           definesItsOwnPattern: definesItsOwnPattern(raw, p.marker),
           attributed: ATTRIBUTED_RE.test(raw),
         });
@@ -569,8 +681,40 @@ async function readGitHistory(
   try {
     const { stdout } = await execFileAsync(
       "git",
-      ["-C", root, "log", `-n${limit}`, "--no-color", "--pretty=format:%H%x1f%ae%x1f%aI%x1f%s%x1f%P%x1f%b%x1e"],
-      { maxBuffer: 8 * 1024 * 1024, windowsHide: true },
+      [
+        "-C",
+        root,
+        // A CHECKOUT CARRIES CONFIGURATION, AND CONFIGURATION IS CODE.
+        //
+        // `.git/config` in a repository somebody handed you can set `core.pager`,
+        // `core.fsmonitor`, `core.hooksPath` and a list of aliases, several of which are
+        // commands git will run on its own initiative. This scanner reads trees it did not
+        // create, so it names the ones that matter and turns them off rather than assuming
+        // that `log` happens not to reach any of them today.
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "core.pager=cat",
+        "-c",
+        "protocol.ext.allow=never",
+        "--no-pager",
+        "log",
+        `-n${limit}`,
+        "--no-color",
+        "--pretty=format:%H%x1f%ae%x1f%aI%x1f%s%x1f%P%x1f%b%x1e",
+      ],
+      {
+        maxBuffer: 8 * 1024 * 1024,
+        windowsHide: true,
+        // Without this, a repository large enough (or a filesystem slow enough) hangs the
+        // whole scan on a subprocess with nobody watching it. Git being slow is not a
+        // finding, and `available: false` with a reason is what the history family already
+        // knows how to read.
+        timeout: GIT_TIMEOUT_MS,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", GIT_CONFIG_NOSYSTEM: "1" },
+      },
     );
     const commits: CommitRecord[] = stdout
       .split("\u001e")
@@ -610,10 +754,21 @@ const probe = (id: ProbeId, ran: boolean, denominator: number, extra: Partial<Pr
 export async function scanRepo(root: string, options: ScanOptions = {}): Promise<RepoArtifact> {
   const maxFiles = options.maxFiles ?? 5_000;
   const maxFileBytes = options.maxFileBytes ?? 512 * 1024;
+  const maxTotalBytes = options.maxTotalBytes ?? MAX_TOTAL_BYTES;
+  const maxDepth = options.maxDepth ?? MAX_DEPTH;
+  // Refused rather than clamped. Silently scanning 200,000 files for a caller who asked for
+  // ten million is the same class of lie as silently scanning none: the caller ends up
+  // believing something about the read that is not true.
+  if (maxFiles > HARD_MAX_FILES) throw new ScanLimitError("maxFiles", maxFiles, HARD_MAX_FILES);
+  if (maxFileBytes > HARD_MAX_FILE_BYTES) throw new ScanLimitError("maxFileBytes", maxFileBytes, HARD_MAX_FILE_BYTES);
+  if (maxTotalBytes > MAX_TOTAL_BYTES) throw new ScanLimitError("maxTotalBytes", maxTotalBytes, MAX_TOTAL_BYTES);
+  if (maxDepth > MAX_DEPTH) throw new ScanLimitError("maxDepth", maxDepth, MAX_DEPTH);
+
   const include = options.include ?? [];
   const includeRes = include.map(globToRegExp);
+  let bytesRead = 0;
 
-  const { files: allPaths, truncated } = await walk(root, maxFiles);
+  const { files: allPaths, reason: walkReason } = await walk(root, maxFiles, maxDepth);
   const matches = (p: string): boolean => includeRes.length === 0 || includeRes.some((re) => re.test(p));
 
   const skipped: string[] = [];
@@ -629,6 +784,12 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
   for (const rel of allPaths) {
     const ext = path.extname(rel);
     if (!SOURCE_EXTENSIONS.has(ext) || !matches(rel)) continue;
+    // The per-file cap and the total cap catch different trees. One 10 GB file is stopped by
+    // `maxFileBytes`; five thousand 512 KB files are each under it and are stopped only here.
+    if (bytesRead >= maxTotalBytes) {
+      skipped.push(`${rel} (and every file after it: the scan reached its ${maxTotalBytes} byte total read budget)`);
+      break;
+    }
     let text: string;
     try {
       const info = await stat(path.join(root, rel));
@@ -636,7 +797,15 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
         skipped.push(`${rel} (${info.size} bytes, over the ${maxFileBytes} byte limit)`);
         continue;
       }
+      // Only regular files are read. `stat` follows links, so a `main.ts` symlinked at
+      // `/dev/zero` or at a FIFO reads as a size of zero and then blocks forever on a read
+      // nothing cancels. `walk` already refuses to list a symlink; this refuses the rest.
+      if (!info.isFile()) {
+        skipped.push(`${rel} (not a regular file)`);
+        continue;
+      }
       text = await readFile(path.join(root, rel), "utf8");
+      bytesRead += info.size;
     } catch (error) {
       skipped.push(`${rel} (${error instanceof Error ? error.message.split("\n")[0] : "unreadable"})`);
       continue;
@@ -675,9 +844,12 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
 
     const parsed = parseSource(rel, text);
     fileRecords.push(parsed.record);
-    functions.push(...parsed.functions);
-    comments.push(...parsed.comments);
-    placeholders.push(...parsed.placeholders);
+    // Record caps. One generated 500 KB file can hold fifty thousand `// TODO: implement`
+    // lines, every one of them inside every byte limit and every one of them retained. The
+    // rules downstream cite at most a handful; the rest is memory with no reader.
+    if (functions.length < MAX_RECORDS) functions.push(...parsed.functions);
+    if (comments.length < MAX_RECORDS) comments.push(...parsed.comments);
+    if (placeholders.length < MAX_RECORDS) placeholders.push(...parsed.placeholders);
     for (const b of parsed.blockHashes) {
       const bucket = blockIndex.get(b.hash) ?? [];
       bucket.push({ file: rel, startLine: b.startLine, excerpt: b.excerpt });
@@ -739,7 +911,7 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
     try {
       const info = await stat(path.join(root, hit));
       bytes = info.size;
-      excerpt = (await readFile(path.join(root, hit), "utf8")).slice(0, 200);
+      excerpt = redactSecrets((await readFile(path.join(root, hit), "utf8")).slice(0, 200));
     } catch {
       /* a directory-shaped candidate such as .cursor/rules: the path itself is the evidence */
     }
@@ -783,7 +955,7 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
       path: candidate,
       bytes: Buffer.byteLength(text),
       matchesScaffoldDefault: stub?.label ?? null,
-      excerpt: text.slice(0, 200).replace(/\s+/g, " ").trim(),
+      excerpt: redactSecrets(text.slice(0, 200).replace(/\s+/g, " ").trim()),
     });
   }
 
@@ -798,7 +970,7 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
       lines: lines.length,
       templateMarkers: README_TEMPLATE_MARKERS.flatMap((marker) => {
         const idx = lines.findIndex((l) => l.toLowerCase().includes(marker.toLowerCase().split("\n")[0] ?? marker));
-        return idx === -1 ? [] : [{ line: idx + 1, marker, text: (lines[idx] ?? "").slice(0, 200) }];
+        return idx === -1 ? [] : [{ line: idx + 1, marker, text: redactSecrets((lines[idx] ?? "").slice(0, 200)) }];
       }),
     };
   }
@@ -835,7 +1007,8 @@ export async function scanRepo(root: string, options: ScanOptions = {}): Promise
     }),
   ];
 
-  if (truncated) skipped.push(`(walk stopped at ${maxFiles} files; the tree is larger than the scan limit)`);
+  // The walk names the limit that stopped it rather than restating one this scope guessed at.
+  if (walkReason) skipped.push(`(${walkReason})`);
 
   return {
     schemaVersion: REPO_ARTIFACT_SCHEMA_VERSION,

@@ -1,7 +1,21 @@
 import { MAX_SCORE } from "./assessment.js";
+import { fenceUntrusted, UNTRUSTED_CONTENT_WARNING } from "./untrusted.js";
 import type { Report } from "./score.js";
 
 const sign = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
+
+/**
+ * Every quoted value on an evidence line comes from the artifact, and the artifact is not
+ * ours. This is the one output format with no structure to hide behind: it is a wall of text
+ * a model reads, so a `locator` containing a newline could previously forge an entire extra
+ * receipt line, complete with a rule id, a point contribution and a running total that a
+ * reader would have no way to distinguish from the real ones.
+ *
+ * `fenceUntrusted` strips the control characters that make that possible, redacts anything
+ * credential-shaped, caps the length, and wraps what is left in a delimiter it has already
+ * removed from the body. The header sentence says out loud what the fences mean.
+ */
+const quote = (value: string): string => fenceUntrusted(value, { cap: 240 });
 
 /**
  * Render the receipt as plain text.
@@ -43,7 +57,9 @@ export function formatReceipt(report: Report): string {
     );
     out.push(`         ${l.title}`);
     for (const e of l.evidence.slice(0, 3)) {
-      out.push(`         evidence: ${e.kind} ${e.locator} = ${JSON.stringify(e.observed)}${e.expected ? ` (expected ${JSON.stringify(e.expected)})` : ""}`);
+      out.push(
+        `         evidence: ${e.kind} ${quote(e.locator)} = ${quote(e.observed)}${e.expected ? ` (expected ${quote(e.expected)})` : ""}`,
+      );
     }
     if (l.evidence.length > 3) out.push(`         ... and ${l.evidence.length - 3} more, ${l.hitsCounted} counted toward the weight`);
     out.push(`         caveat: ${l.falsePositiveNote}`);
@@ -77,5 +93,6 @@ export function formatReceipt(report: Report): string {
   }
 
   out.push(report.disclaimer);
+  if (report.receipt.lines.some((l) => l.evidence.length > 0)) out.push(UNTRUSTED_CONTENT_WARNING);
   return out.join("\n");
 }

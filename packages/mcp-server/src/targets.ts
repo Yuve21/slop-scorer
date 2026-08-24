@@ -45,9 +45,27 @@ export function resolveTarget(input: UiTarget): string {
   throw new Error("This tool needs either a url or a localhost port.");
 }
 
-/** The key a baseline is remembered under. Same target, same key, across all four tools. */
+/**
+ * The key a baseline is remembered under. Same target, same key, across all four tools.
+ *
+ * EVERY OPTION THAT CHANGES WHAT GETS READ IS IN THE KEY, and that is a security property
+ * rather than a tidiness one. `verify_fix` compares this run's findings to the run held under
+ * this key, so any argument that narrows the scan while leaving the key alone is a way to make
+ * findings disappear without changing a line of code.
+ *
+ * `include` was already here. `maxFiles` was NOT: scanning with the default and then verifying
+ * with `maxFiles: 1` hit the same key, compared a one-file walk against a whole-repository
+ * reading, and reported every finding in the repository as no longer present. `readHistory`
+ * has the same shape for the commit-history family.
+ */
 export const codeTargetKey = (t: CodeTarget): string =>
-  `code:${t.path.replace(/[\\/]+$/, "")}:${(t.include ?? []).join("|")}`;
+  [
+    "code",
+    t.path.replace(/[\\/]+$/, ""),
+    (t.include ?? []).join("|"),
+    `history=${t.readHistory === false ? "off" : "on"}`,
+    `maxFiles=${t.maxFiles ?? "default"}`,
+  ].join(":");
 
 export const uiTargetKey = (t: UiTarget): string => `ui:${resolveTarget(t)}`;
 
