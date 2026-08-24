@@ -19,7 +19,27 @@
  * that way, and it is not proof about who made what.
  */
 
-export type WatermarkScheme = "synthid" | "c2pa-soft-binding" | "iptc-invisible" | "provider-specific";
+export type WatermarkScheme =
+  | "synthid"
+  | "c2pa-soft-binding"
+  | "iptc-invisible"
+  | "provider-specific"
+  /**
+   * AudioSeal (Meta, MIT-licensed detector and published weights), and the reason it is
+   * named separately from `provider-specific`: it is the only scheme in this list whose
+   * DETECTOR we could actually run, because both the model and the code are open. So a
+   * `not_checked` here means "we have not wired it in", not "we cannot".
+   *
+   * It still detects only its own mark, which is applied by AudioSeal-based pipelines and by
+   * essentially nobody else, so a negative from it is worth exactly as little as any other.
+   */
+  | "audioseal"
+  /**
+   * SynthID for audio, which is a DIFFERENT thing from SynthID for images and is listed
+   * separately because conflating them would let an image-side result read as an audio one.
+   * Google applies it to its own speech and music output; the detector is not public.
+   */
+  | "synthid-audio";
 
 export type WatermarkOutcome =
   /** The scheme's detector ran and reported a mark. */
@@ -75,6 +95,28 @@ export const DEFAULT_WATERMARK_PROBES: readonly WatermarkProbe[] = [
   ),
 ];
 
+/**
+ * The audio schemes, appended for an audio artifact rather than carried by every one.
+ *
+ * Kept separate from the default set on purpose. A JPEG's report should not list two audio
+ * watermark schemes as unchecked: a probe row for something that could not apply to the
+ * artifact in front of us is noise that trains a reader to skip the section, and this section
+ * is the one place the product says out loud what it did not do.
+ */
+export const AUDIO_WATERMARK_PROBES: readonly WatermarkProbe[] = [
+  notChecked(
+    "audioseal",
+    "AudioSeal is the one scheme here whose detector is openly published, so this build could run it and has not: " +
+      "no detector is wired in. It would only ever find AudioSeal's own mark, which is applied by AudioSeal-based " +
+      "pipelines and by almost nothing else.",
+  ),
+  notChecked(
+    "synthid-audio",
+    "SynthID for audio is applied by Google to its own speech and music output and its detector is not public, so " +
+      "this build cannot check for it. This is the audio scheme and is not the same mark as SynthID for images.",
+  ),
+];
+
 /** Only a `present` probe from a named detector may produce a finding. Enforced, not asked. */
 export function citableWatermarks(probes: readonly WatermarkProbe[]): readonly WatermarkProbe[] {
   return probes.filter((p) => p.outcome === "present" && !!p.detector && !!p.locator);
@@ -86,4 +128,6 @@ export function citableWatermarks(probes: readonly WatermarkProbe[]): readonly W
 export const WATERMARK_ABSENCE_NOTE =
   "A watermark that is not detected is not a finding. Published attacks remove these marks without access to the " +
   "detector, an ordinary screenshot removes most of them by accident, and no mainstream scheme is applied by more " +
-  "than a handful of producers in the first place.";
+  "than a handful of producers in the first place. In audio the point is sharper still: a re-encode to a lower " +
+  "bitrate, a time stretch, or playing a file through a speaker into a microphone are all documented ways of " +
+  "losing an audio mark, and every one of them is something an ordinary person does by accident.";

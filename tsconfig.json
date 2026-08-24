@@ -11,10 +11,25 @@
       "path": "./packages/detectors-code"
     },
     {
+      "path": "./packages/provenance"
+    },
+    {
+      "path": "./packages/detectors-image"
+    },
+    {
+      "path": "./packages/detectors-video"
+    },
+    {
+      "path": "./packages/detectors-audio"
+    },
+    {
       "path": "./packages/mcp-server"
     },
     {
       "path": "./packages/reproduce"
+    },
+    {
+      "path": "./packages/ocr-text"
     },
     {
       "path": "./packages/db"

@@ -40,6 +40,7 @@ export {
   PNG_SIGNATURE,
   readExifStrings,
   Reader,
+  sameWriter,
   utf8,
 } from "./container/index.js";
 
@@ -66,7 +67,13 @@ export type { GeneratorClass, GeneratorHit, GeneratorSignature } from "./generat
 export { GENERATOR_SIGNATURES, generatorById, matchGenerators } from "./generators.js";
 
 export type { WatermarkOutcome, WatermarkProbe, WatermarkScheme } from "./watermark.js";
-export { citableWatermarks, DEFAULT_WATERMARK_PROBES, notChecked, WATERMARK_ABSENCE_NOTE } from "./watermark.js";
+export {
+  AUDIO_WATERMARK_PROBES,
+  citableWatermarks,
+  DEFAULT_WATERMARK_PROBES,
+  notChecked,
+  WATERMARK_ABSENCE_NOTE,
+} from "./watermark.js";
 
 export type { LaunderingCode, LaunderingIndicator, LaunderingRecord, PristineCode, PristineMarker } from "./reencode.js";
 export { assessLaundering, LAUNDERING_THRESHOLD, launderingDetail } from "./reencode.js";

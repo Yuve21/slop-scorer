@@ -76,7 +76,7 @@ export function parseMpegAudio(bytes: Uint8Array): ContainerRecord {
         if (lame) {
           segments.push({ name: "LAME", offset: lame.offset, length: 9, summary: lame.value });
           if (!encoder) encoder = { field: "LAME", value: lame.value, offset: lame.offset };
-          else if (encoder.value !== lame.value) {
+          else if (!sameWriter(encoder.value, lame.value)) {
             payloads.push({
               kind: "id3",
               offset: lame.offset,
@@ -120,6 +120,38 @@ export function parseMpegAudio(bytes: Uint8Array): ContainerRecord {
     payloads,
     parseErrors,
   };
+}
+
+/**
+ * ARE THESE TWO WRITER STRINGS THE SAME WRITER, TRUNCATED DIFFERENTLY?
+ *
+ * Found by running this parser over real files rather than over fixtures, and it was a live
+ * false positive in the strongest indicator the whole gate has.
+ *
+ * The field after a Xing/Info header is NINE BYTES. A writer whose name is longer than nine
+ * characters is therefore cut off in it while appearing in full in the ID3 tag, so the same
+ * library shows up as two different strings in one file. `Lavf60.16.101` in ID3:TSSE against
+ * `Lavf` in the Info frame is one encoder named twice — and every mp3 a speech-synthesis API
+ * returns looks exactly like that, because those services mux their delivery with libavformat.
+ * Comparing the two strings for inequality reported `encoder_chain_conflict` at weight 1.1 on
+ * all of them, which closed the re-encoding gate over a conflict that did not exist.
+ *
+ * The fix is a PREFIX comparison in either direction, which is what "truncated to nine bytes"
+ * actually means, and it keeps the real case intact: `ElevenLabs` in the tag against
+ * `LAME3.100` in the frame is neither a prefix of the other and is still a conflict.
+ *
+ * Case-insensitive, because the two headers are written by different code paths in the same
+ * library and neither promises a casing. Whitespace-trimmed for the same reason.
+ */
+export function sameWriter(a: string, b: string): boolean {
+  const x = a.trim().toLowerCase();
+  const y = b.trim().toLowerCase();
+  if (x.length === 0 || y.length === 0) return false;
+  // A one- or two-character "prefix" is a coincidence rather than a truncation, and treating
+  // it as a match would quietly disarm the conflict check for short names.
+  const shorter = x.length <= y.length ? x : y;
+  if (shorter.length < 3) return x === y;
+  return x.startsWith(y) || y.startsWith(x);
 }
 
 /** The nine ASCII bytes immediately after a Xing/Info tag, when they look like a version. */

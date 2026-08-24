@@ -1,11 +1,22 @@
 /**
- * The audio artifact.
+ * The audio artifact: the shared five probes plus one.
  *
- * No extra probes. Audio gets the shared five and nothing else, and the omission is the
- * whole shape of this modality: there is no signal analysis here, no spectrogram, no
- * speaker embedding, no vocoder-artifact statistic. What is left is what the container and
- * the tags declare, which for synthesis services is quite a lot — they fill in the encoder
- * field with their own product name — and for everything else is nothing.
+ * The sixth is `stream`, and it is the only place in this product where a measurement of
+ * CONTENT enters an artifact. It carries what a local decoder measured — a noise floor, the
+ * lengths of the pauses, the energy left above a set of probe frequencies, the declared
+ * duration against the decoded one — each with the command that produced it.
+ *
+ * Three things about it are structural rather than a matter of care:
+ *
+ *  - IT IS EMPTY BY DEFAULT. `ingestAudio` never listens. A reading only exists if a caller
+ *    asked for one and a decoder was on the host, so the ordinary artifact carries
+ *    `NOT_ATTEMPTED` and every rule that reads it stays silent.
+ *  - IT HOLDS NUMBERS, NOT SAMPLES. The waveform is never retained, for the same reason the
+ *    pixels never are: a few floats are re-scorable against a later corpus with none of the
+ *    storage, copyright or privacy exposure of keeping somebody's voice.
+ *  - IT SAYS NOTHING ABOUT A PERSON. There is no embedding, no speaker statistic and no
+ *    similarity score in the type, so there is nothing here from which such a claim could be
+ *    assembled. See `scope.ts` for the line and why it is drawn exactly there.
  */
 
 import {
@@ -17,25 +28,70 @@ import {
   verifiedManifest,
 } from "@slop/provenance";
 import type { FixtureChange, MediaArtifact, MediaProbeId, WatermarkProbe } from "@slop/provenance";
-import { DEFAULT_WATERMARK_PROBES } from "@slop/provenance";
+import { AUDIO_WATERMARK_PROBES, DEFAULT_WATERMARK_PROBES } from "@slop/provenance";
+import { NOT_ATTEMPTED } from "./listen/reading.js";
+import type { StreamReading } from "./listen/reading.js";
+import { streamProbeRow } from "./stream.js";
 
 export interface AudioArtifact extends MediaArtifact {
   readonly modality: "audio";
+  /** What a local decoder measured, or the stated reason there is no measurement. */
+  readonly stream: StreamReading;
 }
 
-export type AudioProbeId = MediaProbeId;
+export type AudioProbeId = MediaProbeId | "stream";
 
-export const AUDIO_PROBE_WEIGHTS: Readonly<Record<AudioProbeId, number>> = MEDIA_PROBE_WEIGHTS;
+export const AUDIO_PROBE_WEIGHTS: Readonly<Record<AudioProbeId, number>> = {
+  ...MEDIA_PROBE_WEIGHTS,
+  /**
+   * Weight 2, below `container`, `metadata` and `laundering`.
+   *
+   * Coverage is a statement about how much of what we PLANNED to read came back, so this
+   * weight decides how much a scan without a reading is allowed to look complete. Set at 2
+   * of 14: a listen-less scan reads 12/14 of the plan and stays above `minCoverage` 0.7, so
+   * the ordinary no-decoder run still produces a report. Set much higher and every caller
+   * who has not installed ffmpeg would be abstained on for a reason about our configuration
+   * rather than about their file.
+   */
+  stream: 2,
+};
 
 export interface IngestAudioOptions {
   readonly locator: string;
   readonly mediaType?: string | null;
   readonly capturedAt?: string;
   readonly watermarks?: readonly WatermarkProbe[];
+  /**
+   * A reading a caller already took, from `listenToAudio`.
+   *
+   * Passed in rather than taken here, because `ingestMedia` is pure and synchronous and it
+   * is going to stay that way: a listen shells out to a decoder, and an ingest that could
+   * silently spawn a subprocess is an ingest nobody can reason about.
+   */
+  readonly stream?: StreamReading;
 }
 
+/**
+ * The watermark probe list for audio: the shared three plus the two audio-only schemes.
+ *
+ * Printed as `not_checked` with a reason each, which is the honest state of a build with no
+ * vendor detector wired in. AudioSeal is the interesting one and the note says so: its
+ * detector is openly published, so its absence here is a thing we have not done rather than
+ * a thing we cannot do.
+ */
+export const AUDIO_DEFAULT_WATERMARKS: readonly WatermarkProbe[] = [
+  ...DEFAULT_WATERMARK_PROBES,
+  ...AUDIO_WATERMARK_PROBES,
+];
+
 export function ingestAudio(bytes: Uint8Array, options: IngestAudioOptions): AudioArtifact {
-  return ingestMedia(bytes, { ...options, modality: "audio" }) as AudioArtifact;
+  const base = ingestMedia(bytes, {
+    ...options,
+    modality: "audio",
+    watermarks: options.watermarks ?? AUDIO_DEFAULT_WATERMARKS,
+  }) as MediaArtifact;
+  const stream = options.stream ?? NOT_ATTEMPTED;
+  return { ...base, modality: "audio", stream, probes: [...base.probes, streamProbeRow(stream)] };
 }
 
 /**
@@ -83,7 +139,13 @@ export function audioVariant(base: AudioArtifact, change: FixtureChange): AudioA
       ...(recipe.xmp ? { xmp: recipe.xmp } : {}),
       ...(recipe.c2paChunk ? { c2paChunk: true } : {}),
     });
-    return { ...base, ...ingestAudio(bytes, { locator: base.source.locator, mediaType: "audio/wav" }) };
+    // `stream` is carried across, so a provenance fixture that rebuilds the bytes does not
+    // silently discard a reading a caller took. The two halves of this artifact are
+    // independent: changing a tag must not change what was measured, and vice versa.
+    return {
+      ...base,
+      ...ingestAudio(bytes, { locator: base.source.locator, mediaType: "audio/wav", stream: base.stream }),
+    };
   };
 
   switch (change.kind) {
@@ -145,7 +207,7 @@ export function audioVariant(base: AudioArtifact, change: FixtureChange): AudioA
     case "watermark": {
       const watermarks: readonly WatermarkProbe[] =
         change.detector === null
-          ? DEFAULT_WATERMARK_PROBES
+          ? AUDIO_DEFAULT_WATERMARKS
           : [
               {
                 scheme: "provider-specific",
@@ -154,7 +216,7 @@ export function audioVariant(base: AudioArtifact, change: FixtureChange): AudioA
                 locator: "whole file",
                 note: "reported by an external detector supplied by the caller",
               },
-              ...DEFAULT_WATERMARK_PROBES.filter((p) => p.scheme !== "provider-specific"),
+              ...AUDIO_DEFAULT_WATERMARKS.filter((p) => p.scheme !== "provider-specific"),
             ];
       return recompute({ ...base, watermarks });
     }
@@ -164,5 +226,9 @@ export function audioVariant(base: AudioArtifact, change: FixtureChange): AudioA
 function recompute(artifact: AudioArtifact): AudioArtifact {
   const laundering = assessLaundering(artifact.container, artifact.metadata, artifact.c2pa);
   const probes = mediaProbes(artifact.container, artifact.metadata, artifact.c2pa, artifact.watermarks, laundering);
-  return { ...artifact, laundering, probes };
+  // The stream row is appended rather than recomputed from the container: it describes what a
+  // decoder measured, which no change to a tag can affect. Forgetting it here would drop the
+  // probe silently and every stream rule would vanish from `rulesEvaluated` without a word,
+  // which is precisely the failure the meta suite exists to catch.
+  return { ...artifact, laundering, probes: [...probes, streamProbeRow(artifact.stream)] };
 }

@@ -18,3 +18,7 @@ coverage/
 
 # A stray next build at the repo root (rather than in apps/web) leaves one of these behind.
 .next/
+
+# Local audio corpora built by scripts/capture-audio-corpus.mjs. Measurements of somebody's
+# recording, kept out of the repository on purpose: see packages/detectors-audio/README.md.
+.corpus-cache/audio/
