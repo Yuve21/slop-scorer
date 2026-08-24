@@ -174,9 +174,11 @@ export default async function Home() {
         <h2 className="max-w-[24ch] text-h2 font-normal text-ink">What this cannot see</h2>
         <p className="max-w-[72ch] text-lg text-ink-muted">
           {RULE_DESCRIPTORS.length} rules is not a verdict on taste. The scan in the fold reads
-          hygiene and rendered style on one page at one viewport. It cannot read motion, audio,
-          typography inside an image, or whether the writing is any good. A clean run means the
-          checks that ran found nothing they know how to cite, and nothing more than that.
+          hygiene and rendered style on one page at one viewport. It reads motion too, including
+          whether prefers-reduced-motion is actually honoured, and the type drawn inside an SVG.
+          It cannot read audio, type rendered into a photograph, or whether the writing is any
+          good. A clean run means the checks that ran found nothing they know how to cite, and
+          nothing more than that.
         </p>
         <Link href="/method" className="text-body text-ink-accent underline-offset-4 hover:underline">
           The method, in full, including the parts that argue against us

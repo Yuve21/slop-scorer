@@ -69,8 +69,8 @@ export default function MethodPage() {
             of a site.
           </li>
           <li className="border-l border-border-control pl-5">
-            It cannot read motion, audio, or typography that lives inside an image. Those are
-            reported as not assessed, and absence of a finding there is not a finding.
+            It cannot read audio, or type rendered into a photograph rather than drawn as text.
+            Those are reported as not assessed, and absence of a finding there is not a finding.
           </li>
           <li className="border-l border-border-control pl-5">
             It cannot tell you who made something or how. Every rule is a statement about the
