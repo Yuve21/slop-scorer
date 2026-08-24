@@ -28,6 +28,7 @@ export function ReceiptView({
   view,
   reproduction,
   permalink,
+  exportHref,
   elapsedLabel,
 }: {
   readonly id: string;
@@ -37,6 +38,13 @@ export function ReceiptView({
   readonly view: ScanView;
   readonly reproduction: Reproduction;
   readonly permalink: string;
+  /**
+   * The export endpoint for this receipt's figure, when it HAS one.
+   *
+   * Passed in rather than derived here, because whether a figure exists is a property of the
+   * reproduction and the button must not appear on a receipt where nothing was reproduced.
+   */
+  readonly exportHref?: string;
   /** Overrides the headline with a counted-up figure when the headline IS a duration. */
   readonly elapsedLabel?: { readonly value: string; readonly suffix: string };
 }) {
@@ -107,7 +115,7 @@ export function ReceiptView({
 
       <Arithmetic view={view} />
 
-      <ReceiptActions view={view} permalink={permalink} />
+      <ReceiptActions view={view} permalink={permalink} {...(exportHref ? { exportHref } : {})} />
     </ReceiptReveal>
   );
 }

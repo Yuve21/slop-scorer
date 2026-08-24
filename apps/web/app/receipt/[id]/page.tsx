@@ -59,6 +59,9 @@ export default async function ReceiptPage({ params }: PageProps<"/receipt/[id]">
       view={receipt.view}
       reproduction={reproduction}
       permalink={absolute(`/receipt/${receipt.id}`)}
+      {...(reproduction.state === "succeeded"
+        ? { exportHref: `/api/receipt/${receipt.id}/export?size=square` }
+        : {})}
       {...(elapsedLabel ? { elapsedLabel } : {})}
     />
   );

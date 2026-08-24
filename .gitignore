@@ -8,3 +8,6 @@ coverage/
 .DS_Store
 
 .corpus-cache/
+
+.vercel
+.env*

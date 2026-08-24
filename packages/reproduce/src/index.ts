@@ -122,6 +122,11 @@ export {
   findEnclosingBorder,
 } from "./compose.js";
 
+/* ---- the export path, and the bytes it refuses to emit ------------------------------------------ */
+export type { ExportRefusalCode, FigureExport } from "./export.js";
+export { ExportRefusedError, exportSizeById, renderFigureExport } from "./export.js";
+export { PngFormatError, decodePng, encodePng } from "./png.js";
+
 /* ---- copy ------------------------------------------------------------------------------------- */
 export {
   CONFOUNDER_TEXT,
