@@ -6,7 +6,7 @@ import {
   type Plate,
   type Reproduction,
 } from "@/lib/reproduction";
-import { PANEL_ATTR } from "./reveal";
+import { PANEL_ATTR } from "@/lib/reveal-attrs";
 
 /**
  * THE FIGURE. This is the legally load-bearing block on the site and the one component

@@ -3,6 +3,8 @@
 import { createTimeline, utils } from "animejs";
 import * as React from "react";
 
+import { BLOCK_ATTR, ELAPSED_ATTR, PANEL_ATTR } from "@/lib/reveal-attrs";
+
 /**
  * THE ONE MOTION MOMENT. There is exactly one of these per route, and this file is the only
  * place in the app that imports an animation library.
@@ -34,12 +36,9 @@ import * as React from "react";
  * npm resolves, so we build against what we ship rather than against the documentation.
  */
 
-/** Beat 1 targets this. `data-reveal-to` carries the measured seconds as a string. */
-export const ELAPSED_ATTR = "data-reveal-elapsed";
-/** Beat 2 targets this: the recreation panel, and only the recreation panel. */
-export const PANEL_ATTR = "data-reveal-panel";
-/** Beat 3 targets this: ONE element wrapping the whole evidence list. Never the rows. */
-export const BLOCK_ATTR = "data-reveal-block";
+// The attribute names live in a non-client module. See lib/reveal-attrs.ts for why: a
+// server component importing a constant from here gets a client reference, not a string.
+export { BLOCK_ATTR, ELAPSED_ATTR, PANEL_ATTR } from "@/lib/reveal-attrs";
 
 const REDUCED = "(prefers-reduced-motion: reduce)";
 
