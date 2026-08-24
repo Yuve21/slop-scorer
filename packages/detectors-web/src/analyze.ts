@@ -98,6 +98,10 @@ function ruleDescriptorOf(rule: WebRule) {
     explanation: rule.explanation,
     falsePositiveNote: rule.falsePositiveNote,
     ...(rule.prevention ? { prevention: rule.prevention } : {}),
+    // Carried, not defaulted. The detector declares itself deterministic and most of this
+    // corpus is; a rule that reads text back out of a picture says so on its own line, and the
+    // receipt and the patch gate both read it from here.
+    ...(rule.evidenceKind ? { evidenceKind: rule.evidenceKind } : {}),
     since: rule.since,
   };
 }

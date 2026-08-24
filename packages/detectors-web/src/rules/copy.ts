@@ -12,7 +12,13 @@ import { manualEach, manualOnce, uiChange, withoutTrailingArrow } from "./remedy
  * loop, not because they are good evidence. The cap says which of those two it is.
  */
 
-const SLOP_LEXICON = [
+/**
+ * Exported, because the same lexicon is applied to text recovered from INSIDE an image by
+ * `rules/imagetext.ts`. One list in one place: a second copy would drift, and the copy that
+ * went stale would be the one nobody was looking at. The regexes are global, so every caller
+ * resets `lastIndex` before use.
+ */
+export const SLOP_LEXICON = [
   /\bdelve\b/gi,
   /\btapestry\b/gi,
   /\bfurthermore\b/gi,

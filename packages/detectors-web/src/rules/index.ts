@@ -4,6 +4,8 @@ import { BUILDER_RULES } from "./builder.js";
 import { COPY_RULES } from "./copy.js";
 import { COUNTER_RULES } from "./counter.js";
 import { CRAFT_RULES } from "./craft.js";
+import { IMAGE_TEXT_RULES } from "./imagetext.js";
+import { MOTION_RULES } from "./motion.js";
 import { STRUCTURE_RULES } from "./structure.js";
 import { VISUAL_RULES } from "./visual.js";
 
@@ -21,11 +23,22 @@ export const WEB_RULES: readonly WebRule[] = [
   ...VISUAL_RULES,
   ...CRAFT_RULES,
   ...STRUCTURE_RULES,
+  ...MOTION_RULES,
   ...COPY_RULES,
+  ...IMAGE_TEXT_RULES,
   ...COUNTER_RULES,
 ];
 
-export { BUILDER_RULES, VISUAL_RULES, CRAFT_RULES, STRUCTURE_RULES, COPY_RULES, COUNTER_RULES };
+export {
+  BUILDER_RULES,
+  VISUAL_RULES,
+  CRAFT_RULES,
+  STRUCTURE_RULES,
+  MOTION_RULES,
+  COPY_RULES,
+  IMAGE_TEXT_RULES,
+  COUNTER_RULES,
+};
 
 /** The public, citable description of every rule. This is the MCP `list_rules` payload. */
 export const RULE_DESCRIPTORS: readonly RuleDescriptor[] = WEB_RULES.map((r) => ({
@@ -35,6 +48,7 @@ export const RULE_DESCRIPTORS: readonly RuleDescriptor[] = WEB_RULES.map((r) => 
   polarity: r.polarity,
   baseWeight: r.baseWeight,
   severity: r.severity,
+  ...(r.evidenceKind ? { evidenceKind: r.evidenceKind } : {}),
   explanation: r.explanation,
   falsePositiveNote: r.falsePositiveNote,
   ...(r.prevention ? { prevention: r.prevention } : {}),

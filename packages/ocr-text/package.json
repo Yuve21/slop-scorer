@@ -1,9 +1,9 @@
 {
-  "name": "@slop/detectors-web",
+  "name": "@slop/ocr-text",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "First detector: scores a rendered web page against the web tell corpus.",
+  "description": "Recover the text rendered INSIDE an image, and say honestly when it could not be recovered.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -17,13 +17,6 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@slop/core": "*",
-    "@slop/ocr-text": "*"
-  },
-  "peerDependencies": {
-    "playwright": ">=1.40.0"
-  },
-  "peerDependenciesMeta": {
-    "playwright": { "optional": true }
+    "@slop/reproduce": "*"
   }
 }

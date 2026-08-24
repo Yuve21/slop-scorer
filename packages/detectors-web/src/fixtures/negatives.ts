@@ -18,6 +18,17 @@
  * machines, and in the canonical case the artist offered his layered source files and was
  * told "I don't believe you".
  *
+ * THE MOTION AND IMAGE-TEXT FIELDS ARE A SECOND, LATER READING, AND A REAL ONE. When the motion
+ * probe landed, these five fixtures had no motion in them, and the family that reads it would
+ * therefore never have been tested against the work it is most likely to hurt: funded, hand-built
+ * pages that animate. Leaving the field absent would have made every motion rule skip here and
+ * the calibration table go quiet in exactly the place it is supposed to be loud. So the five live
+ * pages were read again on 2026-08-24 with `scripts/measure-motion.mjs` and the numbers below are
+ * what that read printed: element counts, computed durations and easings, keyframe names and stop
+ * counts, and the before/after of a second render under an emulated `prefers-reduced-motion`.
+ * `MOTION_AUDIT` carries that date because it is nine days later than the rest of the fields, and
+ * a fixture that hides which of its numbers came from when is a fixture nobody can check.
+ *
  * ONE HONEST CAVEAT, STATED RATHER THAN HIDDEN. These are hand-transcribed from a measured
  * audit, not live captures, so the audit's recorded fields are exact and the fields it did
  * not record are set to the CHARITABLE default (craft hygiene present). Defaulting the other
@@ -31,6 +42,48 @@ import { neutralArtifact } from "../artifact.js";
 import type { WebArtifact } from "../artifact.js";
 
 const AUDIT = "2026-08-15";
+/** The day the motion and image-text fields below were read out of the live pages. */
+const MOTION_AUDIT = "2026-08-24";
+
+/**
+ * A transition, as one of these pages actually computes it.
+ *
+ * Written as a helper because the interesting fact about all five human pages is how FEW of
+ * these there are and how unlike each other their timings look: 300ms ease-in-out, 300ms
+ * cubic-bezier(0.25, 1, 0.5, 1), 200ms ease, 200ms cubic-bezier(0.44, 0, 0.56, 1). Not one of
+ * them computes the framework default that all four generated pages do.
+ */
+const transition = (selector: string, properties: string, durationMs: number, easing: string, decorative = false) => ({
+  selector,
+  source: "transition" as const,
+  name: properties.split(",")[0] ?? properties,
+  properties,
+  durationMs,
+  delayMs: 0,
+  easing,
+  iterations: "1",
+  decorative,
+});
+
+/** Repeat one computed transition n times, the way a page repeats a hover token. */
+const transitions = (n: number, prefix: string, properties: string, durationMs: number, easing: string) =>
+  Array.from({ length: n }, (_, i) => transition(`${prefix}:nth-of-type(${i + 1})`, properties, durationMs, easing));
+
+/** An image the recovery was attempted on and abstained from, with the reason it gave. */
+const unreadImage = (src: string, abstained: string) => ({
+  src,
+  method: "raster-ocr" as const,
+  text: "",
+  confidence: 0,
+  abstained,
+});
+
+const NO_DECODER = (type: string) =>
+  `no decoder in this build for ${type}; the pixels were never examined. Supported: image/svg+xml, image/png.`;
+const PALETTE_PNG =
+  "the bytes could not be decoded as a raster: this is not a PNG we can read: colour type 3 is not supported, only 2 and 6";
+const NO_GLYPH_GRID =
+  "no line of type decoded on the fixed glyph grid. The decoder reads pixel-grid type exactly and refuses everything else, so this is the ordinary outcome for a photograph or for antialiased type, and it is NOT a finding that the image has no words in it.";
 
 /** Repeat a card signature n times, for pages that genuinely ship a card grid. */
 const cardGrid = (n: number, radius: string, border: string, shadow: string) =>
@@ -89,6 +142,37 @@ const overtone: WebArtifact = capture({
     thirdPartyHosts: ["tally.so"],
   },
   routes: ["/", "/intro"],
+  // Measured 2026-08-24. A Framer-published page: 97 elements read, TWO of them move, both a
+  // 200ms colour transition on a link. Forty-seven framer-motion and Framer markers, and not one
+  // of them is scored: this is a $18M design-led studio using a professional tool, and the rule
+  // that reads library markers deliberately ignores this tier for exactly that reason.
+  motion: {
+    records: [
+      transition("a.framer-text", "color", 200, "cubic-bezier(0.44, 0, 0.56, 1)"),
+      transition("a.framer-1iftvz7", "color", 200, "cubic-bezier(0.44, 0, 0.56, 1)"),
+    ],
+    keyframes: [{ name: "__framer-loading-spin", stops: 2, properties: "transform" }],
+    libraryMarkers: [
+      { library: "framer-motion", kind: "class", locator: "div.framer-gxpchp", observed: 'class="framer-gxpchp"' },
+      {
+        library: "framer (published site)",
+        kind: "attribute",
+        locator: "div.framer-gxpchp[data-framer-name]",
+        observed: 'data-framer-name="Full Height Splash"',
+      },
+    ],
+    reducedMotion: { measured: true, animatedBefore: 2, animatedAfter: 2, stopped: [], queryDeclared: false },
+    sectionsWithReveal: 0,
+    sectionsTotal: 0,
+    sampled: 97,
+  },
+  imageText: {
+    records: [
+      unreadImage("https://framerusercontent.com/images/MXMxzUu0ccEjfuQBX6KK9Te6I.png", PALETTE_PNG),
+      unreadImage("https://framerusercontent.com/images/fPfRFk7oFro7kxFv0vjy7DemuWc.png", PALETTE_PNG),
+    ],
+    attempted: 4,
+  },
   text: {
     innerText:
       "overtone. the making of a matchmaker. an essay on why introductions are the last thing worth building. join the waitlist.",
@@ -144,6 +228,30 @@ const rodeo: WebArtifact = capture({
     thirdPartyHosts: ["apps.apple.com", "instagram.com", "tiktok.com", "rodeoapp.substack.com", "chat.whatsapp.com"],
   },
   routes: ["/"],
+  // Measured 2026-08-24. 181 elements read, ONE moving: a 300ms ease-in-out transform. The
+  // thirty-three keyframes are react-toastify's, six of them with six stops, which is why
+  // `counter.bespoke-keyframe` skips names carrying a library's prefix: crediting this page for
+  // a toast library's bounce would be as wrong as blaming it for one.
+  motion: {
+    records: [transition("button.cta", "transform", 300, "ease-in-out")],
+    keyframes: [
+      { name: "Toastify__bounceInRight", stops: 6, properties: "animation-timing-function, opacity, transform" },
+      { name: "Toastify__zoomIn", stops: 2, properties: "opacity, transform" },
+      { name: "Toastify__trackProgress", stops: 2, properties: "transform" },
+    ],
+    libraryMarkers: [],
+    reducedMotion: { measured: true, animatedBefore: 1, animatedAfter: 1, stopped: [], queryDeclared: true },
+    sectionsWithReveal: 0,
+    sectionsTotal: 2,
+    sampled: 181,
+  },
+  imageText: {
+    records: [
+      unreadImage("https://rodeorodeorodeo.com/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Ffeet.png", PALETTE_PNG),
+      unreadImage("https://rodeorodeorodeo.com/_next/image?url=%2F_next%2Fstatic%2Fmedia%2Fpizza.png", PALETTE_PNG),
+    ],
+    attempted: 8,
+  },
   text: { innerText: "Rodeo. Save it. Do it. Get the app.", wordCount: 9 },
 });
 
@@ -220,6 +328,33 @@ const sitch: WebArtifact = capture({
     thirdPartyHosts: ["branch.io", "apps.apple.com"],
   },
   routes: ["/", "/privacy", "/terms"],
+  // Measured 2026-08-24. 668 elements read and NOTHING moves: zero durations across the page,
+  // 499 Framer markers, one loading keyframe. Absence is not restraint, so
+  // `counter.motion-restraint` requires at least one moving element and stays silent here.
+  motion: {
+    records: [],
+    keyframes: [{ name: "__framer-loading-spin", stops: 2, properties: "transform" }],
+    libraryMarkers: [
+      { library: "framer-motion", kind: "class", locator: "div.framer-8xsil2", observed: 'class="framer-8xsil2"' },
+      {
+        library: "framer (published site)",
+        kind: "attribute",
+        locator: "div.framer-8xsil2[data-framer-name]",
+        observed: 'data-framer-name="TopContent"',
+      },
+    ],
+    reducedMotion: { measured: true, animatedBefore: 0, animatedAfter: 0, stopped: [], queryDeclared: false },
+    sectionsWithReveal: 0,
+    sectionsTotal: 0,
+    sampled: 668,
+  },
+  imageText: {
+    records: [
+      unreadImage("https://framerusercontent.com/images/vYcYHXuu0FX2JC1ZotLRnpz6aDE.jpeg", NO_DECODER("image/jpeg")),
+      unreadImage("https://framerusercontent.com/images/AzYuPjMgmIju5dC2pWRuwF23B0.png", PALETTE_PNG),
+    ],
+    attempted: 8,
+  },
   text: {
     innerText:
       "GET ON THE LIST. Sitch pairs a real matchmaker with an AI that has actually read your answers. Tell us about yourself, get curated matches, and see if you make the cut. Dini has left the conversation.",
@@ -288,6 +423,25 @@ const amata: WebArtifact = capture({
     thirdPartyHosts: ["amata.onelink.me"],
   },
   routes: ["/", "/events"],
+  // Measured 2026-08-24. 111 elements read, four moving, all of them a 200ms ease background
+  // transition. Four is under the six-element floor the uniformity rule needs, which is the
+  // floor doing its job: four identical hovers is a button style, not a page's motion signature.
+  motion: {
+    records: transitions(4, "a.button", "background-color", 200, "ease"),
+    keyframes: [{ name: "spin", stops: 2, properties: "transform" }],
+    libraryMarkers: [],
+    reducedMotion: { measured: true, animatedBefore: 4, animatedAfter: 4, stopped: [], queryDeclared: false },
+    sectionsWithReveal: 0,
+    sectionsTotal: 4,
+    sampled: 111,
+  },
+  imageText: {
+    records: [
+      unreadImage("https://cdn.prod.website-files.com/664cb1fc8844ede6011fcd8c/68fb669a_Group1171279395.png", NO_GLYPH_GRID),
+      unreadImage("https://cdn.prod.website-files.com/664cb1fc8844ede6011fcd8c/6790b68e_Frame20.png", PALETTE_PNG),
+    ],
+    attempted: 8,
+  },
   text: {
     innerText:
       "Get started. Amata introduces you to people worth meeting, at a specific bar, at a specific time. The Hive Cocktail Bar in Soho, NYC, on June 5 at 7PM. RSVP to a matchmaking party.",
@@ -368,6 +522,46 @@ const stripe: WebArtifact = capture({
     { path: "/.cursorrules", status: 404, contentType: "text/html" },
   ],
   routes: ["/", "/payments", "/billing", "/radar", "/customers", "/pricing", "/newsroom"],
+  // Measured 2026-08-24, and the single most useful reading in this corpus.
+  //
+  // 2,683 elements read, 666 of them moving, and 482 of those share one 300ms
+  // cubic-bezier(0.25, 1, 0.5, 1) hover token: 72% of the moving page on one timing. An earlier
+  // draft of `motion.uniform-timing` counted transitions and would have called that a template
+  // signature on a site built by a named in-house design team. That reading is why the family
+  // reads `animation-*` and leaves `transition-*` unscored, and stripe.com has no animations at
+  // all.
+  //
+  // The second half is the counter-evidence. Under an emulated prefers-reduced-motion the moving
+  // count falls from 666 to 172, so `counter.reduced-motion-honoured` fires. Note
+  // `queryDeclared: false`: the CSS carrying the query is served cross-origin and the stylesheet
+  // walk cannot read it. Parsing for the media query would have found nothing here. Measuring the
+  // reduced document found the behaviour.
+  motion: {
+    records: [
+      ...transitions(12, "a.hds-link", "color, fill, stroke, background-color", 300, "cubic-bezier(0.25, 1, 0.5, 1)"),
+      ...transitions(3, "button.hds-button", "opacity", 150, "linear"),
+      ...transitions(2, "div.HomepageHero__gradient", "transform", 800, "cubic-bezier(0.165, 0.84, 0.44, 1)"),
+    ],
+    keyframes: [],
+    libraryMarkers: [],
+    reducedMotion: {
+      measured: true,
+      animatedBefore: 666,
+      animatedAfter: 172,
+      stopped: ["a.hds-link.navigation-menu-home-link", "button.hds-button.hds-navigation-menu__trigger"],
+      queryDeclared: false,
+    },
+    sectionsWithReveal: 0,
+    sectionsTotal: 10,
+    sampled: 2_683,
+  },
+  imageText: {
+    records: [
+      unreadImage("https://images.stripeassets.com/fzn2n1nzq965/18ArQFiazllj/wave-fallback-mobile.png?fm=webp", NO_DECODER("image/webp")),
+      unreadImage("https://images.stripeassets.com/fzn2n1nzq965/1UE1lPgwbfQR/showflix-streaming.jpg", NO_DECODER("image/jpeg")),
+    ],
+    attempted: 8,
+  },
   text: {
     innerText:
       "Financial infrastructure to grow your revenue. Millions of companies of all sizes use Stripe online and in person to accept payments, send payouts, automate financial processes, and ultimately grow revenue.",
@@ -398,7 +592,7 @@ export const NEGATIVE_CORPUS: readonly CorpusCase<WebArtifact>[] = [
     label: "human",
     source: "https://overto.ne/",
     provenance:
-      "Justin McLeod (Hinge founder), $18M from FirstMark/Pace/Match Group, covered by TechCrunch and Fast Company July 2026. Faces are a paid Commercial Type trial build, self-hosted. Measured in a live browser at 390x844.",
+      `Justin McLeod (Hinge founder), $18M from FirstMark/Pace/Match Group, covered by TechCrunch and Fast Company July 2026. Faces are a paid Commercial Type trial build, self-hosted. Measured in a live browser at 390x844; the motion and image-text fields were read again from the live page on ${MOTION_AUDIT}.`,
     artifact: overtone,
     capturedAt: AUDIT,
   },
@@ -407,7 +601,7 @@ export const NEGATIVE_CORPUS: readonly CorpusCase<WebArtifact>[] = [
     label: "human",
     source: "https://rodeorodeorodeo.com/",
     provenance:
-      "Ex-Hinge COO Sam Levy and ex-Hinge CPO Tim MacGougan, $8.5M seed. Display face is NaN Jaune (paid, self-hosted). Measured in a live browser at 390x844.",
+      `Ex-Hinge COO Sam Levy and ex-Hinge CPO Tim MacGougan, $8.5M seed. Display face is NaN Jaune (paid, self-hosted). Measured in a live browser at 390x844; the motion and image-text fields were read again from the live page on ${MOTION_AUDIT}.`,
     artifact: rodeo,
     capturedAt: AUDIT,
   },
@@ -416,7 +610,7 @@ export const NEGATIVE_CORPUS: readonly CorpusCase<WebArtifact>[] = [
     label: "human",
     source: "https://waitlist.joinsitch.com/",
     provenance:
-      "M13 and a16z speedrun, $7M, TechCrunch June 2025. Two paid faces (Nicky Laatz, Pangram Pangram) and roughly ten honeypot and attribution fields nobody generates. Measured in a live browser at 390x844.",
+      `M13 and a16z speedrun, $7M, TechCrunch June 2025. Two paid faces (Nicky Laatz, Pangram Pangram) and roughly ten honeypot and attribution fields nobody generates. Measured in a live browser at 390x844; the motion and image-text fields were read again from the live page on ${MOTION_AUDIT}, when nothing on it moved at all.`,
     artifact: sitch,
     capturedAt: AUDIT,
   },
@@ -425,7 +619,7 @@ export const NEGATIVE_CORPUS: readonly CorpusCase<WebArtifact>[] = [
     label: "human",
     source: "https://www.amata.ai/",
     provenance:
-      "Founder Ludovic Huraux, $6M, Global Dating Insights launch coverage. Single free Google serif at weight 300, plus a photographed handwritten manifesto. The hardest negative in the set. Measured in a live browser at 390x844.",
+      `Founder Ludovic Huraux, $6M, Global Dating Insights launch coverage. Single free Google serif at weight 300, plus a photographed handwritten manifesto. The hardest negative in the set. Measured in a live browser at 390x844; the motion and image-text fields were read again from the live page on ${MOTION_AUDIT}.`,
     artifact: amata,
     capturedAt: AUDIT,
   },
@@ -434,7 +628,7 @@ export const NEGATIVE_CORPUS: readonly CorpusCase<WebArtifact>[] = [
     label: "human",
     source: "https://stripe.com/",
     provenance:
-      "A public company's marketing site, a self-hosted licensed Klim face, a named in-house design team. Included as a large-scale control: heavy bundle and a full card system, both innocent.",
+      `A public company's marketing site, a self-hosted licensed Klim face, a named in-house design team. Included as a large-scale control: heavy bundle and a full card system, both innocent. Its motion was read live on ${MOTION_AUDIT}: 666 moving elements falling to 172 under an emulated prefers-reduced-motion, which is craft this corpus scores DOWN.`,
     artifact: stripe,
     capturedAt: AUDIT,
   },

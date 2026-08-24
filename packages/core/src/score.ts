@@ -522,7 +522,15 @@ export function buildReport(
     }),
     coverage,
     familiesFired,
-    evidenceKinds: [...new Set(results.map((r) => r.evidenceKind))],
+    // Detector-level kinds PLUS any finding that declared a weaker one of its own. A report
+    // holding one OCR read inside an otherwise deterministic scan has to say so here, or the
+    // surface that counts inferred lines counts zero and prints "all of it is re-readable".
+    evidenceKinds: [
+      ...new Set([
+        ...results.map((r) => r.evidenceKind),
+        ...contributors.map((c) => c.finding.evidenceKind).filter((k): k is NonNullable<typeof k> => !!k),
+      ]),
+    ],
     modalities: [...new Set(results.map((r) => r.modality))],
     detectors: results.map((r) => r.detectorId),
     receipt,

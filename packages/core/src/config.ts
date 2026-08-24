@@ -18,6 +18,11 @@ import type { FamilyId } from "./types.js";
  *  - `craft-floor` measures ABSENT CRAFT, not generation. A lazy human trips every one of
  *    these. It is deliberately the smallest positive family and the UI must say so.
  *  - `copy-tell` is cheap and noisy, so it is capped near nothing on purpose.
+ *  - `motion-signature` measures the SHAPE of a page's motion, never its presence. Every rule
+ *    in it needs a distribution rather than an animation, because the alternative is a family
+ *    that fires on every site that hired a designer.
+ *  - `image-text` reads type out of pictures. It is the only family in the web corpus whose
+ *    findings are probabilistic, and it carries the smallest positive cap for that reason.
  *  - `provenance` can only ever be negative here. Signed and disclosed content is scored
  *    DOWN. Rewarding disclosure is the ethical posture and it is the one that survives EU
  *    AI Act Art. 50 and California SB 942.
@@ -68,17 +73,33 @@ export const WEB_FAMILIES: readonly FamilySpec[] = [
     caveat: "Template-grade repetition. Also what a design system produces, which is why it is capped low.",
   },
   {
+    id: "motion-signature",
+    title: "Motion signature",
+    capShare: 0.12,
+    order: 5,
+    caveat:
+      "Motion SAMENESS is the signal, not motion. Funded human sites animate too, often better, so nothing here fires on the presence of an animation: every rule needs a distribution (one duration and one easing across most of the page, delay deltas that are exactly equal, an infinite loop on decoration). Capped above structural uniformity because a stagger ladder is configured rather than defaulted, and well below a builder fingerprint because a design system produces uniform motion honestly.",
+  },
+  {
     id: "copy-tell",
     title: "Copy tells",
     capShare: 0.05,
-    order: 5,
+    order: 6,
     caveat: "Cheap and noisy. Capped near zero deliberately: prose style is the weakest evidence available.",
+  },
+  {
+    id: "image-text",
+    title: "Typography inside an image",
+    capShare: 0.04,
+    order: 7,
+    caveat:
+      "Text recovered from a picture rather than from the DOM, and the lowest-cap positive family in the corpus for two reasons. The recovery is probabilistic: an OCR pass over arbitrary pixels abstains far more often than it reads, and an SVG's <text> node is byte-exact but says nothing about whether a reader can see it (it may be clipped, transformed or painted in the background colour). Every finding here quotes the recovered string verbatim so a reader can judge the read itself, not just the verdict.",
   },
   {
     id: "provenance",
     title: "Provenance and disclosure",
     capShare: 0.08,
-    order: 6,
+    order: 8,
     counterOnly: true,
     caveat: "Signed or disclosed content is scored DOWN. Disclosure is rewarded, never punished.",
   },
@@ -86,7 +107,7 @@ export const WEB_FAMILIES: readonly FamilySpec[] = [
     id: "counter-evidence",
     title: "Counter-evidence",
     capShare: 0.25,
-    order: 7,
+    order: 9,
     counterOnly: true,
     caveat:
       "Signals that argue FOR the artifact. These bypass family caps because they argue with the whole verdict, and they carry a cap of their own so a single suppressor cannot clear a page either.",

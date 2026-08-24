@@ -32,6 +32,8 @@ export type ProbeId =
   | "well-known"
   | "not-found"
   | "text"
+  | "motion"
+  | "image-text"
   | "provenance";
 
 /** Coverage weights. Rendering is worth more than a header read because it reveals more. */
@@ -45,6 +47,10 @@ export const PROBE_WEIGHTS: Readonly<Record<ProbeId, number>> = {
   "well-known": 2,
   "not-found": 1,
   text: 1,
+  // A second computed-style pass, taken twice (once under an emulated
+  // prefers-reduced-motion), so it is weighted like the first one.
+  motion: 2,
+  "image-text": 1,
   provenance: 1,
 };
 
@@ -76,6 +82,68 @@ export interface ChunkRecord {
   readonly mapReachable: boolean;
   /** First bytes of the reachable map, where generator banners and commit trailers live. */
   readonly mapExcerpt?: string;
+}
+
+/**
+ * One animated element, as the browser computed it.
+ *
+ * Everything here is a `getComputedStyle` value on a real selector, which is the whole reason
+ * motion can live in a deterministic corpus at all: a reader can open DevTools, select the
+ * element, and read the same number back. Nothing in this record is a judgement.
+ */
+export interface MotionRecord {
+  readonly selector: string;
+  /** Which mechanism moves it. A transition needs a trigger; an animation runs on its own. */
+  readonly source: "animation" | "transition";
+  /** `animation-name`, or the transition's property list. */
+  readonly name: string;
+  /** The properties actually being animated, comma separated, as computed. */
+  readonly properties: string;
+  readonly durationMs: number;
+  readonly delayMs: number;
+  /** The computed timing function, verbatim, including a `cubic-bezier(...)` spelled out. */
+  readonly easing: string;
+  /** `animation-iteration-count` as computed. "infinite" is the one that matters. */
+  readonly iterations: string;
+  /** True when the element carries no text of its own: decoration rather than content. */
+  readonly decorative: boolean;
+}
+
+/** An `@keyframes` block, read out of the loaded stylesheets. */
+export interface KeyframeRecord {
+  readonly name: string;
+  /** How many stops the author wrote. Two is a fade; five is somebody drawing a curve. */
+  readonly stops: number;
+  /** Properties the keyframes touch, comma separated. */
+  readonly properties: string;
+}
+
+/** A motion library naming itself in the markup, the CSS or a request. */
+export interface MotionLibraryMarker {
+  readonly library: string;
+  readonly kind: "class" | "attribute" | "keyframe" | "stylesheet" | "script";
+  readonly locator: string;
+  readonly observed: string;
+}
+
+/**
+ * Text recovered from INSIDE an image, and how it was recovered.
+ *
+ * `method` is load-bearing, not descriptive. `svg-text` is a byte-exact read of a `<text>`
+ * node; `raster-ocr` is a decode of pixels that abstains far more often than it succeeds.
+ * Both are reported as probabilistic findings, for the reason the family caveat gives: what a
+ * file contains and what a reader sees are different claims, and neither method establishes
+ * the second one.
+ */
+export interface ImageTextRecord {
+  readonly src: string;
+  readonly method: "svg-text" | "raster-ocr";
+  /** Recovered text, verbatim. Quoted into the evidence so the read itself is auditable. */
+  readonly text: string;
+  /** 0..1. For OCR, the share of decoded glyph cells that matched a glyph. */
+  readonly confidence: number;
+  /** Set when nothing was recovered, saying WHY. An unread image is not a clean image. */
+  readonly abstained?: string;
 }
 
 export interface WellKnownRecord {
@@ -148,6 +216,54 @@ export interface WebArtifact {
   readonly notFound: { readonly status: number; readonly bodyBytes: number } | null;
 
   readonly text: { readonly innerText: string; readonly wordCount: number };
+
+  /**
+   * The page's motion, and the second reading that makes it mean something.
+   *
+   * OPTIONAL ON PURPOSE, and this is the only optional block in the artifact. Captures taken
+   * before this probe existed are replayable, and when this field is absent the motion probe
+   * is absent from `probes` too, so every motion rule is SKIPPED with a warning naming it
+   * rather than evaluated against nothing. That is the difference this whole file is built
+   * around: "we did not look" and "we looked and it was fine" must never render the same.
+   * Filling it with an empty record would have been the second thing.
+   */
+  readonly motion?: {
+    readonly records: readonly MotionRecord[];
+    readonly keyframes: readonly KeyframeRecord[];
+    readonly libraryMarkers: readonly MotionLibraryMarker[];
+    /**
+     * The same page, read again under an emulated `prefers-reduced-motion: reduce`.
+     *
+     * This is the measurement, not the `@media` block. A page can carry the query and honour
+     * none of it; the only way to know is to ask the browser for the reduced document and
+     * count what stopped moving.
+     */
+    readonly reducedMotion: {
+      readonly measured: boolean;
+      readonly animatedBefore: number;
+      readonly animatedAfter: number;
+      /** Up to a handful of selectors that actually stopped, for the citation. */
+      readonly stopped: readonly string[];
+      /** A `@media (prefers-reduced-motion` block found in same-origin CSS. Declared, not honoured. */
+      readonly queryDeclared: boolean;
+    };
+    /** Top-level sections carrying an entrance animation, over the number of sections. */
+    readonly sectionsWithReveal: number;
+    readonly sectionsTotal: number;
+    /** Elements whose computed motion was read. The denominator; zero means a stale walk. */
+    readonly sampled: number;
+  };
+
+  /**
+   * Text read out of the images on the page. Optional for the same reason `motion` is.
+   *
+   * `attempted` is the denominator and it counts images we TRIED, not images we read. An
+   * image nothing could be recovered from is a record with `abstained` set, not a gap.
+   */
+  readonly imageText?: {
+    readonly records: readonly ImageTextRecord[];
+    readonly attempted: number;
+  };
 
   readonly provenance: {
     readonly c2pa: boolean;
@@ -236,6 +352,82 @@ export function neutralArtifact(overrides: Partial<WebArtifact> = {}): WebArtifa
         "We make hinges in Leeds. Fourteen people, one workshop, a catalogue you can hold. Ring us on a weekday and someone who has actually used the thing will pick up.",
       wordCount: 31,
     },
+    // A page that animates a LITTLE, unevenly, and honours nothing in particular. Every field
+    // here is chosen to sit between the motion rules rather than under them: four moving
+    // elements (the uniformity rules need six), three different easings (the sameness rule
+    // needs one), delay steps of 0/60/90/240 (the stagger rule needs an exact ladder), no
+    // infinite loop, no library marker, and a reduced-motion read that measured nothing
+    // stopping (so the counter does not fire either). Motion PRESENT and unremarkable is the
+    // hardest case for this family and it is the one the neutral artifact has to be.
+    motion: {
+      records: [
+        {
+          selector: "a.cta",
+          source: "transition",
+          name: "background-color",
+          properties: "background-color",
+          durationMs: 120,
+          delayMs: 0,
+          easing: "ease-out",
+          iterations: "1",
+          decorative: false,
+        },
+        {
+          selector: "details.spec",
+          source: "transition",
+          name: "height",
+          properties: "height",
+          durationMs: 240,
+          delayMs: 60,
+          easing: "cubic-bezier(0.2, 0, 0, 1)",
+          iterations: "1",
+          decorative: false,
+        },
+        {
+          selector: "img.plate",
+          source: "animation",
+          name: "plate-settle",
+          properties: "transform",
+          durationMs: 900,
+          delayMs: 90,
+          easing: "cubic-bezier(0.33, 1, 0.68, 1)",
+          iterations: "1",
+          decorative: true,
+        },
+        {
+          selector: "nav.sticky",
+          source: "transition",
+          name: "box-shadow",
+          properties: "box-shadow",
+          durationMs: 80,
+          delayMs: 240,
+          easing: "linear",
+          iterations: "1",
+          decorative: false,
+        },
+      ],
+      keyframes: [{ name: "plate-settle", stops: 2, properties: "transform" }],
+      libraryMarkers: [],
+      reducedMotion: { measured: true, animatedBefore: 4, animatedAfter: 4, stopped: [], queryDeclared: false },
+      sectionsWithReveal: 1,
+      sectionsTotal: 3,
+      sampled: 24,
+    },
+    // One image was tried and nothing was recovered from it, which is the ordinary outcome:
+    // a photograph is not type. The record exists rather than being omitted, because an image
+    // nobody could read is not an image with no text in it.
+    imageText: {
+      records: [
+        {
+          src: "/photo-a.jpg",
+          method: "raster-ocr",
+          text: "",
+          confidence: 0,
+          abstained: "no decoder for image/jpeg in this build, so the pixels were never examined",
+        },
+      ],
+      attempted: 1,
+    },
     provenance: { c2pa: false, aiDisclosure: null },
     probes: allProbesRan(),
   };
@@ -254,6 +446,8 @@ export function allProbesRan(): ProbeStatus[] {
     { id: "well-known", ran: true, denominator: 6, expectsNonEmpty: true, weight: PROBE_WEIGHTS["well-known"], note: "well-known paths probed" },
     { id: "not-found", ran: true, denominator: 1, weight: PROBE_WEIGHTS["not-found"] },
     { id: "text", ran: true, denominator: 31, expectsNonEmpty: true, weight: PROBE_WEIGHTS.text, note: "words of rendered innerText" },
+    { id: "motion", ran: true, denominator: 24, expectsNonEmpty: true, weight: PROBE_WEIGHTS.motion, note: "elements whose computed animation and transition values were read. Zero means the motion walk went stale and every uniformity rule below it passed having measured nothing." },
+    { id: "image-text", ran: true, denominator: 1, weight: PROBE_WEIGHTS["image-text"], note: "images text recovery was ATTEMPTED on. Counts the attempts, not the successes: an image nothing could be read from is a record with a stated reason, not a gap." },
     { id: "provenance", ran: true, denominator: 1, weight: PROBE_WEIGHTS.provenance },
   ];
 }

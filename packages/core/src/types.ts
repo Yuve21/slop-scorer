@@ -120,6 +120,21 @@ export interface Finding {
   readonly family: FamilyId;
   readonly title: string;
   readonly severity: Severity;
+  /**
+   * How THIS finding knows what it claims, when that is weaker than the detector's own
+   * declaration.
+   *
+   * `DetectorResult.evidenceKind` is a statement about a whole modality, and it was enough
+   * while every rule in a modality read the same kind of fact. It stopped being enough the
+   * moment a deterministic corpus grew a rule that reads text back out of a picture: a
+   * computed style and an OCR guess are not the same epistemic claim, and averaging them
+   * into one label at the result level would launder the weaker one under the stronger.
+   *
+   * Absent means "the detector's kind applies". Present means this one line is weaker, and
+   * `validate.ts` holds it to the weaker standard: a probabilistic finding may not carry an
+   * applicable patch, whatever the modality around it says.
+   */
+  readonly evidenceKind?: EvidenceKind;
   readonly polarity: Polarity;
   readonly counterScope?: CounterScope;
   /** The rule's declared log-odds weight, before any decay or cap. Negative for counters. */
@@ -186,6 +201,8 @@ export interface RuleDescriptor {
   readonly polarity: Polarity;
   readonly baseWeight: number;
   readonly severity: Severity;
+  /** Set only when this rule's evidence is weaker than its detector's declared kind. */
+  readonly evidenceKind?: EvidenceKind;
   readonly explanation: string;
   readonly falsePositiveNote: string;
   readonly prevention?: string;

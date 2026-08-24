@@ -27,8 +27,18 @@
  */
 
 import type { ProbeStatus } from "@slop/core";
+import { recoverText } from "@slop/ocr-text";
 import { ARTIFACT_SCHEMA_VERSION, PROBE_WEIGHTS } from "./artifact.js";
-import type { ChunkRecord, ProbeId, WebArtifact, WellKnownRecord } from "./artifact.js";
+import type {
+  ChunkRecord,
+  ImageTextRecord,
+  KeyframeRecord,
+  MotionLibraryMarker,
+  MotionRecord,
+  ProbeId,
+  WebArtifact,
+  WellKnownRecord,
+} from "./artifact.js";
 
 /** Paths that answer "was an agent's working file shipped to production?". */
 export const WELL_KNOWN_PATHS: readonly string[] = [
@@ -286,6 +296,257 @@ function readPage(): PageReadout {
 }
 /* c8 ignore stop */
 
+/** What the motion pass hands back. Run twice: once normally, once under reduced motion. */
+interface MotionReadout {
+  readonly records: MotionRecord[];
+  readonly keyframes: KeyframeRecord[];
+  readonly libraryMarkers: MotionLibraryMarker[];
+  readonly queryDeclared: boolean;
+  readonly sectionsWithReveal: number;
+  readonly sectionsTotal: number;
+  readonly sampled: number;
+}
+
+/**
+ * Runs INSIDE the page. The motion pass.
+ *
+ * Separate from `readPage` for one reason that is not tidiness: it is evaluated TWICE, the
+ * second time with `prefers-reduced-motion: reduce` emulated, and the difference between the
+ * two readings is the only honest way to know whether the preference is honoured. A page can
+ * ship the media query and honour none of it. Counting `@media` blocks would score the
+ * intention; asking the browser for the reduced document scores the behaviour.
+ *
+ * Every value here is a `getComputedStyle` read on a real selector, so every citation this
+ * produces can be re-read in DevTools. Nothing is inferred and nothing is averaged.
+ */
+/* c8 ignore start -- executed in the browser, covered by the stored artifacts instead */
+function readMotion(): MotionReadout {
+  const selectorOf = (el: Element): string => {
+    const id = el.id ? `#${el.id}` : "";
+    const cls = typeof el.className === "string" && el.className.trim()
+      ? `.${el.className.trim().split(/\s+/).slice(0, 3).join(".")}`
+      : "";
+    return `${el.tagName.toLowerCase()}${id}${cls}`;
+  };
+  /**
+   * Split a CSS list on its TOP-LEVEL commas.
+   *
+   * `cubic-bezier(0.25, 0.1, 0.25, 1)` contains three commas that are not list separators. The
+   * first version of this file split on `,` and stored the easing as `cubic-bezier(0.25`, which
+   * did not look broken in a report and was quietly catastrophic: every cubic-bezier starting
+   * with the same first number collapsed into ONE bucket, so the uniformity rule counted 478
+   * unrelated easings as identical and read stripe.com as a page with one timing function.
+   * A truncated value is worse than a missing one, because a missing one fails a denominator.
+   */
+  const listSplit = (value: string): string[] => {
+    const out: string[] = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of value || "") {
+      if (ch === "(") depth += 1;
+      if (ch === ")") depth -= 1;
+      if (ch === "," && depth === 0) {
+        out.push(current.trim());
+        current = "";
+        continue;
+      }
+      current += ch;
+    }
+    if (current.trim()) out.push(current.trim());
+    return out.filter(Boolean);
+  };
+  /** "0.35s" / "350ms" -> 350. A list ("0.2s, 0.4s") takes its longest member. */
+  const ms = (value: string): number => {
+    let max = 0;
+    for (const part of listSplit(value)) {
+      const n = parseFloat(part);
+      if (!Number.isFinite(n)) continue;
+      const scaled = /ms$/.test(part) ? n : n * 1000;
+      if (Math.abs(scaled) > Math.abs(max)) max = scaled;
+    }
+    return Math.round(max);
+  };
+  const first = (value: string): string => listSplit(value)[0] ?? "";
+
+  const records: MotionRecord[] = [];
+  const elements = Array.from(document.querySelectorAll<HTMLElement>("body *")).slice(0, 4000);
+  for (const el of elements) {
+    const cs = getComputedStyle(el);
+    const ownText = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent ?? "").trim());
+    const decorative = !ownText;
+
+    const animName = cs.animationName;
+    if (animName && animName !== "none") {
+      const duration = ms(cs.animationDuration);
+      records.push({
+        selector: selectorOf(el),
+        source: "animation",
+        name: first(animName),
+        properties: first(animName),
+        durationMs: duration,
+        delayMs: ms(cs.animationDelay),
+        easing: first(cs.animationTimingFunction),
+        iterations: first(cs.animationIterationCount),
+        decorative,
+      });
+    }
+
+    const transitionProperty = cs.transitionProperty;
+    const transitionDuration = ms(cs.transitionDuration);
+    // `transition-property` defaults to "all" with a zero duration on every element in the
+    // document. A zero-duration transition is not motion, and counting it would hand every
+    // page in existence a few thousand records and make every distribution below meaningless.
+    if (transitionDuration > 0 && transitionProperty && transitionProperty !== "none") {
+      records.push({
+        selector: selectorOf(el),
+        source: "transition",
+        name: first(transitionProperty),
+        properties: transitionProperty,
+        durationMs: transitionDuration,
+        delayMs: ms(cs.transitionDelay),
+        easing: first(cs.transitionTimingFunction),
+        iterations: "1",
+        decorative,
+      });
+    }
+  }
+
+  // Keyframes and the reduced-motion query, from the loaded stylesheets. A cross-origin sheet
+  // throws on .cssRules and is skipped rather than counted.
+  const keyframes: KeyframeRecord[] = [];
+  const libraryMarkers: MotionLibraryMarker[] = [];
+  let queryDeclared = false;
+  const KEYFRAME_RULE = 7;
+  const MEDIA_RULE = 4;
+
+  const walk = (rules: CSSRuleList): void => {
+    for (const rule of Array.from(rules)) {
+      if (rule.type === MEDIA_RULE) {
+        const media = (rule as CSSMediaRule).conditionText ?? "";
+        if (/prefers-reduced-motion/i.test(media)) queryDeclared = true;
+        try {
+          walk((rule as CSSMediaRule).cssRules);
+        } catch {
+          /* nested import, unreadable */
+        }
+        continue;
+      }
+      if (rule.type !== KEYFRAME_RULE && rule.constructor.name !== "CSSKeyframesRule") continue;
+      const kf = rule as CSSKeyframesRule;
+      const stops = kf.cssRules ? kf.cssRules.length : 0;
+      const props = new Set<string>();
+      for (const stop of Array.from(kf.cssRules ?? [])) {
+        const style = (stop as CSSKeyframeRule).style;
+        for (let i = 0; i < style.length; i += 1) {
+          const prop = style.item(i);
+          if (prop) props.add(prop);
+        }
+      }
+      keyframes.push({ name: kf.name, stops, properties: [...props].join(", ") });
+      if (/^(?:animate__|aos-|wow|fade(?:In|Out)(?:Up|Down|Left|Right)?$)/i.test(kf.name)) {
+        libraryMarkers.push({
+          library: /^animate__/i.test(kf.name) ? "animate.css" : "a named library keyframe",
+          kind: "keyframe",
+          locator: `@keyframes ${kf.name}`,
+          observed: `${stops} stop(s): ${[...props].join(", ")}`,
+        });
+      }
+    }
+  };
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    const href = sheet.href ?? "";
+    const named = /animate\.css|animate\.min\.css|\baos\b|gsap|scrollreveal|locomotive/i.exec(href);
+    if (named) {
+      libraryMarkers.push({
+        library: named[0],
+        kind: "stylesheet",
+        locator: `link[rel=stylesheet][href*="${named[0]}"]`,
+        observed: href.slice(0, 160),
+      });
+    }
+    let rules: CSSRuleList | null = null;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue;
+    }
+    if (rules) walk(rules);
+  }
+
+  // Library markers in the markup. Class names and data attributes, both strippable, which is
+  // exactly what the rule that reads them has to say about itself.
+  const CLASS_MARKERS: readonly { readonly library: string; readonly test: RegExp }[] = [
+    { library: "animate.css", test: /\banimate__animated\b|\banimate__[a-z]/i },
+    { library: "AOS", test: /\baos-init\b|\baos-animate\b/i },
+    { library: "framer-motion", test: /\bframer-[0-9a-z]{4,}\b/i },
+    { library: "GSAP", test: /\bgsap-marker|\bgs_reveal\b/i },
+    { library: "WOW.js", test: /\bwow\b(?=\s|$)/i },
+  ];
+  const ATTR_MARKERS: readonly { readonly library: string; readonly attr: string }[] = [
+    { library: "AOS", attr: "data-aos" },
+    { library: "framer-motion", attr: "data-framer-appear-id" },
+    { library: "framer (published site)", attr: "data-framer-name" },
+    { library: "GSAP ScrollTrigger", attr: "data-gsap" },
+    { library: "Locomotive Scroll", attr: "data-scroll" },
+    { library: "ScrollReveal", attr: "data-sr-id" },
+  ];
+  for (const el of elements.slice(0, 1500)) {
+    const cls = typeof el.className === "string" ? el.className : "";
+    for (const marker of CLASS_MARKERS) {
+      if (cls && marker.test.test(cls)) {
+        libraryMarkers.push({
+          library: marker.library,
+          kind: "class",
+          locator: selectorOf(el),
+          observed: `class="${cls.slice(0, 120)}"`,
+        });
+      }
+    }
+    for (const marker of ATTR_MARKERS) {
+      const value = el.getAttribute(marker.attr);
+      if (value !== null) {
+        libraryMarkers.push({
+          library: marker.library,
+          kind: "attribute",
+          locator: `${selectorOf(el)}[${marker.attr}]`,
+          observed: `${marker.attr}="${value.slice(0, 60)}"`,
+        });
+      }
+    }
+  }
+
+  // Section reveals. "Every section fades in" is a distribution, so it needs both numbers.
+  const sections = Array.from(
+    document.querySelectorAll<HTMLElement>("body > * > section, body > section, main > section, main > div"),
+  );
+  let sectionsWithReveal = 0;
+  for (const section of sections) {
+    const candidates = [section, ...Array.from(section.children).slice(0, 6)] as HTMLElement[];
+    const reveals = candidates.some((el) => {
+      const cs = getComputedStyle(el);
+      const animated = cs.animationName && cs.animationName !== "none" && /opacity|transform|translate|fade/i.test(
+        `${cs.animationName} ${cs.willChange}`,
+      );
+      const transitioned = /opacity|transform/i.test(cs.transitionProperty) && parseFloat(cs.transitionDuration) > 0;
+      const held = cs.opacity !== "" && parseFloat(cs.opacity) < 1;
+      return !!(animated || transitioned || held);
+    });
+    if (reveals) sectionsWithReveal += 1;
+  }
+
+  return {
+    records,
+    keyframes,
+    libraryMarkers,
+    queryDeclared,
+    sectionsWithReveal,
+    sectionsTotal: sections.length,
+    sampled: elements.length,
+  };
+}
+/* c8 ignore stop */
+
 const probe = (id: ProbeId, ran: boolean, denominator: number, opts: Partial<ProbeStatus> = {}): ProbeStatus => ({
   id,
   ran,
@@ -371,6 +632,116 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
     await page.evaluate(() => window.scrollTo(0, 0)).catch(() => undefined);
 
     const readout = await page.evaluate(readPage);
+
+    // ---- motion, read twice -------------------------------------------------------------
+    // The second read is the point. `prefers-reduced-motion` is the one craft signal in this
+    // family that cannot be faked by configuration, and the only way to observe it is to ask
+    // the browser for the reduced document and count what stopped. A page that ships the media
+    // query and honours none of it reads identically to a page with no query at all, which is
+    // the correct answer for both.
+    const motionFull = await page.evaluate(readMotion);
+    let reducedMeasured = false;
+    let motionReduced: typeof motionFull | null = null;
+    try {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.waitForTimeout(150);
+      motionReduced = await page.evaluate(readMotion);
+      reducedMeasured = true;
+    } catch {
+      /* An older browser build may not support the emulation. Reported as unmeasured. */
+    } finally {
+      await page.emulateMedia({ reducedMotion: "no-preference" }).catch(() => undefined);
+    }
+
+    // Both sides are COUNTS OF RECORDS over the same walk, not sizes of key sets.
+    //
+    // The first version compared `records.length` before against the size of a Set of
+    // `selector|source|name` keys after, and the selectors a probe can synthesise are not
+    // unique: eight cards produce eight identical `div.card` keys. So a page where nothing
+    // stopped read as "15 before, 5 after" and would have been handed counter-evidence for
+    // accessibility work it had not done. Keys are still used to name WHICH elements stopped,
+    // by comparing multiplicities, but the numbers the rule reads are element counts.
+    const movingKey = (r: MotionRecord): string => `${r.selector}|${r.source}|${r.name}`;
+    const tally = (records: readonly MotionRecord[]): Map<string, number> => {
+      const counts = new Map<string, number>();
+      for (const r of records) {
+        if (r.durationMs <= 0) continue;
+        counts.set(movingKey(r), (counts.get(movingKey(r)) ?? 0) + 1);
+      }
+      return counts;
+    };
+    const before = tally(motionFull.records);
+    const after = tally(motionReduced?.records ?? []);
+    const movingBefore = [...before.values()].reduce((a, b) => a + b, 0);
+    const movingAfter = [...after.values()].reduce((a, b) => a + b, 0);
+    const stopped = [...before.entries()]
+      .filter(([key, count]) => (after.get(key) ?? 0) < count)
+      .map(([key]) => key.split("|")[0] ?? key);
+
+    // Library markers from the REQUEST side too: a bundled framer-motion or GSAP leaves no
+    // class name behind, but the chunk that carries it still has a name.
+    const scriptMarkers: MotionLibraryMarker[] = [];
+    const SCRIPT_MARKERS: readonly { readonly library: string; readonly test: RegExp }[] = [
+      { library: "framer-motion", test: /framer-motion|framer_motion/i },
+      { library: "GSAP", test: /\bgsap\b|ScrollTrigger/i },
+      { library: "AOS", test: /\baos\b(?:\.js|\.min|@)/i },
+      { library: "animate.css", test: /animate\.(?:min\.)?css/i },
+      { library: "lenis / smooth scroll", test: /\blenis\b|locomotive-scroll/i },
+    ];
+    for (const chunk of chunks) {
+      for (const marker of SCRIPT_MARKERS) {
+        if (marker.test.test(chunk.url)) {
+          scriptMarkers.push({
+            library: marker.library,
+            kind: "script",
+            locator: `GET ${chunk.url}`,
+            observed: `${marker.library} in a loaded script URL (${chunk.bytes} bytes)`,
+          });
+        }
+      }
+    }
+
+    const motion: NonNullable<WebArtifact["motion"]> = {
+      records: motionFull.records,
+      keyframes: motionFull.keyframes as KeyframeRecord[],
+      libraryMarkers: [...motionFull.libraryMarkers, ...scriptMarkers],
+      reducedMotion: {
+        measured: reducedMeasured,
+        animatedBefore: movingBefore,
+        animatedAfter: reducedMeasured ? movingAfter : movingBefore,
+        stopped: [...new Set(stopped)].slice(0, 5),
+        queryDeclared: motionFull.queryDeclared,
+      },
+      sectionsWithReveal: motionFull.sectionsWithReveal,
+      sectionsTotal: motionFull.sectionsTotal,
+      sampled: motionFull.sampled,
+    };
+
+    // ---- text inside the images ---------------------------------------------------------
+    const imageTextRecords: ImageTextRecord[] = [];
+    for (const image of readout.dom.images.slice(0, 8)) {
+      if (!image.src || image.src.startsWith("data:")) continue;
+      const response = await page.request.get(new URL(image.src, finalUrl).href, { timeout: 8000 }).catch(() => null);
+      if (!response || !response.ok()) {
+        imageTextRecords.push({
+          src: image.src,
+          method: "raster-ocr",
+          text: "",
+          confidence: 0,
+          abstained: `the image could not be fetched for reading (${response ? response.status() : "no response"}), so its pixels were never examined`,
+        });
+        continue;
+      }
+      const body = await response.body().catch(() => null);
+      if (!body) continue;
+      const recovered = recoverText({
+        src: image.src,
+        contentType: response.headers()["content-type"] ?? "",
+        bytes: new Uint8Array(body),
+      });
+      imageTextRecords.push(recovered as ImageTextRecord);
+    }
+
     await Promise.allSettled(pending);
 
     const wellKnown: WellKnownRecord[] = [];
@@ -421,6 +792,15 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
         expectsNonEmpty: true,
         note: "words of rendered innerText. Zero means the page rendered nothing readable.",
       }),
+      probe("motion", true, motion.sampled, {
+        expectsNonEmpty: true,
+        note:
+          "elements whose computed animation and transition values were read, then re-read under an emulated prefers-reduced-motion. Zero means the motion walk went stale and every uniformity rule below it passed having measured nothing.",
+      }),
+      probe("image-text", true, imageTextRecords.length, {
+        note:
+          "images text recovery was ATTEMPTED on. This counts attempts, not successes: an image nothing could be read from is stored with the reason, because an unread image is not an image with no words in it. Zero is legitimate here, and only here, because a page can honestly have no images.",
+      }),
       probe("provenance", true, 1),
     ];
 
@@ -441,6 +821,8 @@ export async function probeUrl(url: string, options: ProbeOptions = {}): Promise
       routes: readout.routes,
       notFound,
       text: readout.text,
+      motion,
+      imageText: { records: imageTextRecords, attempted: imageTextRecords.length },
       provenance: readout.provenance,
       probes,
     };

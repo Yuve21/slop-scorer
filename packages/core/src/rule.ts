@@ -20,7 +20,7 @@
  * mutated fixture on every test run, so a dead rule fails the build instead.
  */
 
-import type { CounterScope, Evidence, FamilyId, Finding, Polarity, Severity } from "./types.js";
+import type { CounterScope, Evidence, EvidenceKind, FamilyId, Finding, Polarity, Severity } from "./types.js";
 import type { Remediation } from "./remediation.js";
 
 /**
@@ -53,6 +53,11 @@ export interface Rule<TArtifact, TProbeId extends string> {
   readonly polarity: Polarity;
   readonly counterScope?: CounterScope;
   readonly severity: Severity;
+  /**
+   * Declared only when this rule's evidence is WEAKER than its detector's. A deterministic
+   * corpus may hold a probabilistic rule; it may not quietly print it as a fact.
+   */
+  readonly evidenceKind?: EvidenceKind;
   /** Log-odds contribution for the first hit. Negative for counter-evidence. */
   readonly baseWeight: number;
   /** Evidence items beyond this stop counting toward the weight. They are still printed. */

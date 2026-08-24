@@ -190,7 +190,7 @@ export function createServer(): McpServer {
     {
       title: "Render a page and scan it for template tells",
       description:
-        "Renders the page in a real browser (playwright) and measures the RENDERED document, never the server HTML: a static read produces confident findings about a document the visitor never sees. Returns builder fingerprints, default visual language, craft-floor defects, structural uniformity and copy tells, each with a CSS selector or a computed style value you can re-read in DevTools, plus counter-evidence that argues for the page. Accepts a URL or a localhost port.",
+        "Renders the page in a real browser (playwright) and measures the RENDERED document, never the server HTML: a static read produces confident findings about a document the visitor never sees. Returns builder fingerprints, default visual language, craft-floor defects, structural uniformity, motion signature (computed animation durations, easings, delay ladders and infinite loops, plus a second read under an emulated prefers-reduced-motion) and copy tells, each with a CSS selector or a computed style value you can re-read in DevTools, plus counter-evidence that argues for the page. Text recovered from inside images is reported too, marked probabilistic and quoted verbatim. Accepts a URL or a localhost port.",
       inputSchema: {
         url: z.string().optional().describe("The page to render, e.g. https://example.com/pricing"),
         port: z.number().int().positive().optional().describe("A localhost port instead of a URL, for a running dev server."),

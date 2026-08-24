@@ -48,10 +48,15 @@ export function assertWellFormedResult(result: DetectorResult): DetectorResult {
       // only honest proposal is one a person decides on. Checked here, against the result's
       // declared evidenceKind, so a modality added later inherits the constraint without
       // having to remember it.
-      if (result.evidenceKind !== "deterministic" && isApplicable(r)) {
+      // The FINDING's kind when it declares one, the result's otherwise. A deterministic
+      // corpus that grew one probabilistic rule (text recovered out of a picture) must not
+      // be able to ship that rule's guess as an applicable patch on the strength of its
+      // neighbours: the weaker claim is held to the weaker standard, per line.
+      const kind = f.evidenceKind ?? result.evidenceKind;
+      if (kind !== "deterministic" && isApplicable(r)) {
         throw new MalformedResultError(
           id,
-          `finding "${f.ruleId}" carries an applicable ${r.kind} remediation on a ${result.evidenceKind} read. A detector that abstains from certainty cannot ship a patch that asserts it; use a manual remediation.`,
+          `finding "${f.ruleId}" carries an applicable ${r.kind} remediation on a ${kind} read. A detector that abstains from certainty cannot ship a patch that asserts it; use a manual remediation.`,
         );
       }
       if (f.polarity === "counter") {

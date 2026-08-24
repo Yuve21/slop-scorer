@@ -13,6 +13,7 @@
       "@slop/detectors-web": ["packages/detectors-web/src/index.ts"],
       "@slop/detectors-code": ["packages/detectors-code/src/index.ts"],
       "@slop/reproduce": ["packages/reproduce/src/index.ts"],
+      "@slop/ocr-text": ["packages/ocr-text/src/index.ts"],
       "@slop/provenance": ["packages/provenance/src/index.ts"],
       "@slop/detectors-image": ["packages/detectors-image/src/index.ts"],
       "@slop/detectors-video": ["packages/detectors-video/src/index.ts"],

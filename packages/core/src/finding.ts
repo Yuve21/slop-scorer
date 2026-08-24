@@ -33,6 +33,7 @@ export function makeFinding(
     severity: rule.severity,
     polarity,
     ...(polarity === "counter" ? { counterScope: rule.counterScope ?? "family" } : {}),
+    ...(rule.evidenceKind ? { evidenceKind: rule.evidenceKind } : {}),
     baseWeight: rule.baseWeight,
     weight: rule.baseWeight * multiplicity(hitsCounted),
     hitsCounted,

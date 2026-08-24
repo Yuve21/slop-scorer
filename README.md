@@ -28,11 +28,17 @@ packages/
     src/validate.ts          the contract check, including the vacuous-probe guard
     test/meta.ts             the mutation meta-suite every corpus runs against itself
 
-  detectors-web/             "is this rendered page template-shaped?"  30 rules
+  detectors-web/             "is this rendered page template-shaped?"  51 rules
     src/artifact.ts          WebArtifact: what the probes saw, and the neutral base case
-    src/probe.ts             playwright renderer. Measures the RENDERED page, never the HTML
-    src/rules/               builder, visual, craft, structure, copy, counter
+    src/probe.ts             playwright renderer. Measures the RENDERED page, never the HTML.
+                             Reads motion twice: once normally, once under an emulated
+                             prefers-reduced-motion, because the query being present and the
+                             query being honoured are different facts
+    src/rules/               builder, visual, craft, structure, motion, copy, imagetext, counter
     src/fixtures/negatives.ts  five labeled human artifacts
+
+  ocr-text/                  what does this picture SAY? svg <text> exactly, pixels narrowly,
+                             and an abstention with a stated reason for everything else
 
   detectors-code/            "is this repository template-shaped?"  13 rules
     src/artifact.ts          RepoArtifact: every observation carries a path and a line

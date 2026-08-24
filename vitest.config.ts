@@ -12,6 +12,7 @@ export default defineConfig({
       "@slop/detectors-web": r("./packages/detectors-web/src/index.ts"),
       "@slop/detectors-code": r("./packages/detectors-code/src/index.ts"),
       "@slop/reproduce": r("./packages/reproduce/src/index.ts"),
+      "@slop/ocr-text": r("./packages/ocr-text/src/index.ts"),
       "@slop/provenance": r("./packages/provenance/src/index.ts"),
       "@slop/detectors-image": r("./packages/detectors-image/src/index.ts"),
       "@slop/detectors-video": r("./packages/detectors-video/src/index.ts"),

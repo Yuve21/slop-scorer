@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "recordedAt": "2026-08-24T06:14:21.631Z",
+  "recordedAt": "2026-08-24T17:16:39.399Z",
   "corpusVersions": {
     "web": "corpus-2026.09",
     "code": "code-corpus-2026.09",
@@ -103,6 +103,68 @@
       "band": "some-signals",
       "firedRules": [
         "prov.sidecar-declares-mixed-tool"
+      ]
+    },
+    {
+      "id": "reading-clean-digital-silence",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 32,
+      "band": "some-signals",
+      "firedRules": [
+        "stream.silence-has-no-room-in-it"
+      ]
+    },
+    {
+      "id": "reading-full-band-lossless",
+      "corpus": "audio",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "reading-header-disagrees-with-samples",
+      "corpus": "audio",
+      "label": "unknown",
+      "status": "assessed",
+      "score": 26,
+      "band": "few-signals",
+      "firedRules": [
+        "stream.declared-duration-disagrees-with-decoded"
+      ]
+    },
+    {
+      "id": "reading-room-tone-in-the-pauses",
+      "corpus": "audio",
+      "label": "human",
+      "status": "assessed",
+      "score": 4,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "reading-uniform-pauses",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 32,
+      "band": "some-signals",
+      "firedRules": [
+        "stream.pauses-are-uniform"
+      ]
+    },
+    {
+      "id": "reading-upsampled-lossless",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 32,
+      "band": "some-signals",
+      "firedRules": [
+        "stream.spectral-ceiling-below-the-container"
       ]
     },
     {
@@ -652,8 +714,8 @@
       "corpus": "web",
       "label": "generated",
       "status": "assessed",
-      "score": 58,
-      "band": "some-signals",
+      "score": 72,
+      "band": "many-signals",
       "firedRules": [
         "builder.ai-generator-meta",
         "builder.bare-platform-domain",
@@ -662,7 +724,8 @@
         "craft.no-favicon",
         "craft.no-og-image",
         "css.default-sans",
-        "css.one-family"
+        "css.one-family",
+        "motion.framework-default-timing"
       ]
     },
     {
@@ -701,7 +764,7 @@
       "corpus": "web",
       "label": "human",
       "status": "assessed",
-      "score": 7,
+      "score": 5,
       "band": "few-signals",
       "firedRules": [
         "craft.js-weight",
@@ -713,8 +776,8 @@
       "corpus": "web",
       "label": "generated",
       "status": "assessed",
-      "score": 53,
-      "band": "some-signals",
+      "score": 67,
+      "band": "many-signals",
       "firedRules": [
         "builder.bare-platform-domain",
         "craft.crawler-files",
@@ -722,7 +785,8 @@
         "craft.no-favicon",
         "craft.no-meta-description",
         "craft.soft-404",
-        "dom.uniform-cards"
+        "dom.uniform-cards",
+        "motion.framework-default-timing"
       ]
     },
     {
@@ -730,8 +794,8 @@
       "corpus": "web",
       "label": "generated",
       "status": "assessed",
-      "score": 74,
-      "band": "many-signals",
+      "score": 88,
+      "band": "heavy-template-signature",
       "firedRules": [
         "builder.ai-generator-meta",
         "builder.bare-platform-domain",
@@ -740,7 +804,9 @@
         "craft.no-meta-description",
         "craft.no-og-image",
         "dom.icon-tile-stack",
-        "dom.ping-dot"
+        "dom.ping-dot",
+        "motion.framework-default-timing",
+        "motion.infinite-decorative-loop"
       ]
     },
     {
@@ -748,15 +814,16 @@
       "corpus": "web",
       "label": "generated",
       "status": "assessed",
-      "score": 80,
-      "band": "many-signals",
+      "score": 88,
+      "band": "heavy-template-signature",
       "firedRules": [
         "builder.ai-generator-meta",
         "builder.bare-platform-domain",
         "craft.crawler-files",
         "craft.no-canonical",
         "craft.no-og-image",
-        "dom.numbered-steps"
+        "dom.numbered-steps",
+        "motion.framework-default-timing"
       ]
     }
   ]
