@@ -46,11 +46,40 @@ export type AbstentionCode =
   | "coverage_below_floor"
   | "single_family_only"
   | "probe_failed"
+  /**
+   * The artifact reached us re-encoded, resampled, screenshotted or platform-processed.
+   *
+   * Added for the media modalities and the most consequential code in this enum.
+   * `image-detection-reality.md` is unambiguous: a screenshot replaces the encoding,
+   * resamples the pixels, strips the manifest and lands in a lossy container, degrading
+   * pixel-forensic, frequency, watermark AND provenance reads simultaneously, and the
+   * published measurements of detectors under exactly that transform put them at chance.
+   * A number computed over a laundered artifact is a guess wearing a receipt, so the media
+   * detectors refuse to emit one and say which transform they saw.
+   */
+  | "artifact_re_encoded"
+  /**
+   * We read the artifact cleanly and it carried no declared provenance either way.
+   *
+   * ABSENCE OF PROVENANCE IS NOT EVIDENCE OF GENERATION. Most files on earth have no
+   * manifest, because most cameras, editors and phones still do not write one. A
+   * provenance-first detector that met silence has nothing to report, and "nothing to
+   * report" is an abstention, never a low score and never a clean bill of health.
+   */
+  | "no_declared_provenance"
   // not_assessed: we did not look
   | "no_detector_for_input"
   | "out_of_scope_modality"
   | "detector_unavailable"
-  | "opted_out";
+  | "opted_out"
+  /**
+   * We are not permitted to fetch this input, so we did not.
+   *
+   * Distinct from `detector_unavailable`, which is a fault. This one is a decision: a
+   * platform URL whose terms forbid automated retrieval is not a bug to route around, and
+   * the honest outcome is a typed refusal that names the constraint and asks for the file.
+   */
+  | "cannot_fetch";
 
 export interface AbstentionReason {
   readonly code: AbstentionCode;
@@ -63,10 +92,13 @@ export const ABSTENTION_STATUS: Readonly<Record<AbstentionCode, "inconclusive" |
   coverage_below_floor: "inconclusive",
   single_family_only: "inconclusive",
   probe_failed: "inconclusive",
+  artifact_re_encoded: "inconclusive",
+  no_declared_provenance: "inconclusive",
   no_detector_for_input: "not_assessed",
   out_of_scope_modality: "not_assessed",
   detector_unavailable: "not_assessed",
   opted_out: "not_assessed",
+  cannot_fetch: "not_assessed",
 };
 
 /**

@@ -1,0 +1,168 @@
+/**
+ * The audio artifact.
+ *
+ * No extra probes. Audio gets the shared five and nothing else, and the omission is the
+ * whole shape of this modality: there is no signal analysis here, no spectrogram, no
+ * speaker embedding, no vocoder-artifact statistic. What is left is what the container and
+ * the tags declare, which for synthesis services is quite a lot — they fill in the encoder
+ * field with their own product name — and for everything else is nothing.
+ */
+
+import {
+  assessLaundering,
+  ingestMedia,
+  MEDIA_PROBE_WEIGHTS,
+  mediaProbes,
+  synthWav,
+  verifiedManifest,
+} from "@slop/provenance";
+import type { FixtureChange, MediaArtifact, MediaProbeId, WatermarkProbe } from "@slop/provenance";
+import { DEFAULT_WATERMARK_PROBES } from "@slop/provenance";
+
+export interface AudioArtifact extends MediaArtifact {
+  readonly modality: "audio";
+}
+
+export type AudioProbeId = MediaProbeId;
+
+export const AUDIO_PROBE_WEIGHTS: Readonly<Record<AudioProbeId, number>> = MEDIA_PROBE_WEIGHTS;
+
+export interface IngestAudioOptions {
+  readonly locator: string;
+  readonly mediaType?: string | null;
+  readonly capturedAt?: string;
+  readonly watermarks?: readonly WatermarkProbe[];
+}
+
+export function ingestAudio(bytes: Uint8Array, options: IngestAudioOptions): AudioArtifact {
+  return ingestMedia(bytes, { ...options, modality: "audio" }) as AudioArtifact;
+}
+
+/**
+ * The neutral audio artifact: an uncompressed PCM recording with no tags at all.
+ *
+ * A bare WAVE is the honest neutral for this modality. It is what a recorder writes, it
+ * declares nothing about itself, and this detector therefore has nothing to say about it —
+ * which is the correct outcome and the most common one.
+ */
+export function neutralAudio(overrides: Partial<AudioArtifact> = {}): AudioArtifact {
+  const bytes = synthWav({ sampleRate: 48_000, channels: 1, bitDepth: 24, seconds: 3 });
+  const base = ingestAudio(bytes, {
+    locator: "fixture://neutral.wav",
+    mediaType: "audio/wav",
+    capturedAt: "2026-08-23T00:00:00.000Z",
+  });
+  return { ...base, ...overrides };
+}
+
+/** An XMP packet in a real `_PMX` chunk, which is where XMP lives in a RIFF file. */
+const xmpPacket = (body: string): string =>
+  `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">` +
+  `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmp="http://ns.adobe.com/xap/1.0/" ` +
+  `xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#" ` +
+  `xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"><rdf:Description>${body}` +
+  `</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+
+const step = (agent: string): string => `<stEvt:softwareAgent>${agent}</stEvt:softwareAgent>`;
+
+interface WavRecipe {
+  readonly info?: Readonly<Record<string, string>>;
+  readonly xmp?: string;
+  readonly c2paChunk?: boolean;
+}
+
+/** Realise a semantic fixture change as a real WAVE file. */
+export function audioVariant(base: AudioArtifact, change: FixtureChange): AudioArtifact {
+  const rebuild = (recipe: WavRecipe): AudioArtifact => {
+    const bytes = synthWav({
+      sampleRate: 48_000,
+      channels: 1,
+      bitDepth: 24,
+      seconds: 3,
+      ...(recipe.info ? { info: recipe.info } : {}),
+      ...(recipe.xmp ? { xmp: recipe.xmp } : {}),
+      ...(recipe.c2paChunk ? { c2paChunk: true } : {}),
+    });
+    return { ...base, ...ingestAudio(bytes, { locator: base.source.locator, mediaType: "audio/wav" }) };
+  };
+
+  switch (change.kind) {
+    case "declare-generative-tool":
+      return rebuild({ xmp: xmpPacket("<xmp:CreatorTool>ElevenLabs Turbo v2.5</xmp:CreatorTool>") });
+
+    case "mention-tool-in-prose":
+      return rebuild({
+        xmp: xmpPacket("<xmp:CreatorTool>a read in the register people associate with ElevenLabs</xmp:CreatorTool>"),
+      });
+
+    case "declare-mixed-tool":
+      return rebuild({ xmp: xmpPacket(step("Adobe Photoshop 26.0 (Generative Fill)")) });
+
+    case "declare-plain-editor":
+      return rebuild({ xmp: xmpPacket(step("Adobe Audition 25.0")) });
+
+    case "declare-source-type":
+      return rebuild({
+        xmp: xmpPacket(
+          `<Iptc4xmpExt:DigitalSourceType>http://cv.iptc.org/newscodes/digitalsourcetype/${change.value}</Iptc4xmpExt:DigitalSourceType>`,
+        ),
+      });
+
+    case "hand-edit-history":
+      return rebuild({
+        xmp: xmpPacket(
+          ["Pro Tools 2025.6", "Adobe Audition 25.0", "iZotope RX 11", "Logic Pro 11.1"]
+            .slice(0, change.steps)
+            .map(step)
+            .join(""),
+        ),
+      });
+
+    case "maker-note":
+      // No EXIF exists in a RIFF file, which is why the capture-metadata counter is declared
+      // inapplicable to audio rather than carried and left permanently silent.
+      return rebuild({});
+
+    case "strip-capture-metadata":
+      return rebuild({});
+
+    case "encoder":
+      return rebuild({ info: { ISFT: change.value } });
+
+    case "content-credential": {
+      if (change.state === "none") return rebuild({});
+      const withBox = rebuild({ c2paChunk: true });
+      if (change.state === "unverified") return withBox;
+      const record = verifiedManifest(withBox.c2pa.locator ?? "riff-wave:c2pa", withBox.c2pa.byteLength, {
+        claimGenerator: change.claimGenerator,
+        actions: [{ action: "c2pa.created", digitalSourceType: change.digitalSourceType }],
+        assertionLabels: ["c2pa.actions"],
+        hasIngredients: false,
+      });
+      return recompute({ ...withBox, c2pa: record });
+    }
+
+    case "watermark": {
+      const watermarks: readonly WatermarkProbe[] =
+        change.detector === null
+          ? DEFAULT_WATERMARK_PROBES
+          : [
+              {
+                scheme: "provider-specific",
+                outcome: "present",
+                detector: change.detector,
+                locator: "whole file",
+                note: "reported by an external detector supplied by the caller",
+              },
+              ...DEFAULT_WATERMARK_PROBES.filter((p) => p.scheme !== "provider-specific"),
+            ];
+      return recompute({ ...base, watermarks });
+    }
+  }
+}
+
+function recompute(artifact: AudioArtifact): AudioArtifact {
+  const laundering = assessLaundering(artifact.container, artifact.metadata, artifact.c2pa);
+  const probes = mediaProbes(artifact.container, artifact.metadata, artifact.c2pa, artifact.watermarks, laundering);
+  return { ...artifact, laundering, probes };
+}

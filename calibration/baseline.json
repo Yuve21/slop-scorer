@@ -1,15 +1,141 @@
 {
   "formatVersion": 1,
-  "recordedAt": "2026-08-24T03:37:15.009Z",
+  "recordedAt": "2026-08-24T04:55:58.054Z",
   "corpusVersions": {
     "web": "corpus-2026.09",
-    "code": "code-corpus-2026.09"
+    "code": "code-corpus-2026.09",
+    "image": "image-corpus-2026.09",
+    "video": "video-corpus-2026.09",
+    "audio": "audio-corpus-2026.09"
   },
   "baseRates": {
     "web": 15,
-    "code": 15
+    "code": 15,
+    "image": 15,
+    "video": 15,
+    "audio": 15
   },
   "entries": [
+    {
+      "id": "c2pa-located-but-unverified",
+      "corpus": "audio",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-verified-capture",
+      "corpus": "audio",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-verified-trained-algorithmic",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 81,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.c2pa-declares-trained-algorithmic"
+      ]
+    },
+    {
+      "id": "daw-export",
+      "corpus": "audio",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "double-encoded-mp3",
+      "corpus": "audio",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "hand-edit-history",
+      "corpus": "audio",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "iptc-trained-algorithmic",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 66,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.iptc-digital-source-type"
+      ]
+    },
+    {
+      "id": "isft-names-synthesis-service",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.encoder-declares-generative-tool"
+      ]
+    },
+    {
+      "id": "mixed-tool-declared",
+      "corpus": "audio",
+      "label": "unknown",
+      "status": "assessed",
+      "score": 30,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-mixed-tool"
+      ]
+    },
+    {
+      "id": "studio-pcm-untagged",
+      "corpus": "audio",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "watermark-reported-by-external-detector",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 61,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.watermark-detected"
+      ]
+    },
+    {
+      "id": "xmp-names-synthesis-service",
+      "corpus": "audio",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-generative-tool"
+      ]
+    },
     {
       "id": "chalk",
       "corpus": "code",
@@ -137,6 +263,329 @@
         "scaffold.unused-dependencies",
         "uniform.duplicate-blocks",
         "verify.no-tests"
+      ]
+    },
+    {
+      "id": "c2pa-located-but-unverified",
+      "corpus": "image",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-verified-capture",
+      "corpus": "image",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-verified-trained-algorithmic",
+      "corpus": "image",
+      "label": "generated",
+      "status": "assessed",
+      "score": 81,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.c2pa-declares-trained-algorithmic"
+      ]
+    },
+    {
+      "id": "camera-original-no-makernote",
+      "corpus": "image",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "camera-original-with-makernote",
+      "corpus": "image",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "comfyui-graph",
+      "corpus": "image",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-generative-tool"
+      ]
+    },
+    {
+      "id": "declared-digital-art",
+      "corpus": "image",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "declared-screen-capture",
+      "corpus": "image",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "desktop-screenshot-png",
+      "corpus": "image",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "firefly-writer-field",
+      "corpus": "image",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.encoder-declares-generative-tool"
+      ]
+    },
+    {
+      "id": "hand-edit-history",
+      "corpus": "image",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "iptc-trained-algorithmic",
+      "corpus": "image",
+      "label": "generated",
+      "status": "assessed",
+      "score": 66,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.iptc-digital-source-type"
+      ]
+    },
+    {
+      "id": "messenger-recompress",
+      "corpus": "image",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "mixed-tool-declared",
+      "corpus": "image",
+      "label": "unknown",
+      "status": "assessed",
+      "score": 30,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-mixed-tool"
+      ]
+    },
+    {
+      "id": "phone-screenshot",
+      "corpus": "image",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "raw-converter-export",
+      "corpus": "image",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "sd-webui-parameters",
+      "corpus": "image",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-generative-tool"
+      ]
+    },
+    {
+      "id": "watermark-reported-by-external-detector",
+      "corpus": "image",
+      "label": "generated",
+      "status": "assessed",
+      "score": 61,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.watermark-detected"
+      ]
+    },
+    {
+      "id": "bare-download",
+      "corpus": "video",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-located-but-unverified",
+      "corpus": "video",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-verified-capture",
+      "corpus": "video",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "c2pa-verified-trained-algorithmic",
+      "corpus": "video",
+      "label": "generated",
+      "status": "assessed",
+      "score": 81,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.c2pa-declares-trained-algorithmic"
+      ]
+    },
+    {
+      "id": "camera-recording-4k",
+      "corpus": "video",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "edit-suite-export",
+      "corpus": "video",
+      "label": "human",
+      "status": "assessed",
+      "score": 2,
+      "band": "few-signals",
+      "firedRules": []
+    },
+    {
+      "id": "encoder-declares-generative-service",
+      "corpus": "video",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.encoder-declares-generative-tool"
+      ]
+    },
+    {
+      "id": "handbrake-reencode",
+      "corpus": "video",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "iptc-trained-algorithmic",
+      "corpus": "video",
+      "label": "generated",
+      "status": "assessed",
+      "score": 66,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.iptc-digital-source-type"
+      ]
+    },
+    {
+      "id": "mixed-tool-declared",
+      "corpus": "video",
+      "label": "unknown",
+      "status": "assessed",
+      "score": 30,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-mixed-tool"
+      ]
+    },
+    {
+      "id": "no-declaration",
+      "corpus": "video",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "phone-recording",
+      "corpus": "video",
+      "label": "human",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "platform-transcode",
+      "corpus": "video",
+      "label": "unknown",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": []
+    },
+    {
+      "id": "watermark-reported-by-external-detector",
+      "corpus": "video",
+      "label": "generated",
+      "status": "assessed",
+      "score": 61,
+      "band": "many-signals",
+      "firedRules": [
+        "prov.watermark-detected"
+      ]
+    },
+    {
+      "id": "xmp-declares-generative-tool",
+      "corpus": "video",
+      "label": "generated",
+      "status": "assessed",
+      "score": 57,
+      "band": "some-signals",
+      "firedRules": [
+        "prov.sidecar-declares-generative-tool"
       ]
     },
     {

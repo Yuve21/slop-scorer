@@ -1,0 +1,23 @@
+{
+  "name": "@slop/detectors-video",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "video detector: provenance-first, abstention-heavy. Reads declarations, never pixels.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@slop/core": "*",
+    "@slop/provenance": "*"
+  }
+}

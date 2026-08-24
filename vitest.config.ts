@@ -20,10 +20,14 @@ export default defineConfig({
       "@slop/gauntlet": r("./packages/gauntlet/src/index.ts"),
       "@slop/notary": r("./packages/notary/src/index.ts"),
       "slop-scorer-mcp": r("./packages/mcp-server/src/index.ts"),
+      // The web app's own alias, so a test can import the SHIPPED route handler rather than a
+      // copy of its logic. The export endpoint is the legally load-bearing one and it is tested
+      // through this door: see apps/web/test/export-route.test.ts.
+      "@": r("./apps/web"),
     },
   },
   test: {
-    include: ["packages/*/test/**/*.test.ts"],
+    include: ["packages/*/test/**/*.test.ts", "apps/web/test/**/*.test.ts"],
     environment: "node",
   },
 });

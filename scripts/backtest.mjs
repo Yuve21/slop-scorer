@@ -20,6 +20,9 @@ import { fileURLToPath } from "node:url";
 import { backtest, buildReport, formatBacktest, makeBaseline, runCalibration, toBaselineEntries } from "@slop/core";
 import { analyzeArtifact, CORPUS_VERSION, NEGATIVE_CORPUS } from "@slop/detectors-web";
 import { analyzeRepoArtifact, CODE_CONFIG } from "@slop/detectors-code";
+import { analyzeImageArtifact, IMAGE_CONFIG, IMAGE_CORPUS } from "@slop/detectors-image";
+import { analyzeVideoArtifact, VIDEO_CONFIG, VIDEO_CORPUS } from "@slop/detectors-video";
+import { analyzeAudioArtifact, AUDIO_CONFIG, AUDIO_CORPUS } from "@slop/detectors-audio";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE = path.join(ROOT, "calibration", "baseline.json");
@@ -46,13 +49,57 @@ const codeReport = (artifact, id) =>
   buildReport([analyzeRepoArtifact(artifact, { kind: "repo", path: `calibration://${id}` })], { config: CODE_CONFIG });
 const code = runCalibration(CODE_CONFIG.corpusVersion, codeCases, codeReport);
 
+// ---- media ------------------------------------------------------------------------------
+// The three media corpora are STRUCTURAL rather than photographic: constructed files whose
+// label states what each one declares about itself. See each package's `src/fixtures/corpus.ts`
+// for the full account of why there is no real-world negative corpus behind them yet. They
+// belong in the backtest anyway, and for the usual reason: a weight change that starts flagging
+// a file which declares a capture, or that stops abstaining on a screenshot, has to be visible
+// in a diff rather than discovered later.
+const mediaReport = (analyze, config, mediaType) => (artifact, id) =>
+  buildReport([analyze(artifact, { kind: "file", path: `calibration://${id}`, mediaType })], { config });
+
+const imageReport = mediaReport(analyzeImageArtifact, IMAGE_CONFIG, "image/jpeg");
+const videoReport = mediaReport(analyzeVideoArtifact, VIDEO_CONFIG, "video/mp4");
+const audioReport = mediaReport(analyzeAudioArtifact, AUDIO_CONFIG, "audio/wav");
+
+const image = runCalibration(IMAGE_CONFIG.corpusVersion, IMAGE_CORPUS, imageReport);
+const video = runCalibration(VIDEO_CONFIG.corpusVersion, VIDEO_CORPUS, videoReport);
+const audio = runCalibration(AUDIO_CONFIG.corpusVersion, AUDIO_CORPUS, audioReport);
+
 const baseRate = (report) => report.receipt.priorPoints;
-const entries = [...toBaselineEntries("web", web), ...toBaselineEntries("code", code)];
-const corpusVersions = { web: CORPUS_VERSION, code: CODE_CONFIG.corpusVersion };
+const entries = [
+  ...toBaselineEntries("web", web),
+  ...toBaselineEntries("code", code),
+  ...toBaselineEntries("image", image),
+  ...toBaselineEntries("video", video),
+  ...toBaselineEntries("audio", audio),
+];
+const corpusVersions = {
+  web: CORPUS_VERSION,
+  code: CODE_CONFIG.corpusVersion,
+  image: IMAGE_CONFIG.corpusVersion,
+  video: VIDEO_CONFIG.corpusVersion,
+  audio: AUDIO_CONFIG.corpusVersion,
+};
 const baseRates = {
   web: baseRate(webReport(NEGATIVE_CORPUS[0].artifact, "base-rate")),
   code: baseRate(codeReport(codeCases[0].artifact, "base-rate")),
+  image: baseRate(imageReport(IMAGE_CORPUS[0].artifact, "base-rate")),
+  video: baseRate(videoReport(VIDEO_CORPUS[0].artifact, "base-rate")),
+  audio: baseRate(audioReport(AUDIO_CORPUS[0].artifact, "base-rate")),
 };
+
+// The abstention rate, computed here so it is printed on every gate run rather than living in
+// a document that goes stale. It is a headline product metric for the media modalities.
+for (const [name, report] of [["image", image], ["video", video], ["audio", audio]]) {
+  const rows = report.rows;
+  const abstained = rows.filter((r) => r.status !== "assessed").length;
+  console.log(
+    `${name}: abstained on ${abstained} of ${rows.length} corpus member(s) ` +
+      `(${Math.round((abstained / rows.length) * 1000) / 10}%). Abstention is the advertised behaviour, not a defect.`,
+  );
+}
 
 const fresh = makeBaseline(new Date().toISOString(), corpusVersions, baseRates, entries);
 

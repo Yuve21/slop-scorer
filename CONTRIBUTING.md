@@ -44,6 +44,20 @@ Everything else is printed and allowed.
 | Web negatives | 5 human-made sites, provenanced | `packages/detectors-web/src/fixtures/negatives.ts` |
 | Code negatives | 10 repositories with named maintainers and pre-2022 history, pinned by SHA | `packages/detectors-code/test/corpus/` |
 | Discrimination | 2 synthetic generated repositories + 1 synthetic template page | `scripts/fixtures/`, `packages/detectors-web/test/discrimination.test.ts` |
+| Image (structural) | Constructed JPEG/PNG files labelled by what they DECLARE | `packages/detectors-image/src/fixtures/corpus.ts` |
+| Video (structural) | Constructed ISO base media files labelled by what they DECLARE | `packages/detectors-video/src/fixtures/corpus.ts` |
+| Audio (structural) | Constructed RIFF/MPEG audio files labelled by what they DECLARE | `packages/detectors-audio/src/fixtures/corpus.ts` |
+
+**The three media corpora are STRUCTURAL, not real-world, and nothing computed over them is a
+false-positive rate.** A real image or video negative corpus needs licensed, *unmodified*
+originals from named creators — unmodified because the whole subject of those detectors is what
+survives a re-save — which is a licensing job rather than a coding job and has not been done.
+Until it is, those detectors ship abstaining by default. Each package's README says so in the
+same words. Do not quietly upgrade a structural corpus to a real one by adding members to it.
+
+**Their abstention rate is a headline metric, not a defect.** `npm test` and `npm run backtest`
+both compute and print it per modality, against the corpus and the rules of that run. A change
+that lowers it is not automatically an improvement: it may mean the product started guessing.
 
 Re-capture the code corpus with `npm run capture:code-corpus`. It clones each pinned commit into
 a gitignored `.corpus-cache/` and stores the SCAN, not the source: a `RepoArtifact` is small,

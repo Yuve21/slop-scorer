@@ -1,0 +1,22 @@
+{
+  "name": "@slop/provenance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Provenance backbone for the media modalities: container and encoder fingerprints, C2PA and metadata inspection, and the re-encoding gate that forces abstention.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@slop/core": "*"
+  }
+}

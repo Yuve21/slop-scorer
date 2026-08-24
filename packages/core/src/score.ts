@@ -272,7 +272,10 @@ const EMPTY_COVERAGE: Coverage = { ratio: 0, probes: [], examined: "nothing" };
  * product is built to avoid.
  */
 export function notAssessed(
-  code: Extract<AbstentionCode, "no_detector_for_input" | "out_of_scope_modality" | "detector_unavailable" | "opted_out">,
+  code: Extract<
+    AbstentionCode,
+    "no_detector_for_input" | "out_of_scope_modality" | "detector_unavailable" | "opted_out" | "cannot_fetch"
+  >,
   detail: string,
   options: ScoreOptions = {},
 ): Report {
@@ -426,6 +429,11 @@ export function buildReport(
   // indistinguishable from a clean one, and printing a confident 12 over a 20% read is the
   // single most dishonest thing this engine could do.
   const abstention: AbstentionReason[] = [];
+  // Detector-declared reasons come FIRST, because they are the ones the engine could not
+  // have worked out for itself: laundered bytes, a source we may not fetch, a
+  // provenance-first read that met silence. They are facts about the artifact, and they
+  // must not be ranked below an inference about the result.
+  for (const r of results) for (const reason of r.abstention ?? []) abstention.push(reason);
   if (coverage.ratio < config.minCoverage) {
     abstention.push({
       code: "coverage_below_floor",

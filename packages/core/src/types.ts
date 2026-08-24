@@ -22,6 +22,8 @@
  *     without guessing.
  */
 
+import type { AbstentionReason } from "./assessment.js";
+
 /** Artifact classes the product scores. One detector serves exactly one modality. */
 export type Modality = "web" | "code" | "text" | "image" | "video" | "audio";
 
@@ -195,6 +197,19 @@ export interface DetectorResult {
   readonly rulesEvaluated: readonly string[];
   /** Non-fatal problems: a probe that timed out, a redirect that left the origin. */
   readonly warnings?: readonly string[];
+  /**
+   * Abstention the DETECTOR declares, as opposed to abstention the engine infers.
+   *
+   * The engine can work out that coverage was thin or that one family carried everything,
+   * because those are properties of the result. It cannot work out that the bytes arrived
+   * re-encoded, that a platform URL may not be fetched, or that a provenance-first read met
+   * silence: those are facts only the detector saw. `buildReport` merges these with its own
+   * reasons and withholds the score, so a detector can force an honest silence rather than
+   * having to fake a low coverage number to get one.
+   *
+   * Additive and optional. A detector that never sets it behaves exactly as before.
+   */
+  readonly abstention?: readonly AbstentionReason[];
   /**
    * The collected observations, for replay. Storing this rather than the source content is
    * what makes a report re-scorable against a new corpus at a fraction of the storage and
