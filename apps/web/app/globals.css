@@ -5,9 +5,9 @@
 /*
  * Slop Scorer theme.
  *
- * Every value here comes from design/DESIGN.md and carries its reason there. Three things
- * are deliberately ABSENT and must stay absent, because this product gets run through its
- * own detector and each of them is a tell we encode:
+ * Every value here comes from design/DESIGN.md and carries its reason there. Two things are
+ * deliberately ABSENT and must stay absent, because this product gets run through its own
+ * detector and each of them is a tell we encode:
  *
  *   1. --destructive and --chart-1..5, the shadcn defaults. --destructive would reintroduce
  *      the severity ramp this palette does not have: red asserts guilt before a word is
@@ -15,12 +15,41 @@
  *      unused, and the destructive VARIANTS are deleted from the component files, so red is
  *      unreachable rather than merely unfashionable.
  *   2. A non-zero radius on documents. Documents do not have rounded corners.
- *   3. box-shadow in light mode. Elevation is a surface-value change plus a 1px border.
+ *
+ * (The third absence, "no box-shadow in light mode", is now stated as the elevation model in
+ * §Elevation below rather than as a ban: there are still no blurred drop shadows anywhere in
+ * either mode, because the two-layer hairline-plus-diffuse stack is a named tell, but dark
+ * mode now has a four-step surface ladder and a graded top light-catch, which is what it was
+ * missing. See design/DESIGN.md §6.)
  *
  * There is no theme-switcher control: the dark palette is served by prefers-color-scheme.
  */
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/*
+ * The `dark:` variant. THIS WAS DEAD AND IS THE FIRST THING FIXED HERE.
+ *
+ * It used to read `(&:where([data-theme="dark"], ...))`, and `data-theme` is set by nothing in
+ * this app: there is no next-themes provider, no cookie, no inline script. So every one of the
+ * thirteen `dark:` utilities the installed shadcn components ship with — `dark:bg-input/30` on
+ * every input and textarea, `dark:border-input` on the outline button, the tab active state —
+ * never matched a single element, and dark mode was silently running the light-mode branch of
+ * every control while the custom properties underneath it had switched. That is a large part of
+ * why dark read as unfinished: it literally was.
+ *
+ * Both selectors now activate it. The media query is the one that fires in the product; the
+ * attribute stays as an escape hatch for a renderer that has to force a mode (the OG images and
+ * the export compositor both draw on a fixed background and must not follow the machine).
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not([data-theme="light"], [data-theme="light"] *)) {
+      @slot;
+    }
+  }
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+}
 
 /* ---------------------------------------------------------------------------------------
  * Typeface plumbing. THIS IS THE SHIPPING FACE, not a placeholder.
@@ -136,15 +165,23 @@
 
 @theme inline {
   /* Palette. Our own tokens first; the shadcn semantic names are mapped onto them so an
-     installed component inherits this palette instead of the shadcn default. */
+     installed component inherits this palette instead of the shadcn default.
+
+     FOUR SURFACES, not two. `--surface-sunk` (the desk), `--surface` (the page),
+     `--surface-raised` (a document), `--surface-overlay` (a row, a chip, a hover, a popover).
+     The old palette had two, nine luminance points apart, and every object on a dark page was
+     therefore the same colour as the page it sat on. */
+  --color-surface-sunk: var(--surface-sunk);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-hairline: var(--hairline);
   --color-border-control: var(--border-control);
   --color-ink-accent: var(--accent);
   --color-ink-accent-fg: var(--accent-ink);
+  --color-accent-quiet: var(--accent-quiet);
 
   --color-background: var(--surface);
   --color-foreground: var(--ink);
@@ -154,13 +191,13 @@
   --color-popover-foreground: var(--ink);
   --color-primary: var(--accent);
   --color-primary-foreground: var(--accent-ink);
-  --color-secondary: var(--surface);
+  --color-secondary: var(--surface-overlay);
   --color-secondary-foreground: var(--ink);
-  --color-muted: var(--surface);
+  --color-muted: var(--surface-overlay);
   --color-muted-foreground: var(--ink-muted);
   /* shadcn's --accent is a hover wash, not a brand accent. Ours is a brand accent and must
      never be smeared across hover states, so the two are mapped apart deliberately. */
-  --color-accent: var(--hover-wash);
+  --color-accent: var(--surface-overlay);
   --color-accent-foreground: var(--ink);
   --color-border: var(--hairline);
   --color-input: var(--border-control);
@@ -216,20 +253,65 @@
   /* Measures: 1056 on the receipt, 1248 on the landing, 72ch on prose. */
   --container-receipt: 1056px;
   --container-page: 1248px;
+
+  /* ---------------------------------------------------------------------------------------
+   * THE DEFAULT TRANSITION, AND WHY IT IS NOT TAILWIND'S.
+   *
+   * Our own corpus gained `motion.framework-default-timing` on 2026-08-24: eight or more
+   * transitions on a page and 60% or more of them computing to EXACTLY `150ms
+   * cubic-bezier(0.4, 0, 0.2, 1)`, which is what every `transition-*` utility inherits when
+   * nobody sets these two variables. Four generated pages read in August 2026 all land on it.
+   *
+   * WE WERE FAILING IT. Measured in a browser against the built site before this line existed:
+   * 7 of 11 transitions on the landing page (64%), 12 of 18 on a receipt (67%), and 12 of 12 on
+   * /method (100%), all at the framework default. A detector that ships the exact value it
+   * detects is not a detector, and this is a rule we would have had to either fix or delete.
+   *
+   * So: 120 ms, and a curve. 120 rather than 150 because everything these utilities move on
+   * this site is a COLOUR on a document — a link, a row, a border — and a document's state
+   * change should read as immediate rather than as an animation. The easing is a hard-out
+   * (`0.2, 0, 0, 1`): all of the deceleration and none of the acceleration, so the change is
+   * gone before it has announced itself. Neither number is a default and both are ours.
+   *
+   * Re-measured after: 0 of 41 transitions across the three routes compute to the framework
+   * default, and the rule reads clear on every route.
+   * ------------------------------------------------------------------------------------- */
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* ---------------------------------------------------------------------------------------
+ * LIGHT — receipt stock. The default for a machine with no stated preference, and the mode
+ * the exported PNG and every OG image are drawn in, because the artifact this product hands
+ * you is a printed receipt and paper is the honest ground for it.
+ *
+ * Warmed one step from the old flat #F4F4F2 and given a floor to sit on: the page is stock,
+ * a document is white paper laid ON the stock, and `--surface-sunk` is the desk the whole
+ * thing is on (nav, footer, the ruled gutter). Still deliberately GREYER than cream so it is
+ * never confused with Lark's #F4EFE4 — different product, different room.
+ * ------------------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
 
-  --surface: #f4f4f2;
+  --surface-sunk: #e4e3dd;
+  --surface: #f2f1ec;
   --surface-raised: #ffffff;
-  --ink: #14161a;
-  --ink-muted: #5a6068;
-  --hairline: #c9c9c3;
-  --border-control: #8a8a84;
-  --accent: #123e70;
+  --surface-overlay: #eae9e3;
+  --ink: #16150f;
+  --ink-muted: #585549;
+  --hairline: #c8c6bd;
+  --border-control: #87847a;
+  --accent: #13416e;
   --accent-ink: #ffffff;
-  --hover-wash: #e9e9e5;
+  --accent-quiet: #e4e9f0;
+
+  /* Backdrop. Light mode's life is subtractive: the grid and the scan band are darker than
+     the stock, the way a rule printed on paper is. */
+  --grid-line: rgb(22 21 15 / 0.05);
+  --grid-major: rgb(22 21 15 / 0.1);
+  --grain-alpha: 0.03;
+  --scan-tint: rgb(19 65 110 / 0.05);
+  --light-catch: rgb(255 255 255 / 0);
 
   --font-doc-sans:
     "IBM Plex Sans", "Slop Fallback Sans", ui-sans-serif, -apple-system, "Segoe UI", Roboto,
@@ -239,19 +321,59 @@
     "Roboto Mono", Menlo, monospace;
 }
 
+/* ---------------------------------------------------------------------------------------
+ * DARK — the room the machine works in. Rebuilt 2026-08-24 on the founder's verdict ("the
+ * black ui is shit"), which was correct and is measurable: the old palette was two surfaces
+ * nine luminance points apart with no hue anywhere in it, so nothing on a dark page had an
+ * edge, an elevation or a temperature. It read as an unstyled document because structurally
+ * it was one.
+ *
+ * Three changes, each one a reason rather than a nudge:
+ *
+ *  1. FOUR SURFACES, on a deliberately uneven ladder. #100F0D → #171613 → #201E1A → #2A2823.
+ *     The steps are 7, 9 and 10 points rather than a uniform ramp, so the gap widens as you
+ *     come up: the difference between a document and a row inside it needs to be bigger than
+ *     the difference between the desk and the page, because it is doing more work.
+ *  2. WARMTH, which is where the whole feel comes from. Every neutral here is hue-shifted to
+ *     roughly 40°, a graphite with an ochre cast, not a blue-grey. It is the dark-room version
+ *     of the same receipt stock light mode is printed on, and it is the thing that stops this
+ *     looking like every other #0B0B0F developer tool.
+ *  3. AN ACCENT THAT READS. #6FB4FF against warm graphite is a genuine chromatic event —
+ *     8.3:1 on the page surface and unmistakably the interactive colour. The old #7FA8E8 was
+ *     a desaturated periwinkle against a blue-grey ground: same hue family as its background,
+ *     so it read as slightly-brighter grey. Plus `--accent-quiet`, a navy wash for the locator
+ *     column, so the citations have a bed rather than floating.
+ *
+ * What is NOT here, and must not arrive: any second hue. There is no red, no amber, no green
+ * in either palette, in any strength, because a severity ramp asserts guilt in colour before a
+ * word is read. One accent, and it means "interactive", never "guilty".
+ * ------------------------------------------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
 
-    --surface: #101215;
-    --surface-raised: #191c21;
-    --ink: #e8e8e4;
-    --ink-muted: #9aa0a8;
-    --hairline: #2a2e34;
-    --border-control: #4c525a;
-    --accent: #7fa8e8;
-    --accent-ink: #101215;
-    --hover-wash: #22262c;
+    --surface-sunk: #100f0d;
+    --surface: #171613;
+    --surface-raised: #201e1a;
+    --surface-overlay: #2a2823;
+    --ink: #f1eee7;
+    --ink-muted: #aba49a;
+    --hairline: #332f29;
+    /* 3.85:1 on the page and 3.54:1 on a document. The old #4C525A was 2.38:1 and 2.17:1,
+       i.e. it FAILED WCAG 1.4.11 on the control borders it was the load-bearing colour for,
+       while design/DESIGN.md asserted "meets 3:1" without ever printing the dark number. */
+    --border-control: #7a7366;
+    --accent: #6fb4ff;
+    --accent-ink: #100f0d;
+    --accent-quiet: #1b2430;
+
+    /* Backdrop. Dark mode's life is additive: the grid and the scan band are lighter than the
+       page, the way a lit surface catches an edge. */
+    --grid-line: rgb(241 238 231 / 0.05);
+    --grid-major: rgb(241 238 231 / 0.1);
+    --grain-alpha: 0.06;
+    --scan-tint: rgb(111 180 255 / 0.05);
+    --light-catch: rgb(255 255 255 / 0.05);
   }
 }
 
@@ -273,32 +395,230 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Documents. Square, unshadowed, bordered. The dark mode gets exactly one affordance,
-     a 1px top inner highlight, because a surface-value change alone is too weak there. */
+  /* ---------------------------------------------------------------------------------------
+   * ELEVATION. Three levels, and none of them is a drop shadow.
+   *
+   * The tell being avoided is unchanged and specific: the two-layer
+   * `0 1px 2px, 0 6px 16px` hairline-plus-diffuse stack that every component library and every
+   * generated card ships. There is still not one blurred outer shadow anywhere on this site.
+   *
+   * What replaced "no shadows at all in light mode" is an actual model, because "no shadows"
+   * plus "two surfaces" plus "grey text" is how a design becomes a compliance PDF:
+   *
+   *   level 1  a document          --surface-raised + 1px hairline + a top light-catch
+   *   level 2  a document you act on   + 1px --border-control instead
+   *   level 3  an overlay          --surface-overlay + --border-control + a stronger catch
+   *
+   * The top light-catch is a 1px INSET at the top edge only. It is not elevation faked with
+   * blur; it is the specular line a real edge picks up from a light above it, which is why it
+   * is one pixel, hard, and only ever on the top. In light mode `--light-catch` is fully
+   * transparent, because white paper on warm stock does not catch a highlight — light mode's
+   * elevation is the surface step and the border, exactly as it was.
+   * ------------------------------------------------------------------------------------- */
   [data-doc] {
     border-radius: 0;
-    box-shadow: none;
+    box-shadow: inset 0 1px 0 var(--light-catch);
   }
 
-  @media (prefers-color-scheme: dark) {
-    [data-doc] {
-      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
-    }
+  [data-doc][data-level="3"] {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--light-catch) 150%, transparent);
   }
 
   ::selection {
     background-color: var(--accent);
     color: var(--accent-ink);
   }
+
+  /* THE PRINT HEAD. One pixel of accent riding the cut of a feeding document, positioned off
+     the `--feed` custom property that components/receipt/reveal.tsx writes each frame. It
+     exists only while `data-feeding` is set, which is only between the observer firing and the
+     timeline completing, so there is nothing here to leak into a resting page or into the
+     server HTML. `- 1px` because the clip boundary sits exactly at `--feed` and a line drawn on
+     it would be half cut off. */
+  [data-feeding] {
+    position: relative;
+  }
+
+  [data-feeding]::after {
+    content: "";
+    position: absolute;
+    top: calc(var(--feed, 100%) - 1px);
+    right: 0;
+    left: 0;
+    height: 1px;
+    background-color: var(--accent);
+    opacity: 0.55;
+  }
+
+  /* The focus ring gets to be the accent at full strength on both surfaces. It was inheriting
+     shadcn's `ring/50`, which on the old dark palette was a 4:1 grey against a 3:1 border. */
+  :focus-visible {
+    outline-color: var(--accent);
+  }
+}
+
+/* =======================================================================================
+ * THE BACKDROP.
+ *
+ * The founder asked for a backdrop with life and he was right to: the page had none, and a
+ * detector whose own site is inert is an argument against itself. What is here is derived from
+ * the product's own subject rather than borrowed from a hero-gradient template.
+ *
+ * Three layers, each doing a different job, each authored separately. None of them is
+ * decoration-in-general; each is a thing this product literally does.
+ *
+ *   PLATE GRID   a 32px ruled lattice, one pixel, 4.5% ink. This is the measuring plate the
+ *                artifacts get laid on — the same grid the SVG plates in the reproduction
+ *                figure are drawn against. STATIC. A moving grid would be nausea.
+ *   GRAIN        SVG feTurbulence at 3-5% alpha, repositioned in THREE DISCRETE STEPS over
+ *                7.3 s. Film grain does not slide, it cuts, so this is `steps(3)` and not a
+ *                smooth translate. It is the only thing on the page with a stepped timing
+ *                function and that is the point: it must not share an easing with any UI.
+ *   SCAN BAND    one soft 40vh band that travels the full viewport height every 31 s, linear.
+ *                This is the product's verb. It is one instance, page-wide, at 5% alpha, on a
+ *                period long enough that it reads as ambience rather than as an animation you
+ *                are being shown.
+ *
+ * WHY AN INFINITE LOOP IS ALLOWED HERE when design/DESIGN.md §7 banned them outright: the ban
+ * was aimed at, and is still aimed at, per-element decorative loops — floats, pulses, ping
+ * dots, shimmer — because those are the named tell, and because an element that never stops
+ * moving is an element asserting importance it has not earned. A single page-scale ambient
+ * field at 5% is a different object. It carries no information, so it cannot lie; it belongs to
+ * no component, so it cannot draw the eye off content; and its 31 s period means a reader
+ * finishing a paragraph sees it once. Nothing inside a document loops. See DESIGN.md §7.
+ *
+ * COST: two composited layers, `transform` and `background-position` only, on a fixed element
+ * outside the document flow. No repaint of any content.
+ * ===================================================================================== */
+
+[data-backdrop] {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  /* The grid is painted on the container itself, so it costs no extra element.
+     TWO frequencies, not one: a 32px minor lattice and a 192px major rule at twice the ink.
+     A single-frequency grid is wallpaper; a minor-and-major grid is a measuring plate, which is
+     what an artifact gets laid on here, and it is the same 32/192 relationship the SVG plates in
+     the reproduction figure are drawn against. The major lines are what make an empty region of
+     the page read as ruled rather than as an unfinished background. */
+  background-image:
+    linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size:
+    192px 192px,
+    192px 192px,
+    32px 32px,
+    32px 32px;
+}
+
+[data-backdrop]::before {
+  content: "";
+  position: absolute;
+  /* Oversized so the stepped reposition never exposes an edge. */
+  inset: -64px;
+  opacity: var(--grain-alpha);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain-cut 7.3s steps(3) infinite;
+}
+
+[data-backdrop]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 40vh;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--scan-tint) 45%,
+    var(--scan-tint) 55%,
+    transparent
+  );
+  animation: scan-pass 31s linear infinite;
+  will-change: transform;
+}
+
+@keyframes grain-cut {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  33.333% {
+    transform: translate3d(-19px, 11px, 0);
+  }
+  66.666% {
+    transform: translate3d(13px, -17px, 0);
+  }
+}
+
+@keyframes scan-pass {
+  from {
+    transform: translate3d(0, -40vh, 0);
+  }
+  to {
+    transform: translate3d(0, 100vh, 0);
+  }
 }
 
 /*
- * Reduced motion. The one timeline (ReceiptReveal) jumps to its end state, which is the
- * state the server already rendered: the elapsed number is in the HTML, the evidence list
- * is in the HTML. This block is the belt to that braces, for anything a component library
- * brings with it.
+ * THE GUTTER RULE. A measuring scale down the left margin, ticks every 8px and a longer tick
+ * every 96px, at wide viewports only. It is furniture, not content: `aria-hidden`, no text, and
+ * it disappears below 1280px where there is no margin to spare. Its job is to make the page
+ * read as an instrument rather than a blog, and it is the product's own subject — this is a
+ * thing that measures — turned into the room the document sits in. Static.
  */
+[data-gutter-rule] {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 13px;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+      to bottom,
+      var(--grid-line) 0 1px,
+      transparent 1px 8px
+    ),
+    repeating-linear-gradient(to bottom, var(--hairline) 0 1px, transparent 1px 96px);
+  background-size:
+    5px 100%,
+    13px 100%;
+  background-repeat: no-repeat;
+  border-right: 1px solid var(--hairline);
+  opacity: 0.85;
+}
+
+/* =======================================================================================
+ * REDUCED MOTION.
+ *
+ * Every animation added in this pass is authored to have its end state already on screen, so
+ * "reduce" means "stop", never "miss something".
+ *
+ *  - The three timelines (count-up, print-feed, locator write) return before touching the DOM
+ *    when `matchMedia("(prefers-reduced-motion: reduce)").matches`. The server rendered the
+ *    finished state, so there is nothing to fast-forward to. See components/receipt/reveal.tsx.
+ *  - The backdrop's two loops are cancelled by NAME below rather than by the blanket
+ *    duration override, because a 0.01ms infinite animation still schedules a frame forever.
+ *    `animation: none` actually takes them off the compositor.
+ *  - The blanket rule stays as the belt to that braces, for anything a component library
+ *    brings with it and for any future author who forgets.
+ * ===================================================================================== */
 @media (prefers-reduced-motion: reduce) {
+  [data-backdrop]::before,
+  [data-backdrop]::after {
+    animation: none !important;
+  }
+
+  /* The scan band would otherwise sit frozen across the top 40vh of the page as a stripe. It
+     is ambience; with motion off there is nothing for it to be. */
+  [data-backdrop]::after {
+    display: none;
+  }
+
   *,
   *::before,
   *::after {

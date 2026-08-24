@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FindingView } from "@/lib/view";
+import { WRITE_ATTR } from "@/lib/reveal-attrs";
 
 /**
  * One finding.
@@ -48,12 +49,12 @@ export function FindingRow({ finding }: { readonly finding: FindingView }) {
         size="sm"
         className="flex-col items-stretch border-hairline bg-surface-raised px-5 py-[18px]"
       >
-        <div className="flex w-full flex-wrap items-start gap-5">
+        <div className="flex w-full flex-wrap items-start gap-x-5 gap-y-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <a
                 href={`/method#${finding.ruleId}`}
-                className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-accent underline-offset-4 hover:underline"
+                className="w-full shrink-0 font-mono text-mono-sm font-medium text-ink-accent underline-offset-4 hover:underline md:w-[13rem]"
               >
                 {finding.ruleId}
               </a>
@@ -76,10 +77,19 @@ export function FindingRow({ finding }: { readonly finding: FindingView }) {
               ) : null}
             </ItemTitle>
             {finding.evidence.map((e, i) => (
+              // WRITE_ATTR: this citation gets written across the line by a mask sweep whose
+              // duration is this string's own length. The full string is in the server HTML —
+              // the mask is applied after hydration and removed on completion, so there is no
+              // state in which a citation is partially present in the markup.
               <ItemDescription
                 key={`${e.locator}-${i}`}
+                {...{ [WRITE_ATTR]: "" }}
                 className="font-mono text-mono-sm text-ink-muted [overflow-wrap:anywhere]"
               >
+                {/* The locator stays in muted ink, NOT the accent. The accent means
+                    "interactive" on this site and nothing else; a non-interactive citation
+                    tinted with it would be the first step back toward colour carrying a
+                    verdict. The mono face is what distinguishes it, as designed. */}
                 {e.locator} resolves to {e.observed}
                 {e.expected ? ` · expected ${e.expected}` : ""} · read from the rendered page,
                 not the stylesheet

@@ -12,7 +12,11 @@ import { NAV } from "@/lib/site";
  */
 export function SiteNav() {
   return (
-    <header className="border-b border-hairline">
+    // `--surface-sunk` rather than the page surface: the nav is the desk the page is laid on,
+    // and the one-step drop is what gives the document a top edge. Under the old two-surface
+    // dark palette the header, the page and every card were within nine luminance points of
+    // each other, so nothing had an edge and the site read as unstyled markup.
+    <header className="border-b border-hairline bg-surface-sunk">
       <nav
         aria-label="Primary"
         className="mx-auto flex max-w-page items-baseline justify-between gap-8 px-6 py-5 md:px-16"

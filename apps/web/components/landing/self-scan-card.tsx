@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
-import { BLOCK_ATTR, ElapsedFigure, ReceiptReveal } from "@/components/receipt/reveal";
+import { ElapsedFigure, ReceiptReveal } from "@/components/receipt/reveal";
+import { ORDER_ATTR, ROW_ATTR } from "@/lib/reveal-attrs";
 import { ago, type ScanView } from "@/lib/view";
 
 /**
@@ -105,6 +106,14 @@ export function SelfScanCard({
   // plain words. `not_assessed` means it never looked, and then there is a reason instead.
   const assessed = view.status !== "not_assessed";
   const findings = [...view.findings, ...view.counterEvidence];
+  /**
+   * A rule's position in the run, not in this list. `view.evaluated` is the sequence the engine
+   * evaluated the corpus in, so this is the datum that licenses revealing rows one after
+   * another at all. A rule we somehow render without having evaluated gets `0` and lands with
+   * the first group rather than being invented a position; that case is also a bug the landing
+   * test already asserts against, so it should never be reachable.
+   */
+  const orderOf = (ruleId: string) => Math.max(0, view.evaluated.indexOf(ruleId));
   const quiet = view.evaluated
     .filter((id) => !findings.some((f) => f.ruleId === id))
     .slice(0, Math.max(0, ROWS - findings.length));
@@ -139,20 +148,25 @@ export function SelfScanCard({
         busy={phase === "running"}
       >
         {assessed ? (
-          <ItemGroup
-            {...{ [BLOCK_ATTR]: "" }}
-            className="gap-px bg-hairline has-data-[size=sm]:gap-px has-data-[size=xs]:gap-px"
-          >
+          // THE CARD ASSEMBLES ROW BY ROW AS THE CHECKS RESOLVE, and the order is not
+          // decorative. `ORDER_ATTR` carries each row's index in `view.evaluated`, which is the
+          // order the corpus actually ran its checks in on this artifact, so the row for the
+          // fourth check lands early and the row for the thirtieth lands late. That makes the
+          // spacing uneven in exactly the way the run was, which is the only thing that
+          // distinguishes this from the uniform per-card stagger our own corpus flags. If the
+          // ordering datum ever goes away, the sequence has to go with it: see reveal.tsx 3a.
+          <ItemGroup className="gap-px bg-hairline has-data-[size=sm]:gap-px has-data-[size=xs]:gap-px">
             {findings.slice(0, ROWS).map((finding) => (
               <Item
                 key={finding.ruleId}
                 variant="outline"
                 size="sm"
-                className="items-start gap-5 border-hairline bg-surface-raised px-5 py-[18px]"
+                {...{ [ROW_ATTR]: "", [ORDER_ATTR]: String(orderOf(finding.ruleId)) }}
+                className="flex-wrap items-start gap-x-5 gap-y-2 border-hairline bg-surface-raised px-5 py-[18px]"
               >
                 <a
                   href={`/method#${finding.ruleId}`}
-                  className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-accent underline-offset-4 hover:underline"
+                  className="w-full shrink-0 font-mono text-mono-sm font-medium text-ink-accent underline-offset-4 hover:underline md:w-[13rem]"
                 >
                   {finding.ruleId}
                 </a>
@@ -171,9 +185,10 @@ export function SelfScanCard({
                 key={id}
                 variant="outline"
                 size="sm"
-                className="items-start gap-5 border-hairline bg-surface-raised px-5 py-[18px]"
+                {...{ [ROW_ATTR]: "", [ORDER_ATTR]: String(orderOf(id)) }}
+                className="flex-wrap items-start gap-x-5 gap-y-2 border-hairline bg-surface-raised px-5 py-[18px]"
               >
-                <span className="w-[13rem] shrink-0 font-mono text-mono-sm font-medium text-ink-muted">
+                <span className="w-full shrink-0 font-mono text-mono-sm font-medium text-ink-muted md:w-[13rem]">
                   {id}
                 </span>
                 <ItemContent className="min-w-0 gap-1">
@@ -254,8 +269,13 @@ function Frame({
   readonly children: React.ReactNode;
 }) {
   return (
-    <div data-doc className="border border-border-control bg-surface-raised">
-      <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-hairline px-5 py-4">
+    <div data-doc data-level="2" className="border border-border-control bg-surface-raised">
+      {/* The masthead sits on `--accent-quiet`, the one place a chromatic wash is allowed: a
+          navy in dark, a cold paper-blue in light. It is the card's header band, so it carries
+          hierarchy, which the palette permits; it is nowhere near a finding, so it cannot be
+          read as carrying a verdict, which the palette forbids. Under the old two-surface dark
+          palette this strip was the same colour as the rows below it and the card had no head. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-border-control bg-accent-quiet px-5 py-4">
         <p className="font-mono text-mono-sm text-ink">
           {target} · scan_ui{checks ? ` · ${checks}` : ""}
         </p>

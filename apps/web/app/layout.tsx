@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Backdrop } from "@/components/site/backdrop";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteNav } from "@/components/site/site-nav";
 import { SITE_NAME, siteUrl } from "@/lib/site";
@@ -66,10 +67,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           crossOrigin="anonymous"
         />
       </head>
-      <body className="flex min-h-full flex-col bg-surface text-ink">
-        <SiteNav />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
+      {/* `isolate` gives the page its own stacking context, so the backdrop's z-0 and the
+          content's z-10 cannot be escaped by a stray z-index inside a component. */}
+      <body className="isolate flex min-h-full flex-col bg-surface text-ink">
+        <Backdrop />
+        <div className="relative z-10 flex min-h-full flex-1 flex-col">
+          <SiteNav />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
+        </div>
       </body>
     </html>
   );

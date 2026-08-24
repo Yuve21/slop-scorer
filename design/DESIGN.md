@@ -1,11 +1,31 @@
 # Slop Scorer — design system
 
-Status: foundation, pre-code. Written 2026-08-23.
+Status: shipped. Written 2026-08-23; **§2, §6, §7 rewritten and §7b, §8 added 2026-08-24.**
 Governing constraint: **this product will be run through its own detector.** Every token below has to
 survive `scan_ui` and a hostile human reading the CSS. No magic numbers; each line carries its reason.
 
 Companion docs: `COMPONENTS.md` (what we install), `SURFACES.md` (what we build),
 `SELF-AUDIT.md` (where we are still at risk).
+
+> **2026-08-24 — the founder's verdict, and what it overruled.**
+>
+> *"the black ui is shit, no emotion to the app at all, and no animation throughout it, or in the
+> backdrop"*.
+>
+> This document specified an austere forensic object: zero radius, no shadows in light mode, no
+> imagery, four surfaces' worth of colour compressed into two, and **exactly one motion moment per
+> view on a 500 ms budget**. Each call was individually defensible. Stacked, they produced something
+> that reads as a compliance PDF, and the founder owns taste on his product.
+>
+> **What was overruled:** §2's two-surface palette, §6's "no elevation model", §7's one-moment
+> budget, and the absence of any backdrop. **What survives untouched, and is not negotiable for
+> aesthetics:** no red/amber/green severity ramp anywhere (§2 — a legal position, not a preference);
+> no score gauge, dial or `N/100` in the fold (`SURFACES.md` §A); the disclaimer band inside the same
+> frame as both panels at the same pixel height as the panel labels, with no animation permitted
+> through it (§7); `prefers-reduced-motion` fully honoured (§7); and zero radius on documents (§5).
+>
+> §8 is new and is the receipt for all of it: our own site, measured in a real browser against our
+> own motion rules. It found us failing one of them.
 
 ---
 
@@ -210,62 +230,177 @@ Four decisions in it are not cosmetic:
 
 ## 2. Palette
 
-**One accent. No severity ramp.** That second half is the important part and it is a legal decision as
-much as an aesthetic one: this product must never *assert* that something is AI. A red/amber/green
-severity scale asserts it in colour before a single word is read, and a court reading a screenshot
-would see a verdict. So the palette contains **no red, no amber, no green**. Findings are set in ink;
-the only chromatic element on a receipt is the accent, and the accent means *interactive*, never
-*guilty*.
+**Rebuilt 2026-08-24.** The founder's verdict on the first palette was *"the black ui is shit, no
+emotion to the app at all"*, and it was correct in a way that is measurable rather than a matter of
+taste. Dark mode was **two surfaces nine luminance points apart with no hue anywhere in it** —
+`#101215` page, `#191C21` card, grey text. Nothing on a dark page had an edge, an elevation or a
+temperature, so a page of documents rendered as a page of nothing. Two further defects, both found
+by measuring rather than looking, are recorded below and both were live in production.
 
-This also, conveniently, deletes an entire family of slop tells at once (the emerald-check /
-rose-warning / violet-primary Tailwind default triad).
+What did **not** change, and is not up for revision:
 
-### Light
+**One accent. No severity ramp.** That second half is a legal decision as much as an aesthetic one:
+this product must never *assert* that something is AI. A red/amber/green severity scale asserts it in
+colour before a single word is read, and a court reading a screenshot would see a verdict. So the
+palette contains **no red, no amber, no green**, in either mode, at any strength. Findings are set in
+ink; the only chromatic elements are the accent and its quiet wash, and both mean *interactive* or
+*hierarchy*, never *guilty*. This also, conveniently, deletes an entire family of slop tells at once
+(the emerald-check / rose-warning / violet-primary Tailwind default triad).
+
+### The model: four surfaces, on an uneven ladder
+
+Two surfaces is not a palette, it is a light and a dark. Both modes now carry four:
+
+| Token | Role |
+|---|---|
+| `--surface-sunk` | the desk. Nav, footer, the page floor behind everything. |
+| `--surface` | the page. |
+| `--surface-raised` | a document: the receipt frame, the figure, an evidence row. |
+| `--surface-overlay` | a row inside a document, a chip, a hover, a popover. |
+
+The steps between them are deliberately **uneven** (dark: 7, 9 and 10 luminance points). The gap
+widens as you come up, because the difference between a document and a row inside it is doing more
+work than the difference between the desk and the page. A uniform ramp is also, on its own terms, one
+of the things this product detects.
+
+### Light — receipt stock
+
+The default for a machine with no stated preference, and the mode every exported PNG and OG image is
+drawn in. See "Which mode is the default" below.
 
 | Token | Hex | Role | Why |
 |---|---|---|---|
-| `--surface` | `#F4F4F2` | page | Neutral warm-grey, the colour of thermal receipt stock. Warm neutrals are explicitly *not* a tell (3 of 4 funded human dating sites use one) but this is deliberately **greyer than cream** so it is never confused with Lark's `#F4EFE4` paper. Different product, different room. |
-| `--surface-raised` | `#FFFFFF` | receipt card, figure frame, evidence rows | Pure white sits *on* the paper, so a receipt reads as a document laid on a desk. This is the only place white appears. |
-| `--ink` | `#14161A` | body + display text | Near-black with a faint cool cast. Not `#000000` (a default) and not `#111827` (Tailwind gray-900, a default). |
-| `--ink-muted` | `#5A6068` | citations, metadata, timestamps | One step down, still AA at body size. Not a 40%-opacity black — opacity-derived greys are a scaffold habit. |
-| `--hairline` | `#C9C9C3` | decorative structure: row separators, card edges | Explicitly non-load-bearing. Does not need 3:1 (WCAG 1.4.11 applies to boundaries required to identify a control) and is documented as such so nobody "fixes" it later. |
-| `--border-control` | `#8A8A84` | inputs, buttons, the figure frame | Load-bearing. Meets 3:1. |
-| `--accent` | `#123E70` | CTA fill, evidence locators, links | Deep cobalt ink. Institutional, not alarming. Deliberately **not** a Tailwind hex (`#3B82F6`, `#6366F1`, `#8B5CF6` are all named tells), not a dev-tool acid lime, not a gradient endpoint. |
+| `--surface-sunk` | `#E4E3DD` | nav, footer, page floor | The desk the stock is lying on. |
+| `--surface` | `#F2F1EC` | page | Warm neutral, the colour of thermal receipt stock, warmed one step from the old flat `#F4F4F2`. Warm neutrals are explicitly *not* a tell (3 of 4 funded human dating sites use one) but this is deliberately **greyer than cream** so it is never confused with Lark's `#F4EFE4`. Different product, different room. |
+| `--surface-raised` | `#FFFFFF` | receipt card, figure frame, evidence rows | Pure white sits *on* the stock, so a receipt reads as a document laid on a desk. |
+| `--surface-overlay` | `#EAE9E3` | rows, chips, hover, popovers | |
+| `--ink` | `#16150F` | body + display text | Near-black with the same warm cast as the surfaces. Not `#000000` (a default) and not `#111827` (Tailwind gray-900, a default). |
+| `--ink-muted` | `#585549` | citations, metadata, timestamps | One step down, AA at body size on all four surfaces. Not a 40%-opacity black — opacity-derived greys are a scaffold habit. |
+| `--hairline` | `#C8C6BD` | decorative structure: row separators, card edges | Explicitly non-load-bearing. Does not need 3:1 (WCAG 1.4.11 applies to boundaries required to identify a control) and is documented as such so nobody "fixes" it later. |
+| `--border-control` | `#87847A` | inputs, buttons, the figure frame | Load-bearing. Meets 3:1 on all three surfaces it appears on. |
+| `--accent` | `#13416E` | CTA fill, links, focus ring | Deep cobalt ink. Institutional, not alarming. Deliberately **not** a Tailwind hex (`#3B82F6`, `#6366F1`, `#8B5CF6` are all named tells), not a dev-tool acid lime, not a gradient endpoint. |
 | `--accent-ink` | `#FFFFFF` | text on accent | |
+| `--accent-quiet` | `#E4E9F0` | the scan card's masthead band | The one chromatic wash. Header bands only, never near a finding. |
 
-### Dark
+### Dark — the room the machine works in
+
+Three changes from the old palette, each a reason rather than a nudge.
+
+1. **Four surfaces**, per the ladder above.
+2. **Warmth, which is where the whole feel comes from.** Every neutral is hue-shifted to roughly 40°:
+   a graphite with an ochre cast, not a blue-grey. It is the dark-room version of the same receipt
+   stock light mode is printed on, and it is the single thing that stops this looking like every
+   other `#0B0B0F` developer tool.
+3. **An accent that reads.** `#6FB4FF` against warm graphite is a genuine chromatic event — 8.31:1
+   on the page surface and unmistakably the interactive colour. The old `#7FA8E8` was a desaturated
+   periwinkle sitting on a blue-grey ground: same hue family as its background, so it read as
+   slightly-brighter grey rather than as a colour.
 
 | Token | Hex | Role |
 |---|---|---|
-| `--surface` | `#101215` | page. Not `#000` — pure black destroys elevation and is a default. |
-| `--surface-raised` | `#191C21` | receipt card |
-| `--ink` | `#E8E8E4` | body |
-| `--ink-muted` | `#9AA0A8` | citations |
-| `--hairline` | `#2A2E34` | decorative |
-| `--border-control` | `#4C525A` | load-bearing |
-| `--accent` | `#7FA8E8` | lifted cobalt, legible on dark |
-| `--accent-ink` | `#101215` | text on accent |
+| `--surface-sunk` | `#100F0D` | nav, footer, page floor. Not `#000` — pure black destroys elevation and is a default. |
+| `--surface` | `#171613` | page |
+| `--surface-raised` | `#201E1A` | a document |
+| `--surface-overlay` | `#2A2823` | rows, chips, hover, popovers |
+| `--ink` | `#F1EEE7` | body. A warm paper-white, not a cool grey. |
+| `--ink-muted` | `#ABA49A` | citations |
+| `--hairline` | `#332F29` | decorative |
+| `--border-control` | `#7A7366` | load-bearing. **Was `#4C525A`, which failed 1.4.11 — see below.** |
+| `--accent` | `#6FB4FF` | lifted cobalt |
+| `--accent-ink` | `#100F0D` | text on accent |
+| `--accent-quiet` | `#1B2430` | the scan card's masthead band |
+
+### Two defects this rebuild fixed, both measured rather than noticed
+
+**1. The dark control border failed WCAG 1.4.11 and this document said it did not.** The old
+`--border-control: #4C525A` computes **2.38 : 1** on the old dark page and **2.17 : 1** on the old
+dark card, against a 3:1 requirement for boundaries that identify a control. The table in the
+previous version of this section asserted "Load-bearing. Meets 3:1" and then printed the light-mode
+number only. Every dark ratio is now in the table below, computed, with no pair omitted.
+
+**2. The `dark:` variant was dead.** `globals.css` declared
+`@custom-variant dark (&:where([data-theme="dark"], ...))`, and **`data-theme` is set by nothing in
+this app** — no `next-themes` provider, no cookie, no inline script, and the media query is what
+actually switches the custom properties. So all thirteen `dark:` utilities the installed shadcn
+components ship with (`dark:bg-input/30` on every input and textarea, `dark:border-input` on the
+outline button, the whole tab active state) matched zero elements, and dark mode ran the light-mode
+branch of every control while the tokens underneath had switched. The variant now activates on both
+`prefers-color-scheme: dark` and the attribute, the attribute surviving as an escape hatch for the OG
+and export renderers, which draw on a fixed ground and must not follow the machine.
+
+### Which mode is the default, and why
+
+There is **no theme-switcher control**, and there should not be one: a switcher is a second thing to
+get wrong and this product has one visual idea, not two.
+
+The mode a visitor with no stated preference gets is **light**, and that is a considered call rather
+than an inherited one. The artifact this product hands you is a *printed receipt*; paper is the
+metaphor the entire design rests on; and every asset that leaves the site — the export PNGs, all four
+OG images — is drawn on light stock, so a light default is the only one where the site and its own
+output are the same object.
+
+**But dark is what most visitors actually see**, because the audience is developers and agents and
+the OS default follows them. Dark is therefore not the afterthought it was: it gets the four-surface
+ladder, the warmth, the accent, the graded light-catch, and its own full row in the contrast table
+below. If the two modes are ever allowed to diverge in quality again, this is the sentence that was
+violated.
 
 ### Contrast, computed (WCAG 2.x relative luminance, not eyeballed)
 
-| Pair | Ratio | Verdict |
-|---|---|---|
-| `--ink` `#14161A` on `--surface` `#F4F4F2` | **16.6 : 1** | AAA |
-| `--ink` on `--surface-raised` `#FFFFFF` | **18.1 : 1** | AAA |
-| `--ink-muted` `#5A6068` on `--surface` | **5.8 : 1** | AA body, AAA large |
-| `--accent` `#123E70` on `--surface` | **9.7 : 1** | AAA |
-| `--accent-ink` `#FFFFFF` on `--accent` fill | **10.6 : 1** | AAA |
-| `--border-control` `#8A8A84` on `--surface` | **3.19 : 1** | passes 1.4.11 (3:1) |
-| `--hairline` `#C9C9C3` on `--surface` | 1.53 : 1 | decorative only, by declaration |
-| dark `--ink` `#E8E8E4` on dark `--surface` `#101215` | **15.3 : 1** | AAA |
-| dark `--ink-muted` `#9AA0A8` on dark `--surface` | **7.1 : 1** | AAA |
-| dark `--accent` `#7FA8E8` on dark `--surface` | **7.7 : 1** | AAA |
+Every text pair on every surface it can appear on. **No pair below AA. No load-bearing border below
+3:1.** Generated by `node scripts/contrast.mjs`, which enumerates the full cross product and exits
+non-zero on any failure, against the shipped hexes. Recompute and repaste before
+changing any value here.
 
-Nothing on either surface relies on colour alone to carry meaning — a hard requirement here, since the
-palette has no severity ramp to lean on in the first place.
+| Mode | Pair | Ratio | Verdict |
+|---|---|---|---|
+| light | `ink` on `surface-sunk` | 14.22 : 1 | AAA |
+| light | `ink-muted` on `surface-sunk` | 5.81 : 1 | AA |
+| light | `accent` on `surface-sunk` | 8.13 : 1 | AAA |
+| light | `ink` on `surface` | 16.17 : 1 | AAA |
+| light | `ink-muted` on `surface` | 6.61 : 1 | AA |
+| light | `accent` on `surface` | 9.24 : 1 | AAA |
+| light | `ink` on `surface-raised` | 18.29 : 1 | AAA |
+| light | `ink-muted` on `surface-raised` | 7.47 : 1 | AAA |
+| light | `accent` on `surface-raised` | 10.45 : 1 | AAA |
+| light | `ink` on `surface-overlay` | 15.03 : 1 | AAA |
+| light | `ink-muted` on `surface-overlay` | 6.14 : 1 | AA |
+| light | `accent` on `surface-overlay` | 8.59 : 1 | AAA |
+| light | `ink` on `accent-quiet` | 14.99 : 1 | AAA |
+| light | `ink-muted` on `accent-quiet` | 6.12 : 1 | AA |
+| light | `accent` on `accent-quiet` | 8.57 : 1 | AAA |
+| light | `accent-ink` on `accent` fill | 10.45 : 1 | AAA |
+| light | `border-control` on `surface` | 3.31 : 1 | passes 1.4.11 |
+| light | `border-control` on `surface-raised` | 3.74 : 1 | passes 1.4.11 |
+| light | `border-control` on `surface-overlay` | 3.08 : 1 | passes 1.4.11 |
+| light | `hairline` on `surface` | 1.51 : 1 | decorative only, by declaration |
+| light | `hairline` on `surface-raised` | 1.71 : 1 | decorative only, by declaration |
+| dark | `ink` on `surface-sunk` | 16.53 : 1 | AAA |
+| dark | `ink-muted` on `surface-sunk` | 7.76 : 1 | AAA |
+| dark | `accent` on `surface-sunk` | 8.80 : 1 | AAA |
+| dark | `ink` on `surface` | 15.62 : 1 | AAA |
+| dark | `ink-muted` on `surface` | 7.33 : 1 | AAA |
+| dark | `accent` on `surface` | 8.31 : 1 | AAA |
+| dark | `ink` on `surface-raised` | 14.36 : 1 | AAA |
+| dark | `ink-muted` on `surface-raised` | 6.74 : 1 | AA |
+| dark | `accent` on `surface-raised` | 7.65 : 1 | AAA |
+| dark | `ink` on `surface-overlay` | 12.71 : 1 | AAA |
+| dark | `ink-muted` on `surface-overlay` | 5.97 : 1 | AA |
+| dark | `accent` on `surface-overlay` | 6.76 : 1 | AA |
+| dark | `ink` on `accent-quiet` | 13.51 : 1 | AAA |
+| dark | `ink-muted` on `accent-quiet` | 6.34 : 1 | AA |
+| dark | `accent` on `accent-quiet` | 7.19 : 1 | AAA |
+| dark | `accent-ink` on `accent` fill | 8.80 : 1 | AAA |
+| dark | `border-control` on `surface` | **3.85 : 1** | passes 1.4.11 (was 2.38, failing) |
+| dark | `border-control` on `surface-raised` | **3.54 : 1** | passes 1.4.11 (was 2.17, failing) |
+| dark | `border-control` on `surface-overlay` | 3.14 : 1 | passes 1.4.11 |
+| dark | `hairline` on `surface` | 1.36 : 1 | decorative only, by declaration |
+| dark | `hairline` on `surface-raised` | 1.25 : 1 | decorative only, by declaration |
+
+Nothing on either surface relies on colour alone to carry meaning — a hard requirement here, since
+the palette has no severity ramp to lean on in the first place.
 
 ---
-
 ## 3. Type scale
 
 Ten steps, all snapped to the 4px grid, **not** a clean geometric ratio. A perfectly regular 1.25 ramp
@@ -337,68 +472,184 @@ install time rather than accepting it.
 
 ---
 
+---
+
 ## 6. Elevation
 
-**There are no box-shadows in light mode. None.**
+**There are still no blurred drop shadows. Anywhere, in either mode.** The named tell is unchanged
+and specific: Lark's own `--shadow-sm: 0 1px 2px, 0 6px 16px`, the two-layer hairline-plus-diffuse
+stack that ships with every component library and every generated card. Not one blurred outer shadow
+exists on this site.
 
-Elevation is expressed by two things only: a change of surface value (`#F4F4F2` → `#FFFFFF`) and a
-1px border. The named tell we are avoiding is Lark's own `--shadow-sm: 0 1px 2px, 0 6px 16px` — the
-two-layer hairline-plus-diffuse stack that ships with every component library and every generated
-card.
+What changed on 2026-08-24 is that "no shadows in light mode, one 4% inset in dark" was **not an
+elevation model, it was the absence of one**, and combined with two surfaces and grey text it is how
+a design becomes a compliance PDF. There are now three levels, and none of them is a drop shadow:
 
-Dark mode gets exactly one affordance, because surface-value change alone is too weak there: a 1px
-top inner highlight, `inset 0 1px 0 rgba(255,255,255,0.04)`. Nothing else.
+| Level | What | Treatment |
+|---|---|---|
+| 1 | a document | `--surface-raised` + 1px `--hairline` + the top light-catch |
+| 2 | a document you act on | as above, with 1px `--border-control` instead |
+| 3 | an overlay | `--surface-overlay` + `--border-control` + the light-catch at 1.5× |
+
+**The top light-catch** is `inset 0 1px 0 var(--light-catch)`, a one-pixel hard inset on the top edge
+only. It is not elevation faked with blur; it is the specular line a real edge picks up from a light
+above it, which is why it is 1px, hard, and never anywhere but the top. Dark mode sets it to
+`rgb(255 255 255 / 0.05)`. **Light mode sets it to fully transparent**, because white paper on warm
+stock does not catch a highlight: light-mode elevation is the surface step and the border, exactly as
+it always was. Selected with `[data-doc]` and `[data-doc][data-level="3"]`.
 
 Overlays (dialog, popover) may use a single scrim: `rgba(20,22,26,0.42)`. That is a modality signal,
 not elevation.
 
 ---
 
-## 7. Motion budget
+## 7. Motion
 
-**One moment per view. Total budget 500 ms. Transform and opacity only.**
+**Superseded 2026-08-24.** The previous version of this section specified *one moment per view, total
+budget 500 ms*. The founder overruled it — *"no animation throughout it, or in the backdrop"* — and
+the ruling stands. What follows is not "more animation": it is the same standard applied more widely.
 
-The one moment on the receipt view is **the reveal of the reproduction**, and it is a three-beat
-timeline, not three animations:
+### The standard
 
-| Beat | What | Duration | Offset |
+> Every moment animates a fact. The fact is measured. The animation is how the measurement arrives.
+> **If a candidate animation cannot name the fact it reports, it does not get to move.**
+
+That is the bar the count-up already cleared, and it is the only reason this section can grow without
+becoming decoration. Five beats now clear it:
+
+| Beat | What it reports | Duration derived from | Easing |
 |---|---|---|---|
-| 1 | The elapsed figure counts `0.0 → 8.4` | 480 ms | 0 |
-| 2 | The `GENERATED BY US` panel wipes in beside the submitted one (opacity + 8px translateX) | 320 ms | `-=340` |
-| 3 | The evidence list appears **as one block** (opacity + 2px translateY) | 180 ms | `-=140` |
+| count-up | a measured wall-clock duration | fixed 480 ms | `out(3)` |
+| panel wipe | the artifact our pipeline produced | fixed 320 ms | `out(3)` |
+| row resolve | the **order the corpus evaluated its checks in** | the run's own ordering | `out(2)` |
+| print feed | a ruled document coming off the printer | **the element's own height** ÷ 2.2 px/ms | `linear` |
+| locator write | a machine writing a citation | **the string's own length** ÷ 0.34 chars/ms | `linear` |
 
-Wall-clock end to end: ~500 ms.
+Three of the five derive their duration from a property of their own content, which is what makes a
+uniform value structurally impossible rather than merely unfashionable.
 
-Beat 3 is one block **on purpose**: per-card staggers are on the de-slop list. A staggered evidence
-list would also be a lie about the data — the findings were computed simultaneously.
+**The easings are four different curves and each is the physically correct one.** `out(3)` and
+`out(2)` are values settling toward rest. The print feed and the locator write are **linear**, and
+that is not a style choice: a printer feeds paper at a constant rate and a machine writes at constant
+characters per second, so an eased print is a *wrong* print.
 
-Beat 1 is the honest centrepiece: the number counting up is the product's entire thesis, and it is a
-*measured* number, so animating it is reporting rather than decoration.
+**Row resolve is the one sequential reveal on the site, and it is licensed by a datum.** The rows in
+the fold's scan card carry `data-reveal-order`, which is each rule's index in the detector's own
+`evaluated` array — the order the corpus actually ran. So the delays are uneven *because the run
+was*. Measured in a browser, four rows land at 0.41 / 0.88 / 0.11 / 0.00 relative progress at the
+same instant: not an index times a constant. Without that datum the sequence would be a uniform
+per-card stagger asserting a discovery order that never happened, which is both a named tell in our
+own corpus and a false statement about our own output. **If the ordering datum ever goes away, the
+sequence goes with it.** Everywhere else — the receipt's evidence list — a list arrives as one block.
 
-Library: **anime.js**. Sourced from `mcp__gateway__anime__*`:
-`list_anime_components` (8 components: `anime()`, `anime.timeline()`, `anime.stagger()`,
-`anime.random()`, `anime.set()`, `anime.get()`, `anime.remove()`, `anime.path()`),
-`get_anime_example('timeline-sequence')` for the citable timeline-with-negative-offset pattern,
-`get_anime_docs('performance')` for the transform/opacity-only and `will-change` guidance, and
-`get_anime_docs('getting-started')` for the object-target pattern
-(`targets: {x: 100}` — non-DOM animation) which is exactly how the count-up in beat 1 is driven.
+The locator write spaces each line by a **fraction of the previous line's own content-derived
+duration** (0.38), so two identical intervals require two identical string lengths.
 
-**Version discrepancy, stated rather than papered over:** the MCP server documents **anime.js 3.2.1**
-(`anime.timeline()`, `import anime from 'animejs/lib/anime.es.js'`). Anime.js v4 renamed this to
-`createTimeline` and changed the import surface. Either pin `animejs@3.2.1` to match the cited example
-exactly, or install v4 and port the three beats — but do not assume the MCP snippet compiles against
-whatever `npm i animejs` resolves to today.
+### Rules the budget still enforces
 
-Rules the budget enforces:
+- **`prefers-reduced-motion: reduce` → nothing happens at all.** The timelines return before touching
+  the DOM. The end state is already on screen, so there is nothing to fast-forward to. No fade-only
+  compromise. The two backdrop loops are cancelled **by name** (`animation: none`), not by the
+  blanket `0.01ms` override, because a 0.01 ms infinite animation still schedules a frame forever;
+  the scan band additionally goes `display: none`, since a frozen band is a stripe, not ambience.
+- **SSR-safe.** No `initial: { opacity: 0 }` in the server HTML, ever. The finished number, the
+  panels, the rows and every locator string are in the markup; the timelines wind *backwards* from
+  that after hydration. Every start-state write is paired with its own undo (`wind()`), so an unmount
+  mid-timeline restores exactly what the server sent. A blank flash on a receipt is worse than no
+  animation, and a server-rendered `opacity:0` is itself a hydration tell. There is a test asserting
+  the fold ships its finished number.
+- **The disclaimer band is never animated.** No timeline may clip, fade or translate it: it is a
+  compliance artifact that must sit in the same frame as both panels at every instant. Beat 2 moves
+  the recreation panel *only*, and `data-reveal-feed` is deliberately **absent from the figure**,
+  because a top-down clip reveal would pass *through* the band. Animate around it, never through it.
+- **No infinite loops on any element.** There is no `loop` in `reveal.tsx` at all. The only two loops
+  on the site are in the backdrop, argued for in §7b.
+- `will-change` set on entry and cleared on complete.
 
-- `prefers-reduced-motion: reduce` → **jump to the end state.** The number renders as `8.4 s`
-  immediately, the panel is present, the list is present. No fade-only "compromise" version.
-- **SSR-safe.** No `initial: { opacity: 0 }` shipped in the server HTML. The end state is the markup;
-  the animation runs backwards from it after hydration. A blank flash on a receipt is worse than no
-  animation, and a server-rendered `opacity:0` is itself a hydration tell.
-- No infinite loops, anywhere, ever. No floats, no pulses, no ping dots, no shimmer.
-- `will-change` set on entry and removed on `complete`.
+### Library
 
-The landing page's one moment is **the same component** — the live self-scan card resolving. It is
-literally the receipt reveal, at smaller scale, which is why the landing page needs no motion of its
-own.
+**anime.js, pinned to `4.5.0`**, written against the v4 API and verified against the shipped
+package's own type definitions (`node_modules/animejs/dist/modules/{timeline,animation,utils}`):
+`createTimeline`, `animate`, `utils.set`.
+
+**Stated rather than papered over:** the `mcp__gateway__anime__*` MCP server documents **3.2.1**
+(`anime.timeline()`, `import anime from 'animejs/lib/anime.es.js'`) and a snippet ported from it does
+not compile here. That MCP was **also unreachable** in the session that wrote this pass — it was not
+registered on the gateway, and neither was the `shadcn` MCP — so the API surface was taken from the
+installed package instead. That is the better source either way: it is what npm resolves and what
+actually ships.
+
+---
+
+## 7b. The backdrop
+
+The founder asked for one and he was right to: a detector whose own site is inert is an argument
+against itself. Everything here is derived from the product's own subject rather than borrowed from a
+hero-gradient template. All layers are `aria-hidden`, `pointer-events: none`, and rendered by the
+server in the first response — a backdrop that arrives on hydration is a flash of a different page.
+Cost is two composited layers moving `transform` only; no content repaints.
+
+| Layer | What | Motion |
+|---|---|---|
+| **plate grid** | a 32px minor lattice with a 192px major rule at 2× the ink | **static** |
+| **grain** | SVG `feTurbulence`, 3% light / 6% dark | 3 discrete positions over **7.3 s**, `steps(3)` |
+| **scan band** | one 40vh band crossing the viewport | **31 s**, `linear` |
+| **gutter rule** | a measuring scale down the left margin, ticks every 8px, major every 96px, ≥1280px only | **static** |
+
+The grid is a *measuring plate* — the same 32/192 relationship the SVG plates in the reproduction
+figure are drawn against — and the two frequencies are what make an empty region of the page read as
+ruled rather than as an unfinished background. The grain is `steps(3)`, not a smooth translate,
+because **film grain cuts, it does not slide**; it is the only stepped timing function on the site and
+must not share an easing with any UI. The scan band is the product's verb.
+
+**Why an infinite loop is allowed here when §7 bans them.** The ban is aimed at, and still aimed at,
+*per-element decorative loops* — floats, pulses, ping dots, shimmer — because those are the named tell
+and because an element that never stops moving asserts an importance it has not earned. A single
+page-scale ambient field at 5% is a different object: it carries no information, so it cannot lie; it
+belongs to no component, so it cannot pull the eye off content; and a 31 s period means a reader
+finishing a paragraph sees it once. **Nothing inside a document loops.**
+
+Both loops live on `::before` / `::after` pseudo-elements, which the motion probe does not sample, so
+they contribute **zero** animation records — see §8.
+
+---
+
+## 8. Do we pass our own motion rules?
+
+The `motion-signature` family landed on 2026-08-24 and reads computed styles in a real browser, so
+the only honest way to answer is to point a real browser at our own site.
+`node scripts/motion-selfcheck.mjs` does exactly that, re-implementing `readMotion` and the six
+thresholds **deliberately rather than importing them**: if the copy and
+`packages/detectors-web/src/rules/motion.ts` ever disagree, one of them is wrong and the disagreement
+is worth finding.
+
+**It caught a real self-own on its first run.** `motion.framework-default-timing` fires when a page
+has ≥8 transitions and ≥60% of them compute to exactly Tailwind's shipped default pairing,
+`150ms cubic-bezier(0.4, 0, 0.2, 1)` — the number nobody chose. We measured **7 of 11 (64%)** on the
+landing page, **12 of 18 (67%)** on a receipt and **12 of 12 (100%)** on `/method`. A detector that
+ships the exact value it detects is not a detector. The fix is two theme variables and a decision:
+`--default-transition-duration: 120ms` and
+`--default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1)` — 120 because everything these
+utilities move is a *colour on a document* and a document's state change should read as immediate,
+and a hard-out curve because the change should be gone before it has announced itself.
+
+Result after, measured on all three routes:
+
+| Rule | Threshold | Us | Verdict |
+|---|---|---|---|
+| `motion.uniform-timing` | ≥6 element animations, ≥70% one bucket | **0 element animations** | clear |
+| `motion.stagger-ladder` | ≥4 delays in an exact arithmetic ladder | delays come from `evaluated` order | clear |
+| `motion.infinite-decorative-loop` | ≥2 infinite decorative **element** animations | 0 (both loops are pseudo-elements) | clear |
+| `motion.library-fingerprint` | animate.css / AOS / WOW / ScrollReveal | none; anime.js is not in the list | clear |
+| `motion.every-section-reveals` | ≥5 sections and *every one* reveals | 5 / 2 / 3 sections, none with a CSS entrance | clear |
+| `motion.framework-default-timing` | ≥8 transitions, ≥60% at the Tailwind default | 0 of 41 at the default | clear (**was firing on all three routes**) |
+
+**Two counter-evidence rules we do not earn, said out loud rather than gamed.**
+`counter.bespoke-keyframe` wants ≥4 stops animating something past opacity/transform, or ≥6 stops of
+anything; `grain-cut` has 3 stops of `transform` and `scan-pass` has 2. `counter.reduced-motion-
+honoured` requires ≥3 *element* animations before the reduced read, and our two loops are on
+pseudo-elements. Both are one edit away — six grain stops, or moving the layers onto real divs — and
+neither edit would change a single thing a visitor experiences. That is the definition of teaching to
+your own test, which is the behaviour this product exists to catch, and it is the same posture as the
+`builder.bare-platform-domain` finding we publish about ourselves on the homepage. When there is a
+reason other than the scoreboard, they change. Not before.

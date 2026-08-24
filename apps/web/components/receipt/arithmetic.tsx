@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FEED_ATTR } from "@/lib/reveal-attrs";
 import type { ScanView } from "@/lib/view";
 
 /**
@@ -50,7 +51,11 @@ export function Arithmetic({ view }: { readonly view: ScanView }) {
           the document. A receipt whose page scrolls sideways is broken, and collapsing the
           columns into stacked labels would break the one property this block is for: the
           points column has to be readable as a column you can add up. */}
-      <div data-doc className="overflow-x-auto border border-border-control bg-surface-raised">
+      <div
+        data-doc
+        {...{ [FEED_ATTR]: "" }}
+        className="overflow-x-auto border border-border-control bg-surface-raised"
+      >
         <Table>
           <TableHeader>
             <TableRow className="border-hairline">
@@ -80,10 +85,19 @@ export function Arithmetic({ view }: { readonly view: ScanView }) {
               <TableCell className="font-mono text-mono-sm text-ink-muted">n/a</TableCell>
             </TableRow>
             {view.families.map((family) => (
-              <TableRow key={family.id} className="border-hairline">
-                <TableCell className="max-w-[38ch] text-sm text-ink">
+              <TableRow key={family.id} className="border-hairline align-top">
+                {/*
+                 * `whitespace-normal` and a real width, both load-bearing. shadcn's TableCell
+                 * ships `whitespace-nowrap`, so this caveat — the longest string in the table by
+                 * an order of magnitude — was laid out on ONE unbreakable line, overflowed its
+                 * cell, and printed straight across the Findings, Points and Cap columns of its
+                 * own row. Three of the four numbers in every family row were unreadable under
+                 * a sentence, which is a real defect in a block whose entire purpose is that a
+                 * reader can add the column up by hand. Caught in a dark 1440 capture.
+                 */}
+                <TableCell className="w-[46ch] max-w-[46ch] min-w-[28ch] text-sm whitespace-normal text-ink">
                   {family.title}
-                  <span className="block font-mono text-mono-sm text-ink-muted">
+                  <span className="mt-1 block font-mono text-mono-sm whitespace-normal text-ink-muted">
                     {family.caveat}
                   </span>
                 </TableCell>

@@ -7,7 +7,8 @@ import Link from "next/link";
  */
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-hairline">
+    // Same surface as the nav, for the same reason: the page ends on the desk it started on.
+    <footer className="mt-24 border-t border-hairline bg-surface-sunk">
       <div className="mx-auto flex max-w-page flex-col gap-5 px-6 py-11 md:flex-row md:items-start md:justify-between md:px-16">
         <p className="max-w-[52ch] text-sm text-ink-muted">
           Built by one person who got tired of arguing about whether something was made by a
