@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { CodeRule } from "../rule.js";
+import { manualEach, manualOnce } from "./remedy.js";
 
 /**
  * Family: verification-floor.
@@ -13,7 +15,7 @@ import type { CodeRule } from "../rule.js";
  * no tests at all, because somebody produced the ceremony of a test without the substance.
  */
 
-export const VERIFICATION_RULES: readonly CodeRule[] = [
+const RAW_VERIFICATION_RULES: readonly CodeRule[] = [
   {
     id: "verify.no-tests",
     family: "verification-floor",
@@ -164,3 +166,33 @@ export const VERIFICATION_RULES: readonly CodeRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes: both manual, and not because writing a test is hard.
+ *
+ * A generated test is exactly the defect this family measures. `verify.tautological-tests`
+ * fires on the ceremony of a test without the substance of one, and answering it with a
+ * machine-written assertion would produce more of the same thing, marked as resolved. The
+ * only fix that closes this finding is one somebody ran against broken code and watched fail.
+ */
+export const VERIFICATION_RULES: readonly CodeRule[] = attachRemedies(RAW_VERIFICATION_RULES, {
+  "verify.no-tests": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "the scanned tree",
+      summary: "Add one test that would fail if the main path broke.",
+      guidance:
+        "One real test is worth more than a coverage number, and no patch is proposed because a test written to satisfy a detector is the defect the other rule in this family measures.",
+      doNotApplyIf:
+        "the tests live in another repository or outside the scanned globs, or this is a script or a piece of infrastructure glue whose verification is elsewhere.",
+      blastRadius: "multi-file",
+    }),
+  "verify.tautological-tests": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Make the assertion at ${e.locator} able to fail, or delete it.`,
+      guidance:
+        "Break the code this covers and confirm the test goes red. If it stays green, the test is marking the area as covered while checking nothing, which is worse than having no test there.",
+      doNotApplyIf:
+        "this is a deliberate smoke test checking only that a module imports without throwing, or the assertion helper is one the scanner does not recognise.",
+      blastRadius: "line",
+    })),
+});

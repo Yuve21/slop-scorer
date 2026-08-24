@@ -1,3 +1,4 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { CodeRule } from "../rule.js";
 
@@ -23,7 +24,7 @@ const chat = (path: string, tool: string, bytes: number, excerpt: string) => ({
   excerpt,
 });
 
-export const AGENT_RULES: readonly CodeRule[] = [
+const RAW_AGENT_RULES: readonly CodeRule[] = [
   {
     id: "agent.instruction-file-committed",
     family: "agent-artifact",
@@ -100,3 +101,83 @@ export const AGENT_RULES: readonly CodeRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes.
+ *
+ * Both rules in this family propose the SAME PAIR: untrack the file, and ignore it so it
+ * does not come back on the next commit. The pair matters. Deleting the file alone leaves the
+ * working directory that produced it still writing one, and adding the ignore alone leaves
+ * the committed copy exactly where it was.
+ *
+ * The deletion is `delete_file`, which is its own kind precisely so a host agent can demand a
+ * second confirmation for it without reading prose. This is the one family where the honest
+ * fix removes something from the repository, and the `doNotApplyIf` on it is not a formality:
+ * committing an instruction file on purpose is an increasingly normal thing to do, and the
+ * rule cannot tell that case from a leftover.
+ */
+export const AGENT_RULES: readonly CodeRule[] = attachRemedies(RAW_AGENT_RULES, {
+  "agent.instruction-file-committed": (evidence, artifact) =>
+    evidence.flatMap((e) => {
+      const record = artifact.agentFiles.find((f) => f.path === e.locator);
+      return [
+        {
+          kind: "delete_file" as const,
+          path: e.locator,
+          destructive: true as const,
+          ...(record ? { bytes: record.bytes } : {}),
+          summary: `Remove ${e.locator} from the repository and from the index.`,
+          doNotApplyIf:
+            "this file is a deliberate part of how the team works. In that case keep it and say so in the README, which answers the finding without deleting anything.",
+          blastRadius: "file" as const,
+          addresses: [e.locator],
+          rebuttal: "",
+        },
+        {
+          kind: "insert" as const,
+          path: ".gitignore",
+          atLine: 0,
+          text: `${e.locator}
+`,
+          createIfMissing: true,
+          summary: `Add ${e.locator} to .gitignore so it is not committed again.`,
+          doNotApplyIf:
+            "the file is meant to be shared with the team. Ignoring it then hides a file everyone is expected to read, which is worse than committing it.",
+          blastRadius: "line" as const,
+          addresses: [e.locator],
+          rebuttal: "",
+        },
+      ];
+    }),
+  "agent.transcript-committed": (evidence, artifact) =>
+    evidence.flatMap((e) => {
+      const record = artifact.agentFiles.find((f) => f.path === e.locator);
+      return [
+        {
+          kind: "delete_file" as const,
+          path: e.locator,
+          destructive: true as const,
+          ...(record ? { bytes: record.bytes } : {}),
+          summary: `Remove the session log ${e.locator} from the repository and from the index.`,
+          doNotApplyIf:
+            "the transcript was committed on purpose as the record of a decision. Some teams do exactly that, and deleting it destroys the audit trail it was kept for.",
+          blastRadius: "file" as const,
+          addresses: [e.locator],
+          rebuttal: "",
+        },
+        {
+          kind: "insert" as const,
+          path: ".gitignore",
+          atLine: 0,
+          text: `${e.locator}
+`,
+          createIfMissing: true,
+          summary: `Add ${e.locator} to .gitignore. A transcript also carries whatever was pasted into the session.`,
+          doNotApplyIf: "the path is a directory other tracked files live in, in which case ignore the transcript itself rather than its parent.",
+          blastRadius: "line" as const,
+          addresses: [e.locator],
+          rebuttal: "",
+        },
+      ];
+    }),
+});

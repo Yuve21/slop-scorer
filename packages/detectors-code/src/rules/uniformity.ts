@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { CodeRule } from "../rule.js";
+import { manualEach, manualOnce, NOTHING_TO_APPLY } from "./remedy.js";
 
 /**
  * Family: structural-uniformity.
@@ -23,7 +25,7 @@ function coefficientOfVariation(values: readonly number[]): number {
   return Math.sqrt(variance) / mean;
 }
 
-export const UNIFORMITY_RULES: readonly CodeRule[] = [
+const RAW_UNIFORMITY_RULES: readonly CodeRule[] = [
   {
     id: "uniform.function-length",
     family: "structural-uniformity",
@@ -202,3 +204,39 @@ export const UNIFORMITY_RULES: readonly CodeRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes: two of them say there is nothing to do, and that is the useful answer.
+ *
+ * A finding that moves a score and proposes no edit is not a gap in this table. Function and
+ * file length are distributions, capped low precisely because a linter, a formatter or a
+ * one-route-per-file convention produces them honestly. Telling an agent to skip those two
+ * and look at the duplicated block instead is worth more than three patches would be.
+ */
+export const UNIFORMITY_RULES: readonly CodeRule[] = attachRemedies(RAW_UNIFORMITY_RULES, {
+  "uniform.function-length": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "functions",
+      summary: "Nothing to apply: this is a measurement of the spread of function lengths.",
+      guidance: NOTHING_TO_APPLY,
+      doNotApplyIf: "always. There is no edit attached to this finding.",
+      blastRadius: "none",
+    }),
+  "uniform.duplicate-blocks": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Extract the block repeated at ${e.locator} into one definition.`,
+      guidance:
+        "Extract it once and call it from each site. No patch is proposed because where the shared version should live is a design decision, and the wrong answer to it is worse than the duplication.",
+      doNotApplyIf:
+        "the framework mandates the shape, or these are generated clients, migrations or test setup, where identical files are correct and deduplicating them would be a worse codebase.",
+      blastRadius: "multi-file",
+    })),
+  "uniform.file-length": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "files",
+      summary: "Nothing to apply: this is a measurement of the spread of file lengths.",
+      guidance: NOTHING_TO_APPLY,
+      doNotApplyIf: "always. There is no edit attached to this finding.",
+      blastRadius: "none",
+    }),
+});

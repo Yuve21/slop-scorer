@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { WebRule } from "../rule.js";
+import { manualOnce } from "./remedy.js";
 
 /**
  * Family: structural-uniformity. Capped at 10%.
@@ -11,7 +13,7 @@ import type { WebRule } from "../rule.js";
 
 const BOILERPLATE_ROUTES = ["/", "/about", "/features", "/pricing", "/contact", "/blog", "/faq", "/testimonials"];
 
-export const STRUCTURE_RULES: readonly WebRule[] = [
+const RAW_STRUCTURE_RULES: readonly WebRule[] = [
   {
     id: "struct.uniform-section-rhythm",
     family: "structural-uniformity",
@@ -99,3 +101,29 @@ export const STRUCTURE_RULES: readonly WebRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes: both manual, both about content rather than markup.
+ *
+ * "Let the important section be bigger" and "ship a route only this product could have" are
+ * not edits, they are decisions, and the family is capped at 10% because a disciplined design
+ * system produces the same measurements as a template does.
+ */
+export const STRUCTURE_RULES: readonly WebRule[] = attachRemedies(RAW_STRUCTURE_RULES, {
+  "struct.uniform-section-rhythm": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "top-level sections",
+      summary: "Let the section that matters most be the biggest one.",
+      guidance: "Equal weight for unequal content is a layout that has not made a decision yet. Which section matters is a content judgement, so no height is proposed.",
+      doNotApplyIf: "the content is genuinely parallel, such as a plan comparison or a documentation index.",
+      blastRadius: "file",
+    }),
+  "struct.boilerplate-routes": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "/",
+      summary: "Ship at least one route that only this product could have.",
+      guidance: "The finding is not that these pages exist but that they are the only ones. What the distinctive route should be is the product's answer, not a detector's.",
+      doNotApplyIf: "the site is genuinely simple and these are the pages it needs.",
+      blastRadius: "multi-file",
+    }),
+});

@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { WebRule } from "../rule.js";
+import { manualEach, manualOnce, uiChange } from "./remedy.js";
 
 /**
  * Family: visual-default.
@@ -95,7 +97,7 @@ function colorStops(css: string): { text: string; rgb: [number, number, number] 
   return out;
 }
 
-export const VISUAL_RULES: readonly WebRule[] = [
+const RAW_VISUAL_RULES: readonly WebRule[] = [
   {
     id: "css.violet-blue-gradient",
     family: "visual-default",
@@ -599,3 +601,122 @@ export const VISUAL_RULES: readonly WebRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes.
+ *
+ * Two `ui_change`s, and everything else is a `manual` carrying the selector.
+ *
+ * The two that get a patch are the two whose replacement the observation determines: a
+ * decorative pulse resolves to no animation, and crushed tracking resolves to the value this
+ * rule's own threshold names. The rest of this family is taste. A palette, a typeface and a
+ * hierarchy are decisions, and a detector that proposed specific ones would be doing the
+ * thing it exists to measure: filling a slot with whatever is nearest in meaning.
+ */
+export const VISUAL_RULES: readonly WebRule[] = attachRemedies(RAW_VISUAL_RULES, {
+  "css.violet-blue-gradient": (evidence) =>
+    manualEach(evidence, () => ({
+      summary: "Replace the hero gradient with a palette taken from something real.",
+      guidance:
+        "A photograph, a material, a printed reference. No colour is proposed here: choosing one for a brand from a rendered page would be guessing, and the guess would land in the same register as the default it replaced.",
+      doNotApplyIf: "the brand genuinely is blue or violet and this palette was chosen deliberately.",
+      blastRadius: "file",
+    })),
+  "css.crushed-tracking": (evidence, artifact) =>
+    evidence.map((e) =>
+      uiChange({
+        selector: artifact.type.hero?.selector ?? "h1",
+        property: "letter-spacing",
+        before: `${artifact.type.hero?.letterSpacingEm ?? 0}em`,
+        after: "-0.02em",
+        summary: "Loosen the headline tracking to -0.02em, the value this rule's own floor names.",
+        doNotApplyIf:
+          "the face genuinely wants negative tracking at display size and somebody measured it. Optical tracking is a per-face decision and this is a global suggestion.",
+        sourceHint: "the headline style or the type scale token that sets tracking",
+        addresses: [e.locator],
+        blastRadius: "line",
+      }),
+    ),
+  "css.default-sans": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Choose a headline face for this project rather than the default (${e.observed}).`,
+      guidance: "Any other competent face moves the read, and it does not have to be an expensive one. Which face is a brand decision, so none is proposed.",
+      doNotApplyIf: "this face was chosen deliberately, which is a perfectly reasonable thing to have done.",
+      blastRadius: "file",
+    })),
+  "css.ai-serif": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Choose a display face for this project rather than the default (${e.observed}).`,
+      guidance: "If warmth is the goal, get it from a face that is not on every landing page this month. Which face is a brand decision, so none is proposed.",
+      doNotApplyIf: "this face was chosen deliberately. All three in this rule are good faces.",
+      blastRadius: "file",
+    })),
+  "dom.eyebrow-count": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Remove the eyebrow label at ${e.locator} or fold it into the heading.`,
+      guidance: "Keep at most two on a page. If a section needs a label to be understood, the heading is not doing its job yet, and rewriting the heading is the fix.",
+      doNotApplyIf: "this is an editorial or enterprise system where eyebrows carry real navigation meaning.",
+      blastRadius: "line",
+    })),
+  "dom.uniform-cards": (evidence) =>
+    manualEach(evidence, () => ({
+      summary: "Give the one block that matters a different treatment and let the rest be a list.",
+      guidance:
+        "The tell is that everything is a card, including the things that should not be. Which block matters is a content decision this detector cannot make from a rendered page.",
+      doNotApplyIf: "this is a design system doing its job and the blocks genuinely are of equal importance.",
+      blastRadius: "file",
+    })),
+  "dom.ping-dot": (evidence, artifact) =>
+    evidence.map((e) => {
+      const dot = artifact.dom.pingDots.find((d) => d.selector === e.locator);
+      return uiChange({
+        selector: e.locator,
+        property: "animation",
+        before: dot?.animation ?? e.observed,
+        after: "none",
+        summary: `Stop the pulse on ${e.locator}; nothing observed on the page is live.`,
+        doNotApplyIf: "the dot reflects a genuine live status, in which case the animation is carrying real information and should stay.",
+        sourceHint: "the pill or badge component that renders the dot",
+        addresses: [e.locator],
+        blastRadius: "line",
+      });
+    }),
+  "css.one-family": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "font-family",
+      summary: "Add a second voice for display, or use a face with a real optical-size axis.",
+      guidance: "Which second face is a brand decision, so none is proposed. The observation is that headings, body and UI all compute to one family.",
+      doNotApplyIf: "the one-face system is deliberate and the face carries real optical range.",
+      blastRadius: "file",
+    }),
+  "css.hero-scale": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Set the headline at the size the sentence needs (observed ${e.observed}).`,
+      guidance:
+        "No specific size is proposed: the right one depends on the sentence and the face, and the rule's threshold is a floor for the observation rather than a recommended value.",
+      doNotApplyIf: "the enormous setting is deliberate, which is normal on editorial and fashion pages and works.",
+      blastRadius: "line",
+    })),
+  "dom.icon-tile-stack": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Remove the icon tile at ${e.locator}.`,
+      guidance: "If the icon is not adding meaning the heading lacks, it is decoration standing where content should be. Removing the element is the change; which markup declares it is not visible from a rendered read.",
+      doNotApplyIf: "the sections are genuinely parallel, as on a documentation or feature index, where the repeated pattern helps.",
+      blastRadius: "line",
+    })),
+  "css.stock-shadow": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Tune the shadow on ${e.locator} to this surface, or replace it with a hairline border.`,
+      guidance:
+        "Elevation should say something about hierarchy. No replacement value is proposed because a tuned shadow depends on the surface it sits on, which a rendered read cannot judge.",
+      doNotApplyIf: "the default recipe is the right answer here, which it often is; this is a weak signal on its own.",
+      blastRadius: "line",
+    })),
+  "dom.numbered-steps": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Remove the numeral at ${e.locator} unless these sections are genuinely sequential.`,
+      guidance: "Number things that are steps. Do not number things that are merely next to each other.",
+      doNotApplyIf: "the content really is a step-by-step process, where numbering is a kindness to the reader.",
+      blastRadius: "line",
+    })),
+});

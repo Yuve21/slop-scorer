@@ -111,6 +111,11 @@ export function analyzeRepoArtifact(
 
       if (evidence.length === 0) continue;
       const descriptor = descriptorOf(rule);
+      // Remediations are derived from the evidence that SURVIVED suppression, against the
+      // artifact that produced it. Proposing an edit for a citation the engine withdrew
+      // would be the suppression bug pointed at the filesystem.
+      const seenArtifact = rule.polarity === "counter" || pruned.bySuppressor.size === 0 ? artifact : pruned.artifact;
+      const remediation = rule.remediate?.(evidence, seenArtifact) ?? [];
       findings.push(
         makeFinding(
           {
@@ -120,6 +125,7 @@ export function analyzeRepoArtifact(
             counterScope: rule.counterScope,
           },
           evidence,
+          { ...(remediation.length > 0 ? { remediation } : {}) },
         ),
       );
     }

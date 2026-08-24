@@ -1,11 +1,12 @@
 # slop-scorer MCP
 
-Three tools for a coding agent. Deterministic, evidence-cited detection of template and
+Five tools for a coding agent. Deterministic, evidence-cited detection of template and
 machine-generated tells in **code** and in **rendered web pages**, plus the full rule corpus so
 an agent can read what not to produce before it produces it.
 
 No model is involved anywhere in this server. Every finding cites a file and a line, or a CSS
-selector and a computed style value, that you can go and check yourself.
+selector and a computed style value, that you can go and check yourself, and every finding that
+can be acted on comes with the exact edit for your agent to apply.
 
 ---
 
@@ -109,6 +110,39 @@ Restart the client after editing its config, then ask it to call `list_rules`.
 
 ---
 
+## The loop
+
+**scan -> propose_fixes -> apply -> verify_fix.** The report was never the point; the change
+was.
+
+```
+1. scan_codebase / scan_ui   what is there, with a locator on every claim
+2. propose_fixes             the same findings as precise, caveated edits
+3. YOUR agent applies them   with its own edit tools, under the user's normal approval
+4. verify_fix                re-scan, and show which findings are no longer present
+```
+
+**This server never writes a file.** There is no fs write, no exec and no request for write
+access anywhere in the package. A remediation is data: a path and a 1-based line range (or a CSS
+selector and a property), the text that was actually observed there, the text proposed instead,
+and the condition under which the change should not be made. The agent that called the tool
+applies it, because that agent already has edit tools, an approval prompt and a user who trusts
+them. A second, worse copy of that machinery inside an MCP server would be more code, more risk
+and less control.
+
+Three things follow from that, and they are the design rather than the caveats:
+
+- **Only a deterministic read proposes a patch.** The code and web corpora cite facts you can
+  re-read, so they can propose edits. A probabilistic or provenance read gets `manual` guidance
+  and nothing else: where the detector abstains from certainty, the fix cannot assert it.
+- **Every fix carries the rule's own rebuttal and an explicit `doNotApplyIf`.** A fix is a claim
+  that something is wrong, so it ships with the argument against itself, injected from the
+  rule's `falsePositiveNote` so the two can never drift apart.
+- **Counter-evidence is never remediable.** A counter finding argues FOR the artifact. There is
+  nothing in it to fix, and the corpus throws at load if anyone attaches a fix to one.
+
+---
+
 ## The tools
 
 ### `list_rules` — read this before you write anything
@@ -182,6 +216,75 @@ A real finding:
                type-literate designer may choose exactly this. It is a taste signal,
                not a provenance signal.
 ```
+
+### `propose_fixes` — turn the findings into edits
+
+```
+path / include / readHistory   a repository, as scan_codebase takes it
+url / port                     a page, as scan_ui takes it
+```
+
+Re-scans the target and returns every finding as a proposal, grouped by family and split four
+ways so it can be presented as "apply these N, skip these M":
+
+| bucket | meaning |
+| --- | --- |
+| `readyToApply` | `replace_range`, `insert`, `replace_file`. Locator and replacement both determined. |
+| `needsConfirmation` | `delete_file`. The only destructive kind, and its own kind so it can be gated. |
+| `needsSourceLocation` | `ui_change`. The selector, property and values are exact; the file that declares them is not knowable from a rendered read. |
+| `decideYourself` | `manual`. A person decides. The locator and what a good answer looks like, and no invented value. |
+
+A proposal, as returned:
+
+```json
+{
+  "id": "agent.instruction-file-committed#1",
+  "ruleId": "agent.instruction-file-committed",
+  "applicability": "confirm",
+  "destructive": true,
+  "blastRadius": "file",
+  "remediation": {
+    "kind": "delete_file",
+    "path": "CLAUDE.md",
+    "bytes": 4200,
+    "destructive": true,
+    "summary": "Remove CLAUDE.md from the repository and from the index.",
+    "rebuttal": "This says how the repository was worked on, not who wrote any given line...",
+    "doNotApplyIf": "this file is a deliberate part of how the team works. In that case keep it and say so in the README, which answers the finding without deleting anything.",
+    "addresses": ["CLAUDE.md"]
+  },
+  "evidence": [{ "locator": "CLAUDE.md", "observed": "4200 bytes, Claude Code instruction file" }]
+}
+```
+
+Most rules propose `manual` on purpose. A page title, a meta description, an alt attribute and a
+brand palette are all things a machine can produce instantly and all things whose machine
+production is the defect this corpus measures, so those rules name the gap and stop. Generated
+alt text is the clearest case: it satisfies the checker and tells a screen reader user,
+confidently, about an image nobody looked at.
+
+### `verify_fix` — re-scan, and prove it
+
+```
+path / include / readHistory   the same repository the scan used
+url / port                     the same page
+```
+
+Runs the scan again and puts the two finding sets side by side:
+
+```
+Before: 9 finding(s). After: 6. 3 no longer present, 6 still present, 0 newly present.
+Score moved by -14 point(s).
+```
+
+It does not report success. `noLongerPresent` is a list of rules this corpus no longer matches
+at those locators, which is a fact about a re-scan and not a claim that a problem was solved.
+`stillPresent` carries what each surviving finding cites NOW. And `newlyPresent` is stated
+first and sets `regression: true`, because a change that resolves two findings and introduces
+one has broken something, and a verifier that reported the net would call that an improvement.
+
+If no earlier reading of the target is held in this session it says so rather than comparing
+against nothing: a first run is never an all-clear.
 
 ---
 

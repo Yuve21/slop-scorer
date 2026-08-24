@@ -1,4 +1,5 @@
 import { MalformedResultError, VacuousProbeError } from "./errors.js";
+import { assertWellFormedRemediation, isApplicable } from "./remediation.js";
 import type { DetectorResult } from "./types.js";
 
 /**
@@ -40,6 +41,30 @@ export function assertWellFormedResult(result: DetectorResult): DetectorResult {
     }
     if (f.polarity === "counter" && f.weight > 0) {
       throw new MalformedResultError(id, `counter "${f.ruleId}" has a positive weight; counter-evidence must lower the score.`);
+    }
+    for (const r of f.remediation ?? []) {
+      // A patch is a stronger claim than the finding it hangs off. Where the detector's own
+      // evidence is a model output or a signed manifest rather than a fact at a locator, the
+      // only honest proposal is one a person decides on. Checked here, against the result's
+      // declared evidenceKind, so a modality added later inherits the constraint without
+      // having to remember it.
+      if (result.evidenceKind !== "deterministic" && isApplicable(r)) {
+        throw new MalformedResultError(
+          id,
+          `finding "${f.ruleId}" carries an applicable ${r.kind} remediation on a ${result.evidenceKind} read. A detector that abstains from certainty cannot ship a patch that asserts it; use a manual remediation.`,
+        );
+      }
+      if (f.polarity === "counter") {
+        throw new MalformedResultError(
+          id,
+          `counter "${f.ruleId}" carries a remediation. Counter-evidence argues FOR the artifact and there is nothing in it to fix.`,
+        );
+      }
+      try {
+        assertWellFormedRemediation(f.ruleId, r);
+      } catch (error) {
+        throw new MalformedResultError(id, (error as Error).message);
+      }
     }
     if (!result.rulesEvaluated.includes(f.ruleId)) {
       throw new MalformedResultError(

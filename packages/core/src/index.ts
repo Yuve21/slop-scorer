@@ -71,8 +71,30 @@ export {
   toBaselineEntries,
 } from "./calibration/backtest.js";
 
-export type { DeepPartial, Rule, RuleContext, RuleFixtureCase } from "./rule.js";
-export { ev, patch } from "./rule.js";
+export type { DeepPartial, Remediator, Rule, RuleContext, RuleFixtureCase } from "./rule.js";
+export { attachRemedies, ev, patch } from "./rule.js";
+
+export type {
+  Applicability,
+  BlastRadius,
+  DeleteFileRemediation,
+  InsertRemediation,
+  ManualRemediation,
+  Remediation,
+  RemediationKind,
+  ReplaceFileRemediation,
+  ReplaceRangeRemediation,
+  UiChangeRemediation,
+} from "./remediation.js";
+export {
+  applicabilityOf,
+  assertWellFormedRemediation,
+  assertWithinTarget,
+  isApplicable,
+  isDestructive,
+  pathOf,
+  REMEDIATION_KINDS,
+} from "./remediation.js";
 
 export { formatReceipt } from "./receipt.js";
 export { makeFinding } from "./finding.js";

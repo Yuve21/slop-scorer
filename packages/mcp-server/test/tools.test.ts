@@ -56,6 +56,29 @@ describe("scan_codebase", () => {
     }
   });
 
+  it("advertises which findings can be acted on, and points at the tool that does it", async () => {
+    // The scan is where an agent decides whether to offer to fix anything, so the count has to
+    // be on the scan rather than only inside propose_fixes. "Nothing here is applicable" is
+    // half the answer and it is the half that saves an agent a wasted round trip.
+    const payload = await scanCodebase({ path: root, readHistory: false });
+    expect(payload.remediation.findings).toBe(payload.findings.length);
+    expect(payload.remediation.remediable).toBeGreaterThan(0);
+    expect(payload.remediation.readyToApply + payload.remediation.needsConfirmation).toBeGreaterThan(0);
+    expect(payload.remediation.nextStep).toContain("propose_fixes");
+    expect(payload.remediation.nextStep).toContain("verify_fix");
+
+    const agent = payload.findings.find((f) => f.ruleId === "agent.instruction-file-committed");
+    expect(agent?.remediable).toBe(true);
+    expect(agent?.remediationKinds).toContain("delete_file");
+    expect(agent?.destructiveFixProposed).toBe(true);
+
+    const shape = payload.findings.find((f) => f.ruleId === "uniform.file-length");
+    if (shape) {
+      expect(shape.remediable, "a distribution measurement must not advertise an applicable patch").toBe(false);
+      expect(shape.destructiveFixProposed).toBe(false);
+    }
+  });
+
   it("the payload carries the arithmetic, not just the number", async () => {
     const payload = await scanCodebase({ path: root, readHistory: false });
     expect(payload.familyCaps.length).toBeGreaterThan(0);
@@ -148,7 +171,7 @@ describe("list_rules", () => {
 });
 
 describe("the server itself", () => {
-  it("constructs and registers exactly the three specified tools", async () => {
+  it("constructs and registers exactly the five specified tools", async () => {
     const server = createServer();
     // Round-trip through an in-memory transport pair so tool registration is verified the way
     // a client sees it, not by reading the registry we just wrote.
@@ -159,7 +182,13 @@ describe("the server itself", () => {
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
     const tools = await client.listTools();
-    expect(tools.tools.map((t) => t.name).sort()).toEqual(["list_rules", "scan_codebase", "scan_ui"]);
+    expect(tools.tools.map((t) => t.name).sort()).toEqual([
+      "list_rules",
+      "propose_fixes",
+      "scan_codebase",
+      "scan_ui",
+      "verify_fix",
+    ]);
     for (const tool of tools.tools) {
       expect(tool.description?.length ?? 0, `${tool.name} has a thin description`).toBeGreaterThan(120);
     }

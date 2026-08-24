@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { WebRule } from "../rule.js";
+import { manualEach, manualOnce, uiChange, withoutTrailingArrow } from "./remedy.js";
 
 /**
  * Family: copy-tell. Capped at 5%, the smallest positive cap in the corpus.
@@ -22,7 +24,7 @@ const SLOP_LEXICON = [
   /\bgame-?changer\b/gi,
 ];
 
-export const COPY_RULES: readonly WebRule[] = [
+const RAW_COPY_RULES: readonly WebRule[] = [
   {
     id: "copy.slop-lexicon",
     family: "copy-tell",
@@ -167,3 +169,46 @@ export const COPY_RULES: readonly WebRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes.
+ *
+ * One `ui_change`, because a trailing arrow can be removed from a label without anybody
+ * deciding anything: the replacement is the same label with the glyph gone, which the
+ * evidence already contains. The other two are rewrites, and a rewrite proposed by a machine
+ * on a page flagged for reading like a machine wrote it would be a closed loop with nothing
+ * in it. The family is capped at 5% for the same reason.
+ */
+export const COPY_RULES: readonly WebRule[] = attachRemedies(RAW_COPY_RULES, {
+  "copy.slop-lexicon": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Replace "${e.observed}" with the specific thing it is standing in for.`,
+      guidance:
+        "Most of these phrases sit where a fact should be. No replacement is proposed: a rewrite generated here would be the same register in different words, which is what the rule is measuring.",
+      doNotApplyIf: "the phrase is ordinary English in context. All of these are ordinary English words, which is why this family is capped near zero.",
+      blastRadius: "line",
+    })),
+  "copy.em-dash-density": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "em dashes per 100 rendered words",
+      summary: "Use commas, colons, periods and parentheses for most of these.",
+      guidance:
+        "Most em dashes are a sentence that did not want to end. No patch is proposed because which ones are load-bearing depends on the sentences, and some of them will be.",
+      doNotApplyIf: "the prose is edited to a house style that sets em dashes deliberately, which several publishers do.",
+      blastRadius: "file",
+    }),
+  "copy.arrow-cta": (evidence) =>
+    evidence.map((e) =>
+      uiChange({
+        selector: "the call to action carrying this label",
+        property: "label text",
+        before: e.observed,
+        after: withoutTrailingArrow(e.observed),
+        summary: `Drop the trailing arrow: "${e.observed}" becomes "${withoutTrailingArrow(e.observed)}".`,
+        doNotApplyIf: "the arrow is a directional affordance that the layout relies on, which is a reasonable design choice and reads fine.",
+        sourceHint: "the button or link component rendering this label",
+        addresses: [e.locator],
+        blastRadius: "line",
+      }),
+    ),
+});

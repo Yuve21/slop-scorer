@@ -4,6 +4,7 @@ import { BAND_LABELS, DEFAULT_CONFIG, REPORT_DISCLAIMER } from "./config.js";
 import type { Band, FamilySpec, ScoringConfig } from "./config.js";
 import { ReceiptMismatchError } from "./errors.js";
 import { clamp, logit, positionDecay, sigmoid } from "./math.js";
+import type { Remediation } from "./remediation.js";
 import type { Coverage, DetectorResult, Evidence, FamilyId, Finding, Modality, Severity } from "./types.js";
 
 /**
@@ -52,6 +53,8 @@ export interface ReceiptLine {
   readonly explanation: string;
   readonly falsePositiveNote: string;
   readonly prevention?: string;
+  /** Carried through from the finding so the receipt and the fix proposal cannot diverge. */
+  readonly remediation?: readonly Remediation[];
 }
 
 export interface FamilySummary {
@@ -374,6 +377,7 @@ export function buildReport(
       explanation: f.explanation,
       falsePositiveNote: f.falsePositiveNote,
       ...(f.prevention ? { prevention: f.prevention } : {}),
+      ...(f.remediation && f.remediation.length > 0 ? { remediation: f.remediation } : {}),
     };
     lines.push(line);
   }

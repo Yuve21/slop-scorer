@@ -1,5 +1,8 @@
+import { attachRemedies } from "@slop/core";
+import type { Remediation } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { CodeRule } from "../rule.js";
+import { lineOf, manual, manualEach } from "./remedy.js";
 
 /**
  * Family: scaffold-residue.
@@ -10,7 +13,7 @@ import type { CodeRule } from "../rule.js";
  * rebuttal: a young repo has every one of these and is innocent of all of them.
  */
 
-export const SCAFFOLD_RULES: readonly CodeRule[] = [
+const RAW_SCAFFOLD_RULES: readonly CodeRule[] = [
   {
     id: "scaffold.readme-template-markers",
     family: "scaffold-residue",
@@ -212,3 +215,75 @@ export const SCAFFOLD_RULES: readonly CodeRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes.
+ *
+ * One applicable patch and three refusals, which is about the right ratio for a family whose
+ * findings are all "somebody has not come back to this yet".
+ *
+ * The README markers are applicable because the artifact records the RAW LINE the marker sits
+ * on, so the range and the text at it are both known. The placeholders are not, because
+ * knowing that `your-api-key-here` is wrong is not the same as knowing what belongs there,
+ * and a patch that filled it with anything at all would be inventing a value and calling it a
+ * fix. The dependencies are not, because a static scan cannot see a plugin loaded by config
+ * or a dynamic import, and the honest resolution is a depcheck run and a build, not an edit.
+ */
+export const SCAFFOLD_RULES: readonly CodeRule[] = attachRemedies(RAW_SCAFFOLD_RULES, {
+  "scaffold.readme-template-markers": (evidence, artifact) =>
+    evidence.flatMap((e): readonly Remediation[] => {
+      const at = lineOf(e.locator);
+      const marker = artifact.readme?.templateMarkers.find((m) => m.line === at?.line);
+      if (!at || !marker || marker.text.trim().length === 0) {
+        return [
+          manual({
+            locator: e.locator,
+            summary: `Delete the generator's own sentence at ${e.locator}.`,
+            guidance: "Two paragraphs: what this is, and how to run it. Everything the generator wrote goes.",
+            doNotApplyIf: "the repository is days old and the README has not been written yet, which is a different situation.",
+            blastRadius: "line",
+          }),
+        ];
+      }
+      return [
+        {
+          kind: "replace_range" as const,
+          path: at.path,
+          startLine: at.line,
+          endLine: at.line,
+          before: marker.text,
+          after: "",
+          summary: `Delete line ${at.line} of ${at.path}, which is still the generator's own sentence.`,
+          doNotApplyIf:
+            "the surrounding paragraph depends on this line reading as prose, in which case rewrite the section rather than removing one line from the middle of it.",
+          blastRadius: "line" as const,
+          addresses: [e.locator],
+          rebuttal: "",
+        },
+      ];
+    }),
+  "scaffold.unused-dependencies": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Confirm nothing loads ${e.locator.split(">").pop()?.trim() ?? "this package"}, then remove it.`,
+      guidance:
+        "Run a depcheck pass and a build before removing anything. A plugin loaded by config, a peer requirement, a CLI-only tool and a dynamic import all look unused to a static scan, so this is a question to answer rather than an edit to apply.",
+      doNotApplyIf: "the scan was narrowed with an include glob, in which case the importer may simply be outside it.",
+      blastRadius: "project",
+    })),
+  "scaffold.default-tooling-config": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Give ${e.locator} one setting this project actually needs, or delete the file.`,
+      guidance:
+        "Either configure something the team has an opinion about, or remove the file and take the tool's built-in defaults. Both answers are better than a committed file that says nothing.",
+      doNotApplyIf: "the defaults are what the team wants and the file is there because a tool requires it to exist.",
+      blastRadius: "file",
+    })),
+  "scaffold.placeholder-markers": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Fill in or remove the placeholder at ${e.locator}.`,
+      guidance:
+        "The right value is not recoverable from the code, so no patch is proposed. If the gap is real work, attribute it: a TODO naming an owner or a ticket is tracked work and this rule excludes it.",
+      doNotApplyIf: "the line is the definition of a placeholder pattern rather than a use of one, such as a marker table or a regular expression literal.",
+      blastRadius: "line",
+    })),
+});

@@ -38,6 +38,7 @@
  */
 
 import { expect } from "vitest";
+import { applicabilityOf, assertWellFormedRemediation, assertWithinTarget, pathOf } from "@slop/core";
 import type { DetectorResult, ProbeStatus, Rule } from "@slop/core";
 
 export interface CorpusUnderTest<TArtifact, TProbeId extends string> {
@@ -156,3 +157,70 @@ export function expectDescriptorsAreComplete<A, P extends string>(corpus: Corpus
 /** Helper for `zeroProbe` implementations. */
 export const zeroed = (probes: readonly ProbeStatus[], id: string): ProbeStatus[] =>
   probes.map((p) => (p.id === id ? { ...p, ran: true, denominator: 0, expectsNonEmpty: true } : p));
+
+/**
+ * Check 6. THE FIXES ARE AS HONEST AS THE FINDINGS.
+ *
+ * A remediation is a claim, made to another agent that is about to act on it, so it gets the
+ * same treatment as the finding it hangs off. Five things, over the whole corpus:
+ *
+ *   1. Every SIGNAL rule proposes something, even if what it proposes is that a person
+ *      decides. A rule that fires and says nothing is where the loop stops.
+ *   2. No COUNTER rule proposes anything. Counter-evidence argues FOR the artifact; there is
+ *      nothing in it to fix, and a "fix" for one would remove the best thing about the thing
+ *      being scanned. This is the assertion, not a comment.
+ *   3. Every proposal is well formed: a rebuttal, a stop condition, a citation it answers.
+ *   4. Every proposal addresses a locator the rule ACTUALLY CITED. A patch pointing somewhere
+ *      the evidence never mentioned is a patch nobody can check.
+ *   5. Every applicable patch names a file the finding cited, or `.gitignore`, and never
+ *      anything outside the target. The blast radius of a detector is supposed to be zero.
+ */
+export function expectRemediationsAreHonest<A, P extends string>(corpus: CorpusUnderTest<A, P>): void {
+  let checked = 0;
+  for (const rule of corpus.rules) {
+    if (rule.polarity === "counter") {
+      expect(
+        rule.remediate,
+        `${rule.id} is counter-evidence and has a remediation. Counter-evidence is an argument FOR the artifact; proposing an edit for it would argue for deleting the strongest thing on the page.`,
+      ).toBeUndefined();
+      continue;
+    }
+    expect(
+      rule.remediate,
+      `${rule.id} can fire and proposes nothing. Every signal rule must say what to change, even if what it says is that a person has to decide.`,
+    ).toBeTypeOf("function");
+
+    const positive = rule.fixtures.positive(corpus.neutral());
+    const evidence = rule.detect(positive.artifact, { priorFindings: positive.prior ?? [] });
+    const proposals = rule.remediate?.(evidence, positive.artifact) ?? [];
+    expect(proposals.length, `${rule.id} fired on its own fixture and proposed nothing`).toBeGreaterThan(0);
+
+    // Both the whole locator and its comma-separated parts count as cited: a rule that cites
+    // one block in three files writes all three into one locator, and a fix may name either
+    // the whole citation or one of the places in it.
+    const cited = new Set(evidence.flatMap((e) => [e.locator, ...e.locator.split(",").map((part) => part.trim())]));
+    const citedFiles = new Set([...cited].map((l) => l.split(":")[0] ?? l));
+    for (const p of proposals) {
+      assertWellFormedRemediation(rule.id, p);
+      for (const address of p.addresses) {
+        expect(
+          cited.has(address),
+          `${rule.id} proposed a fix addressing "${address}", which is not something the rule cited. A patch pointing at a locator the evidence never mentioned cannot be checked by the person applying it.`,
+        ).toBe(true);
+      }
+      const path = pathOf(p);
+      if (path === null) continue;
+      assertWithinTarget(rule.id, path);
+      if (applicabilityOf(p) === "manual") continue;
+      expect(
+        citedFiles.has(path) || path === ".gitignore",
+        `${rule.id} proposed editing "${path}", which is neither a file it cited nor .gitignore. An applicable patch may only touch what the finding pointed at.`,
+      ).toBe(true);
+    }
+    checked += 1;
+  }
+  // The denominator. Without it a corpus that somehow presented no signal rules would pass
+  // every assertion above by never running one, which is the exact shape this file exists for.
+  expect(checked, `${corpus.name}: no signal rule was checked for remediation, so this proves nothing`).toBeGreaterThan(0);
+  expect(checked).toBe(corpus.rules.filter((r) => r.polarity === "signal").length);
+}

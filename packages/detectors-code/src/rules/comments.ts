@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { CodeRule } from "../rule.js";
+import { manualEach, manualOnce } from "./remedy.js";
 
 /**
  * Family: comment-boilerplate.
@@ -22,7 +24,7 @@ const restating = (file: string, line: number, text: string) => ({
   givesRationale: false,
 });
 
-export const COMMENT_RULES: readonly CodeRule[] = [
+const RAW_COMMENT_RULES: readonly CodeRule[] = [
   {
     id: "comment.restates-the-code",
     family: "comment-boilerplate",
@@ -151,3 +153,34 @@ export const COMMENT_RULES: readonly CodeRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes, and the one place this corpus deliberately declines to write a patch.
+ *
+ * "Delete the restating comment on line 41" is the most obviously mechanical fix in the whole
+ * product, and it is a `manual` here anyway. The artifact records a comment BODY without its
+ * marker, and a block comment is recorded against the line its opening delimiter sits on, so
+ * a line deletion generated from that record would cut the opening delimiter off a block and
+ * leave the rest of it as syntax errors. A patch that is right most of the time is worse than
+ * a locator and a sentence, because the times it is wrong are silent.
+ */
+export const COMMENT_RULES: readonly CodeRule[] = attachRemedies(RAW_COMMENT_RULES, {
+  "comment.restates-the-code": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Replace or delete the comment at ${e.locator}.`,
+      guidance:
+        "Say why the line is the way it is: what was tried and rejected, which constraint forces this shape, which bug it is load-bearing for. If nothing of that kind is true, delete it.",
+      doNotApplyIf:
+        "the comment is a docstring a documentation generator reads, or the file is teaching code where restating the line is the point.",
+      blastRadius: "line",
+    })),
+  "comment.section-banner-density": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "src",
+      summary: "Let comment density follow the difficulty of each file rather than a fixed share of every file.",
+      guidance:
+        "The hard file earns paragraphs and the barrel file earns nothing. There is no single edit here: the observation is the lack of variation across files, so it resolves as the files are worked on rather than in one pass.",
+      doNotApplyIf: "the house style mandates a file header, which produces exactly this shape and is a deliberate decision.",
+      blastRadius: "multi-file",
+    }),
+});

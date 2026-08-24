@@ -1,4 +1,6 @@
 import { multiplicity } from "./math.js";
+import { assertWellFormedRemediation } from "./remediation.js";
+import type { Remediation } from "./remediation.js";
 import type { Evidence, Finding, Polarity, RuleDescriptor, CounterScope } from "./types.js";
 
 /**
@@ -9,11 +11,18 @@ import type { Evidence, Finding, Polarity, RuleDescriptor, CounterScope } from "
 export function makeFinding(
   rule: RuleDescriptor & { readonly maxHits?: number; readonly counterScope?: CounterScope },
   evidence: readonly Evidence[],
-  overrides: { readonly explanation?: string } = {},
+  overrides: { readonly explanation?: string; readonly remediation?: readonly Remediation[] } = {},
 ): Finding {
   if (evidence.length === 0) {
     throw new Error(`Rule "${rule.id}" tried to produce a finding with no evidence. No evidence, no finding.`);
   }
+  const remediation = overrides.remediation ?? [];
+  if (remediation.length > 0 && rule.polarity === "counter") {
+    throw new Error(
+      `Counter rule "${rule.id}" produced a remediation. Counter-evidence is an argument FOR the artifact; there is nothing here to fix.`,
+    );
+  }
+  for (const r of remediation) assertWellFormedRemediation(rule.id, r);
   const cap = rule.maxHits ?? 3;
   const hitsCounted = Math.min(evidence.length, cap);
   const polarity: Polarity = rule.polarity;
@@ -31,5 +40,6 @@ export function makeFinding(
     explanation: overrides.explanation ?? rule.explanation,
     falsePositiveNote: rule.falsePositiveNote,
     ...(rule.prevention ? { prevention: rule.prevention } : {}),
+    ...(remediation.length > 0 ? { remediation } : {}),
   };
 }

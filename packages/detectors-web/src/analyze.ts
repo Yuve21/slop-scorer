@@ -42,7 +42,15 @@ export function analyzeArtifact(
       evaluated.push(rule.id);
       const evidence = rule.detect(artifact, { priorFindings: findings });
       if (evidence.length === 0) continue;
-      findings.push(makeFinding({ ...ruleDescriptorOf(rule), maxHits: rule.maxHits, counterScope: rule.counterScope }, evidence));
+      // The fix is derived from the evidence THIS run produced, not from a second read of
+      // the artifact, so the value a patch quotes as `before` is the value the citation above
+      // it quotes as `observed`. Counter rules have no remediator by construction.
+      const remediation = rule.remediate?.(evidence, artifact) ?? [];
+      findings.push(
+        makeFinding({ ...ruleDescriptorOf(rule), maxHits: rule.maxHits, counterScope: rule.counterScope }, evidence, {
+          ...(remediation.length > 0 ? { remediation } : {}),
+        }),
+      );
     }
   };
 

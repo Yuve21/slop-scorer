@@ -23,6 +23,7 @@
  */
 
 import type { AbstentionReason } from "./assessment.js";
+import type { Remediation } from "./remediation.js";
 
 /** Artifact classes the product scores. One detector serves exactly one modality. */
 export type Modality = "web" | "code" | "text" | "image" | "video" | "audio";
@@ -138,6 +139,16 @@ export interface Finding {
   readonly falsePositiveNote: string;
   /** What to do instead. This field, not the score, is the MCP server's primary payload. */
   readonly prevention?: string;
+  /**
+   * The precise edits this finding proposes, for a host agent to apply with its own tools.
+   *
+   * `prevention` tells a person what to do next time. This tells an agent what to change now,
+   * at a locator, with the observed `before` and the proposed `after` both present so nothing
+   * has to be re-derived. Never populated on a counter finding: counter-evidence is an
+   * argument FOR the artifact and there is nothing in it to fix. Never applicable on a
+   * probabilistic or provenance read: see `remediation.ts`.
+   */
+  readonly remediation?: readonly Remediation[];
 }
 
 /** One probe's outcome. A probe that ran but collected nothing is a FAILURE, not a pass. */

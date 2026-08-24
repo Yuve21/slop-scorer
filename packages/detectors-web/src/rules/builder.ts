@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { WebRule } from "../rule.js";
+import { manualEach, manualOnce, uiChange } from "./remedy.js";
 
 /**
  * Family: builder-fingerprint.
@@ -33,7 +35,7 @@ const GENERATOR_TRAILERS =
 const VENDOR_ASSET_HOSTS =
   /^(cdn\.lovable\.dev|assets\.lovable\.app|v0\.dev|cdn\.v0\.dev|bolt\.new|cdn\.builder\.io|replit\.com|cdn\.replit\.com)$/i;
 
-export const BUILDER_RULES: readonly WebRule[] = [
+const RAW_BUILDER_RULES: readonly WebRule[] = [
   {
     id: "builder.ai-generator-meta",
     family: "builder-fingerprint",
@@ -254,3 +256,62 @@ export const BUILDER_RULES: readonly WebRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes.
+ *
+ * One `ui_change` and four refusals, and the refusals are the interesting part. Three of
+ * these findings are about a DEPLOYMENT rather than a document: a file served from the web
+ * root, a map published to production, a hostname. None of those is a property of anything
+ * this detector rendered, so none of them gets a patch from a detector that only rendered a
+ * page. Saying which build setting to look at is the honest limit of what a page read knows.
+ */
+export const BUILDER_RULES: readonly WebRule[] = attachRemedies(RAW_BUILDER_RULES, {
+  "builder.ai-generator-meta": (evidence) =>
+    evidence.map((e) =>
+      uiChange({
+        selector: 'meta[name="generator"]',
+        property: "content",
+        before: e.observed,
+        after: "",
+        summary: "Remove the vendor generator meta tag, or replace it with the build identifier for this project.",
+        doNotApplyIf: "the tag is wanted for tooling that reads it, in which case set it to something that names this build rather than the vendor.",
+        sourceHint: "the head of the root layout or the template that renders <head>",
+        addresses: [e.locator],
+        blastRadius: "line",
+      }),
+    ),
+  "builder.agent-artifact-reachable": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Stop serving ${e.locator} from the deployed output.`,
+      guidance:
+        "Exclude agent instruction files from the deploy, then check what else went out with them. No patch is proposed because this file is part of a deployment, not part of the document that was rendered, and this detector never saw the repository it came from.",
+      doNotApplyIf: "the file is published on purpose, which some projects do so that agents reading the site can find it.",
+      blastRadius: "project",
+    })),
+  "builder.sourcemap-generator-trailer": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Stop publishing the source map at ${e.locator}, and strip generator banners from the build output.`,
+      guidance:
+        "Turn off source map emission for production, or upload the maps to the error reporter instead of the web root. This is a build setting, so it is named rather than patched.",
+      doNotApplyIf: "the maps are published deliberately so that production errors stay legible, which is a real choice.",
+      blastRadius: "project",
+    })),
+  "builder.bare-platform-domain": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "the final URL",
+      summary: "Serve this from a domain the operator owns, and let the platform URL redirect to it.",
+      guidance:
+        "A domain is a purchase and a DNS change, not an edit, so nothing is proposed here. If the platform URL has to stay reachable, redirect it or mark it noindex so it is not the canonical version.",
+      doNotApplyIf: "this is a staging URL, an internal tool, a demo or a hobby project, none of which needs a domain.",
+      blastRadius: "project",
+    }),
+  "builder.vendor-asset-host": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Self-host the assets currently loaded from ${e.observed}.`,
+      guidance:
+        "Copy the assets into the project and update the references. The host is visible in the request log but the reference lives in source this detector never read, so the change is described rather than written.",
+      doNotApplyIf: "the asset is a leftover from a prototype on a page that has since been rewritten, in which case delete the reference rather than rehosting it.",
+      blastRadius: "multi-file",
+    })),
+});

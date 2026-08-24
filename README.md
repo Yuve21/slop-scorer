@@ -41,11 +41,46 @@ packages/
     src/rules/               agent artifacts, comments, scaffold, uniformity, verification,
                              history, counter-evidence
 
-  mcp-server/                the shippable plugin: scan_codebase, scan_ui, list_rules
+  mcp-server/                the shippable plugin: scan_codebase, scan_ui, list_rules,
+                             propose_fixes, verify_fix
     install.sh / install.ps1 the one-line installers
 ```
 
 `npm run verify` runs typecheck, build and tests. All three are green.
+
+---
+
+## Detection is half of it: the loop
+
+**scan -> propose -> apply -> verify.** A report is where most of these tools stop, and it is
+not where the value is. Every finding in the deterministic corpora carries an optional, typed
+`remediation`: a discriminated union of `delete_file | replace_range | insert | replace_file |
+ui_change | manual`, each with the exact locator, the text or value actually observed there, the
+proposed replacement, an estimated blast radius, the rule's own rebuttal and an explicit
+`doNotApplyIf`.
+
+**Nothing in this repository writes a file on anybody's behalf.** The MCP server proposes and
+the host agent disposes: it applies the edits with its own tools, inside the approval flow the
+user already has. Duplicating a permission model inside a detector would be a second thing to
+get wrong and a worse experience even when it was right.
+
+Four constraints, all enforced in `packages/core/src/remediation.ts` rather than documented and
+hoped for:
+
+- **Only a deterministic read may propose an applicable patch.** `assertWellFormedResult` throws
+  when a probabilistic or provenance result carries anything other than `manual`. Where the
+  detector abstains from certainty, the fix cannot assert it.
+- **Counter-evidence is never remediable.** It argues FOR the artifact; the corpus throws at
+  module load if a fix is attached to one, and both corpora assert it in their test suites.
+- **Nothing outside the scanned target.** Absolute paths, drive letters, `~` and `..` traversal
+  are all refused, and an applicable patch may only touch a file the finding actually cited.
+- **Deletion is its own kind.** `delete_file` is the only destructive remediation and carries
+  `destructive: true` in the type, so a host agent can demand a second confirmation for exactly
+  that shape without reading prose.
+
+`verify_fix` closes the loop honestly: it re-scans and reports the before and after finding sets
+rather than a success. A finding that disappears is the evidence. A finding that appears sets
+`regression: true` and is stated first, because a fix that breaks something else is not a fix.
 
 ---
 

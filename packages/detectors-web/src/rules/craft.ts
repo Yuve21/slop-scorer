@@ -1,5 +1,7 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { WebRule } from "../rule.js";
+import { manualEach, manualOnce, uiChange } from "./remedy.js";
 
 /**
  * Family: craft-floor. Ported from a 54-check production hygiene audit.
@@ -20,7 +22,7 @@ import type { WebRule } from "../rule.js";
 
 const SCAFFOLD_TITLE = /vite \+ react|create next app|^react app$|^next\.js app$|^untitled|localhost|^document$|^home$/i;
 
-export const CRAFT_RULES: readonly WebRule[] = [
+const RAW_CRAFT_RULES: readonly WebRule[] = [
   {
     id: "craft.scaffold-title",
     family: "craft-floor",
@@ -316,3 +318,113 @@ export const CRAFT_RULES: readonly WebRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes.
+ *
+ * One `ui_change` in the whole family, and it is the only one whose replacement is a fact we
+ * already hold: the canonical URL is the URL we just fetched. Everything else in here is a
+ * missing SENTENCE, a missing IMAGE or a server setting. A title, a meta description and an
+ * alt attribute are all things a machine can produce instantly and all things whose machine
+ * production is the defect this product measures, so this table names the gap and stops.
+ *
+ * The alt one is worth stating outright: automatically generated alt text is the canonical
+ * example of a fix that satisfies a checker and helps nobody, because a screen reader user
+ * then hears a confident description of an image the writer never looked at.
+ */
+export const CRAFT_RULES: readonly WebRule[] = attachRemedies(RAW_CRAFT_RULES, {
+  "craft.scaffold-title": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Write a title for this page; it is still the scaffold default (${e.observed}).`,
+      guidance: "One specific claim about this specific page. No title is proposed because a generated one would be the same defect in better handwriting.",
+      doNotApplyIf: "the page is unfinished and known to be, which is not the same thing as a page nobody read.",
+      blastRadius: "line",
+    })),
+  "craft.soft-404": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "GET /a-path-that-does-not-exist",
+      summary: "Return a real 404 status with a real page body for paths that do not exist.",
+      guidance: "This is routing and server configuration rather than markup, so it is named rather than patched.",
+      doNotApplyIf: "the app renders its own not-found view client side and the probe read the shell instead.",
+      blastRadius: "project",
+    }),
+  "craft.published-sourcemaps": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Stop publishing ${e.locator} to production.`,
+      guidance: "Turn off source map emission for the production build, or upload the maps to the error reporter instead of the web root. A build setting, so nothing is patched here.",
+      doNotApplyIf: "the maps are published deliberately so error reports stay legible.",
+      blastRadius: "project",
+    })),
+  "craft.no-meta-description": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? 'meta[name="description"]',
+      summary: "Write one sentence saying what this page is, and put it in the meta description.",
+      guidance: "No sentence is proposed. A generated description is the thing search results already quote badly, and writing one takes a person a minute.",
+      doNotApplyIf: "the page is not indexed, where the description does nothing.",
+      blastRadius: "line",
+    }),
+  "craft.no-og-image": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? 'meta[property="og:image"]',
+      summary: "Ship a link preview image and reference it from og:image.",
+      guidance: "An image generated from the page title beats nothing, but which image is a design decision and the file does not exist yet, so no value is proposed.",
+      doNotApplyIf: "nobody shares this link, as with an internal tool.",
+      blastRadius: "file",
+    }),
+  "craft.no-lang": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "html[lang]",
+      summary: "Set a lang attribute on the html element, matching the language the page is actually in.",
+      guidance:
+        "No value is proposed: this detector measures type, colour and structure, not language, and a wrong lang attribute makes a screen reader read the page in the wrong voice, which is worse than an absent one.",
+      doNotApplyIf: "nothing. The attribute belongs there; only its value needs a person.",
+      blastRadius: "line",
+    }),
+  "craft.missing-alt": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Add an alt attribute to ${e.locator}.`,
+      guidance:
+        "Empty is correct for decoration; the attribute still has to be there. No text is proposed on purpose: generated alt text passes the checker and tells a screen reader user, confidently, about an image nobody looked at.",
+      doNotApplyIf: "nothing, though the right value may be the empty string.",
+      blastRadius: "line",
+    })),
+  "craft.no-canonical": (evidence, artifact) =>
+    evidence.map((e) =>
+      uiChange({
+        selector: 'link[rel="canonical"]',
+        property: "href",
+        before: "absent",
+        after: artifact.finalUrl,
+        summary: `Add a canonical link pointing at ${artifact.finalUrl}, which is the URL this read resolved to.`,
+        doNotApplyIf:
+          "this page is a variant that should canonicalise to a different URL, or the final URL carries tracking parameters that should not be the canonical form.",
+        sourceHint: "the head of the layout or the page metadata for this route",
+        addresses: [e.locator],
+        blastRadius: "line",
+      }),
+    ),
+  "craft.crawler-files": (evidence) =>
+    manualEach(evidence, (e) => ({
+      summary: `Serve ${e.locator}, and reference the sitemap from robots.txt.`,
+      guidance: "Both files are served by the app or the host rather than declared in the document that was rendered, so this is named rather than patched.",
+      doNotApplyIf: "the site is small and crawled fine without either, which is common.",
+      blastRadius: "project",
+    })),
+  "craft.no-favicon": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "/favicon.ico",
+      summary: "Ship an icon and declare it.",
+      guidance: "The file does not exist yet, so there is nothing to patch. This is the cheapest item in the corpus and the most visible in a tab strip.",
+      doNotApplyIf: "nothing, beyond not caring how the tab looks.",
+      blastRadius: "file",
+    }),
+  "craft.js-weight": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "totalJsBytes",
+      summary: "Look at what is in the bundle before adding to it.",
+      guidance:
+        "Usually a whole component library shipped for four components. Which import to drop is a build question, and the measurement here is raw bytes rather than transfer size, so treat it as a relative signal.",
+      doNotApplyIf: "this is a real application rather than a landing page, where the weight may be honest.",
+      blastRadius: "project",
+    }),
+});

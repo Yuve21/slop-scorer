@@ -1,9 +1,19 @@
 /**
- * The MCP server: three tools, no model, no network call we did not make ourselves.
+ * The MCP server: five tools, no model, no network call we did not make ourselves.
  *
  *   scan_codebase  - point it at a repo, get cited findings with file and line
  *   scan_ui        - point it at a URL or a localhost port, get cited findings with selectors
  *   list_rules     - the whole corpus, with weights and rationale
+ *   propose_fixes  - the same findings as precise, caveated edits for THIS agent to apply
+ *   verify_fix     - re-scan after the edits and show the two finding sets side by side
+ *
+ * THE LOOP IS THE PRODUCT: scan -> propose -> apply -> verify. A report was never the point;
+ * the change was. What makes the loop safe to close is that this server proposes and the host
+ * agent disposes. Nothing in this package writes a file, spawns a process or asks for write
+ * access: a remediation is a locator, the text observed there and the text proposed instead,
+ * and the agent that called the tool applies it with the editing tools and the approval flow
+ * the user already trusts. A second permission model inside an MCP server would be more code,
+ * more risk, and a worse experience even when it worked.
  *
  * `list_rules` is the reason the plugin exists, not a debugging aid. The detection half of
  * this product is a race it will eventually lose: generators improve, tells decay, and a
@@ -23,12 +33,17 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { buildReport, DEFAULT_CONFIG, notAssessed } from "@slop/core";
-import type { Report } from "@slop/core";
+import { DEFAULT_CONFIG } from "@slop/core";
 import { CODE_CONFIG, CODE_DETECTOR_ID, CODE_RULE_DESCRIPTORS, codeDetector } from "@slop/detectors-code";
-import { PlaywrightUnavailableError, RULE_DESCRIPTORS, WEB_DETECTOR_ID, webDetector } from "@slop/detectors-web";
+import { RULE_DESCRIPTORS, WEB_DETECTOR_ID, webDetector } from "@slop/detectors-web";
 import { toToolPayload } from "./format.js";
 import type { ToolPayload } from "./format.js";
+import { proposeCodeFixes, proposeUiFixes, rememberBaseline, verifyCodeFix, verifyUiFix } from "./fixes.js";
+import type { ProposeFixesPayload, VerifyFixPayload } from "./fixes.js";
+import { codeReport, codeTargetKey, uiReport, uiTargetKey } from "./targets.js";
+import type { CodeTarget, UiTarget } from "./targets.js";
+
+export { resolveTarget } from "./targets.js";
 
 export const SERVER_NAME = "slop-scorer";
 export const SERVER_VERSION = "0.1.0";
@@ -38,80 +53,38 @@ const result = (payload: ToolPayload) => ({
   structuredContent: payload as unknown as Record<string, unknown>,
 });
 
+export type ScanCodebaseArgs = CodeTarget;
+export type ScanUiArgs = UiTarget;
+
 /**
- * Turn a port or a URL into a URL.
+ * Scan a repository. Exported separately from the tool wiring so it is directly testable.
  *
- * A bare port is accepted because that is what an agent has during a dev loop, and forcing it
- * to build the URL is friction at exactly the moment the tool is most useful.
+ * The reading is remembered as the baseline for this target, which is the only state this
+ * server holds and the thing `verify_fix` compares against later. It lives in memory for the
+ * life of the process: a baseline is only meaningful against the working tree it was read
+ * from, and one persisted to disk would let a verification call last week's scan progress.
  */
-export function resolveTarget(input: { url?: string; port?: number }): string {
-  if (input.url) {
-    return /^https?:\/\//i.test(input.url) ? input.url : `https://${input.url}`;
-  }
-  if (input.port) return `http://localhost:${input.port}/`;
-  throw new Error("scan_ui needs either a url or a localhost port.");
-}
-
-export interface ScanCodebaseArgs {
-  readonly path: string;
-  readonly include?: readonly string[];
-  readonly readHistory?: boolean;
-  readonly maxFiles?: number;
-}
-
-/** Scan a repository. Exported separately from the tool wiring so it is directly testable. */
 export async function scanCodebase(args: ScanCodebaseArgs): Promise<ToolPayload> {
-  const detectorResult = await codeDetector.analyze(
-    { kind: "repo", path: args.path },
-    {
-      options: {
-        ...(args.include ? { include: args.include } : {}),
-        ...(args.readHistory === undefined ? {} : { readHistory: args.readHistory }),
-        ...(args.maxFiles ? { maxFiles: args.maxFiles } : {}),
-      },
-    },
-  );
-  return toToolPayload(buildReport([detectorResult], { config: CODE_CONFIG }));
-}
-
-export interface ScanUiArgs {
-  readonly url?: string;
-  readonly port?: number;
-  readonly viewportWidth?: number;
-  readonly viewportHeight?: number;
+  const report = await codeReport(args);
+  rememberBaseline(codeTargetKey(args), report);
+  return toToolPayload(report);
 }
 
 /** Render and scan a page. Returns `not_assessed` rather than throwing if playwright is absent. */
 export async function scanUi(args: ScanUiArgs): Promise<ToolPayload> {
-  const target = resolveTarget(args);
-  let report: Report;
-  try {
-    const detectorResult = await webDetector.analyze(
-      { kind: "url", url: target },
-      {
-        options: {
-          viewport: {
-            width: args.viewportWidth ?? 390,
-            height: args.viewportHeight ?? 844,
-          },
-        },
-      },
-    );
-    report = buildReport([detectorResult]);
-  } catch (error) {
-    if (error instanceof PlaywrightUnavailableError) {
-      // NOT an error result and NOT a low score. "We could not render it" and "we rendered it
-      // and it was clean" produce the same empty finding list and opposite meanings.
-      return toToolPayload(
-        notAssessed(
-          "detector_unavailable",
-          "playwright is not installed, so the page was never rendered. This server will not substitute a server-HTML read for a rendered one: a fetch-only read produces confident findings about a document nobody sees. Run `npx playwright install chromium`.",
-        ),
-      );
-    }
-    throw error;
-  }
+  const report = await uiReport(args);
+  rememberBaseline(uiTargetKey(args), report);
   return toToolPayload(report);
+}
+
+/** propose_fixes, over either target. One of `path` or (`url` | `port`) is required. */
+export async function proposeFixes(args: ScanCodebaseArgs | ScanUiArgs): Promise<ProposeFixesPayload> {
+  return "path" in args && args.path ? proposeCodeFixes(args) : proposeUiFixes(args as UiTarget);
+}
+
+/** verify_fix, over either target. Re-scans and diffs against the reading held for it. */
+export async function verifyFix(args: ScanCodebaseArgs | ScanUiArgs): Promise<VerifyFixPayload> {
+  return "path" in args && args.path ? verifyCodeFix(args) : verifyUiFix(args as UiTarget);
 }
 
 export interface ListRulesArgs {
@@ -178,14 +151,15 @@ export function listRules(args: ListRulesArgs = {}): RulesListing {
   };
 }
 
-/** Build the server with all three tools registered. */
+/** Build the server with all five tools registered. */
 export function createServer(): McpServer {
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
       instructions:
-        "Deterministic, evidence-cited detection of template and machine-generated tells in code and rendered web pages. " +
+        "Deterministic, evidence-cited detection of template and machine-generated tells in code and rendered web pages, and the loop that closes on them: scan -> propose_fixes -> apply the edits yourself -> verify_fix. " +
         "Call list_rules BEFORE generating code or UI to learn what not to produce; that is the primary use. " +
+        "After a scan, offer to act on it: propose_fixes returns precise, caveated edits and this server never writes anything, so apply them with your own editing tools under the user's normal approval flow, then call verify_fix to see which findings are no longer present. " +
         "Every finding carries a file and line or a CSS selector you can go and check. " +
         "Results are bounded at 99 and can be inconclusive or not_assessed; always branch on `status` before reading `score`. " +
         "Nothing here identifies or makes a claim about a person.",
@@ -243,6 +217,52 @@ export function createServer(): McpServer {
       return {
         content: [{ type: "text" as const, text: JSON.stringify(listing, null, 2) }],
         structuredContent: listing as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
+  server.registerTool(
+    "propose_fixes",
+    {
+      title: "Turn the findings into precise, caveated edits",
+      description:
+        "Scans the target and returns each finding as a proposed change: the exact locator (file and 1-based line range, or CSS selector and property), the text or value that was actually observed there, the replacement, an estimated blast radius, the rule's own rebuttal, and the explicit condition under which the change should NOT be applied. Grouped by family and split into ready-to-apply, needs-confirmation (deletions), needs-source-location (rendered-page changes whose declaring file is unknown to a page read) and decide-yourself, so it can be presented as 'apply these N, skip these M'. This server never writes a file: apply the edits with your own tools under the user's approval, then call verify_fix. Findings that are shape observations or judgement calls carry no patch on purpose, and counter-evidence never carries one at all.",
+      inputSchema: {
+        path: z.string().optional().describe("Absolute path to a repository root. Provide this OR url/port."),
+        include: z.array(z.string()).optional().describe("Optional include patterns for a repository scan."),
+        readHistory: z.boolean().optional().describe("Read git history for the commit-shape rules. Default true."),
+        url: z.string().optional().describe("A page to render and propose UI changes for."),
+        port: z.number().int().positive().optional().describe("A localhost port instead of a URL."),
+      },
+    },
+    async (args) => {
+      const payload = await proposeFixes(args as ScanCodebaseArgs | ScanUiArgs);
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+        structuredContent: payload as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
+  server.registerTool(
+    "verify_fix",
+    {
+      title: "Re-scan after changes and show what is actually gone",
+      description:
+        "Re-scans the same target and reports the before and after finding sets side by side: which rules are no longer present, which persist and with what citations now, and which are NEWLY present. It does not report success. A finding disappearing from a re-scan is the evidence; whether the change was a good one is not something a detector can know. A newly present finding sets `regression: true` and is stated first, because a change that resolves two findings and introduces one has broken something. If no earlier reading of this target is held in this session it says so rather than comparing against nothing.",
+      inputSchema: {
+        path: z.string().optional().describe("Absolute path to the repository root that was scanned. Provide this OR url/port."),
+        include: z.array(z.string()).optional().describe("The same include patterns the earlier scan used, so the comparison is like for like."),
+        readHistory: z.boolean().optional().describe("The same value the earlier scan used."),
+        url: z.string().optional().describe("The page that was scanned."),
+        port: z.number().int().positive().optional().describe("A localhost port instead of a URL."),
+      },
+    },
+    async (args) => {
+      const payload = await verifyFix(args as ScanCodebaseArgs | ScanUiArgs);
+      return {
+        content: [{ type: "text" as const, text: payload.headline }],
+        structuredContent: payload as unknown as Record<string, unknown>,
       };
     },
   );

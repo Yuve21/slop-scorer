@@ -1,6 +1,8 @@
+import { attachRemedies } from "@slop/core";
 import { ev, patch } from "../rule.js";
 import type { CodeRule } from "../rule.js";
 import type { CommitRecord } from "../artifact.js";
+import { manualOnce, NOTHING_TO_APPLY } from "./remedy.js";
 
 /**
  * Family: history.
@@ -25,7 +27,7 @@ const hours = (commits: readonly CommitRecord[]): number => {
 
 const CONVENTIONAL = /^(feat|fix|chore|docs|refactor|test|style|perf|build|ci)(\([^)]+\))?!?:\s/;
 
-export const HISTORY_RULES: readonly CodeRule[] = [
+const RAW_HISTORY_RULES: readonly CodeRule[] = [
   {
     id: "history.single-sitting",
     family: "history",
@@ -156,3 +158,29 @@ export const HISTORY_RULES: readonly CodeRule[] = [
     },
   },
 ];
+
+/**
+ * The fixes: neither of these has one, and proposing otherwise would be an instruction to
+ * falsify a record. History is the one part of a repository that is supposed to be a fact
+ * about the past. The family is capped at 15% for the same reason it has no patches: a
+ * squashed import and an afternoon of real work are the same shape, and nothing an editor
+ * does can tell them apart afterwards.
+ */
+export const HISTORY_RULES: readonly CodeRule[] = attachRemedies(RAW_HISTORY_RULES, {
+  "history.single-sitting": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "git history",
+      summary: "Nothing to apply: a history is a record, not a thing to edit.",
+      guidance: `${NOTHING_TO_APPLY} If the history is short because the repository is new, that is the correct history.`,
+      doNotApplyIf: "always. Rewriting history to change this reading would be falsifying the record it reads.",
+      blastRadius: "none",
+    }),
+  "history.uniform-message-shape": (evidence) =>
+    manualOnce(evidence, {
+      locator: evidence[0]?.locator ?? "git history",
+      summary: "Nothing to apply: conventional commits are a convention, not a defect.",
+      guidance: `${NOTHING_TO_APPLY} Write a body on the next commit that needs one; nothing about the existing ones should change.`,
+      doNotApplyIf: "always. Rewriting past commit messages to change this reading would be falsifying the record it reads.",
+      blastRadius: "none",
+    }),
+});
