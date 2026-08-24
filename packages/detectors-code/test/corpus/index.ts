@@ -20,7 +20,20 @@ import type { RepoArtifact } from "@slop/detectors-code";
 export interface CodeCorpusEntry {
   readonly id: string;
   readonly label: "human" | "generated";
+  /**
+   * Where the artifact came from, and it is a separate axis from the label on purpose.
+   *
+   * "real" = a public artifact somebody else made and published, pinned by SHA. "synthetic" =
+   * we wrote it. Both can be labelled `generated`, and conflating them would be the quiet
+   * dishonesty this repository is built to avoid: a sensitivity floor measured against our own
+   * fixture is a statement about our imagination, and a rate measured against a stranger's
+   * real build is a statement about the world. The tests below assert different things of
+   * each, and neither number is presented as the other.
+   */
+  readonly origin: "real" | "synthetic";
   readonly source: string;
+  /** For generated members: the exact file and words the generator signed itself with. */
+  readonly declaration?: string;
   readonly provenance: string;
   readonly sha: string | null;
   readonly include: readonly string[];
@@ -52,7 +65,28 @@ export const CODE_NEGATIVE_CORPUS: readonly CorpusCase<RepoArtifact>[] = CODE_CO
   (c) => c.label === "human",
 );
 
-/** The synthetic scaffold. Without it, a corpus of dead rules would pass the tripwire. */
+/** Everything labelled generated, ours and the world's. */
 export const CODE_GENERATED_CORPUS: readonly CorpusCase<RepoArtifact>[] = CODE_CORPUS.filter(
   (c) => c.label === "generated",
+);
+
+const idsWithOrigin = (origin: "real" | "synthetic"): ReadonlySet<string> =>
+  new Set(CODE_CORPUS_INDEX.filter((e) => e.label === "generated" && e.origin === origin).map((e) => e.id));
+
+/**
+ * The two synthetic specimens. Without them, a corpus of dead rules would pass the tripwire,
+ * so these carry the SENSITIVITY FLOOR and nothing else: they are written by us, they are
+ * written to trip things, and no claim about the world is derived from their scores.
+ */
+export const CODE_SYNTHETIC_CORPUS: readonly CorpusCase<RepoArtifact>[] = CODE_CORPUS.filter((c) =>
+  idsWithOrigin("synthetic").has(c.id),
+);
+
+/**
+ * Four public repositories a generator wrote and signed. These carry the opposite duty: they
+ * are what the detector actually meets, so what is pinned about them is their MEASURED
+ * behaviour, including the two the engine declines to score.
+ */
+export const CODE_GENERATED_REAL_CORPUS: readonly CorpusCase<RepoArtifact>[] = CODE_CORPUS.filter((c) =>
+  idsWithOrigin("real").has(c.id),
 );

@@ -379,11 +379,18 @@ const stripe: WebArtifact = capture({
  * The corpus. `label: "human"` on every member, and `checkNegativeCorpus` requires every one
  * of them to land strictly below the band the product would print as a finding.
  *
- * There is deliberately no positive (generated) set in this build. A synthetic positive set
+ * THERE IS NO POSITIVE SET IN THIS MODULE, and there never will be. A synthetic positive set
  * written by us would measure our imagination rather than any generator, and a measured
- * positive set is a labeling problem with its own provenance requirements. Until that corpus
- * exists this module can catch a regression against human work and cannot state a recall
- * number, and it says so rather than implying one.
+ * positive set is a labeling problem with its own provenance requirements.
+ *
+ * Those requirements have since been met, elsewhere: `test/corpus/` holds four live public pages
+ * that name their own builder in their own markup, captured through the real probe and pinned by
+ * fetch date. They live under `test/` rather than here because they are captures rather than
+ * fixtures - bytes on disk with a capture script, an index and a re-check that aborts if the
+ * declaration is missing - and because nothing in the shipped package should be able to import a
+ * positive set by accident. `test/calibration.test.ts` runs both halves in one table.
+ *
+ * Neither half states a recall number. Five artifacts and four artifacts cannot.
  */
 export const NEGATIVE_CORPUS: readonly CorpusCase<WebArtifact>[] = [
   {

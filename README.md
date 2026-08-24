@@ -137,6 +137,20 @@ them reaches the band the product would print as a finding.
 far above all of them, so a corpus of dead rules cannot pass the negative set by flagging
 nothing.
 
+The same file also calibrates four pages nobody here wrote. Each one is a live public page that
+names its own builder in its own markup - a `<meta name="generator">`, or the vendor's own runtime
+script served into the page - captured through the real browser probe and frozen to disk, so the
+suite never touches the network and a redeploy cannot move a number. Their scores are checked
+twice: as captured, and again with the declaration deleted, because a detector that can only read
+the generator's own tag is reading the answer key rather than the page.
+
+`packages/detectors-code/test/calibration.test.ts` does the same for repositories, and records
+the honest result: of four public repositories whose READMEs are written by the generator and whose
+every commit is the vendor's bot, two are scored well clear of every human negative and two are
+declined outright, because only one rule family fired on them and one family is a correlated
+observation rather than corroboration. Both abstentions are pinned by name. Declining to accuse is
+the product working.
+
 ### No accuracy claim, anywhere
 
 `packages/core/test/no-claims.test.ts` scans every shipped source file and README for a stated

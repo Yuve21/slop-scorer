@@ -1,0 +1,38 @@
+[
+  {
+    "id": "wav0-landing",
+    "label": "generated",
+    "origin": "real",
+    "source": "https://wav0-design.vercel.app/",
+    "declaration": "meta[name=generator] content=\"v0.app\", and 24/24 commits in the source repository by v0[bot]",
+    "provenance": "The page serves <meta name=\"generator\" content=\"v0.app\"> in its own head: Vercel's v0 naming itself, readable in view-source in ten seconds. The deployment's source, github.com/op0ai/v0-landing-template, carries v0's \"Automatically synced with your v0.app deployments\" README and all twenty-four of its commits are authored by v0[bot]@users.noreply.github.com, with no human commit at any point. It is the most substantial page in this set, which is why it is here: a product landing page with real copy, not a toy.",
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "study-snapshot-space",
+    "label": "generated",
+    "origin": "real",
+    "source": "https://study-snapshot-space.lovable.app/",
+    "declaration": "Lovable's own runtime script (cdn.gpteng.co) served into the page, on lovable.app, with 2/2 commits by lovable-dev[bot]",
+    "provenance": "Lovable output. The page loads Lovable's own build script from cdn.gpteng.co (the GPT Engineer runtime Lovable injects into what it builds) and is served from Lovable's hosting domain. Its source, github.com/Nithinbaskar/study-snapshot-space, opens its README with the line Lovable writes into every export, \"# Welcome to your Lovable project\", and both of its commits are authored by Lovable's bot (gpt-engineer-app[bot], the account Lovable still signs with). A second vendor is in this set on purpose, so the label is not a fact about one company's tag.",
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "vintage-pager-app",
+    "label": "generated",
+    "origin": "real",
+    "source": "https://v0-vintage-pager-app.vercel.app/",
+    "declaration": "meta[name=generator] content=\"v0.app\", and 3/3 commits in the source repository by v0[bot]",
+    "provenance": "v0 output, declared by <meta name=\"generator\" content=\"v0.app\"> in the served page. Its source, github.com/AnxForever/v0-vintage-pager-app, is v0's push target: v0's sync line is in the README and all three commits are authored by v0[bot]. Included as the small end of the range, a single-screen toy, because a corpus of nothing but polished landing pages would measure ambition rather than authorship.",
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "flappy-bird-game",
+    "label": "generated",
+    "origin": "real",
+    "source": "https://v0-flappy-bird-game-lilac.vercel.app/",
+    "declaration": "meta[name=generator] content=\"v0.app\", and 3/3 commits in the source repository by v0[bot]",
+    "provenance": "v0 output, declared by <meta name=\"generator\" content=\"v0.app\"> in the served page, with github.com/thethclup/v0-flappy-bird-game as the synced source: v0's README line is present and all three commits are authored by v0[bot]. A canvas game rather than a marketing page, so the set is not four documents in a row and the DOM-shape rules have something other than sections and cards to read.",
+    "capturedAt": "2026-08-24"
+  }
+]

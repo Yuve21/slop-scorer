@@ -82,12 +82,22 @@ const { rows } = poolRowsFromCorpus({ corpus: "code", cases: CODE_CORPUS, presen
 await db.upsertArtifacts(rows);   // idempotent by artifactId
 ```
 
-## The blocker before launch, pinned as a test
+## The pool, and the blocker that used to be here
 
-The corpus has **fifteen human artifacts and two generated ones**. A five-card round needs four
-decoys, so today the pool can only fill a three-card round, and `buildRound` throws
-`InsufficientPoolError` rather than quietly shortening one (a short round changes the odds, and
-rates pooled across different odds are not comparable). `test/corpus.test.ts` asserts the shortfall
-so the day it stops being true, the test fails and the round size goes up deliberately.
+The corpus is **fifteen human artifacts and ten generated ones**: ten repositories and five pages a
+person made, against six repositories and four pages a generator made. A five-card round needs one
+human and four decoys, so the pool fills one with headroom, and `test/corpus.test.ts` builds a real
+five-card round rather than asserting it cannot.
 
-**What has to move: at least two more provenanced GENERATED artifacts.** They are the scarce side.
+It could not, until recently. The generated side was two synthetic specimens we wrote ourselves,
+`buildRound` threw `InsufficientPoolError` for any round bigger than three, and the shortfall was
+pinned as a test so it could not be forgotten or papered over with a short round (a short round
+changes the odds, and rates pooled across different odds are not comparable). What cleared it was
+**eight provenanced generated artifacts nobody here wrote**: four public repositories pinned by SHA
+whose READMEs are written by the generator and whose every commit is the vendor's bot, and four live
+pages that name their own builder in their own markup. Two vendors, both media, all eight checkable
+by a stranger. See `scripts/capture-code-corpus.mjs` and `scripts/capture-web-corpus.mjs` for the
+two conditions each one had to clear.
+
+Both media appear on **both** sides of the label, which is a game property rather than a detector
+one: if every generated card were a repository, a player could win without reading a card.

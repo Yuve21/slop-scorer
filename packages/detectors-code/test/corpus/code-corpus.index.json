@@ -10,7 +10,8 @@
       "index.js",
       "test/*.js"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "lodash",
@@ -22,7 +23,8 @@
       "lib/**/*.js",
       "*.js"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "chalk",
@@ -34,7 +36,8 @@
       "source/**/*.js",
       "*.js"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "requests",
@@ -45,7 +48,8 @@
     "include": [
       "src/requests/**/*.py"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "flask",
@@ -56,7 +60,8 @@
     "include": [
       "src/flask/**/*.py"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "sinatra",
@@ -67,7 +72,8 @@
     "include": [
       "lib/**/*.rb"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "jekyll",
@@ -78,7 +84,8 @@
     "include": [
       "lib/jekyll/*.rb"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "gin",
@@ -89,7 +96,8 @@
     "include": [
       "*.go"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "ripgrep",
@@ -100,7 +108,8 @@
     "include": [
       "crates/core/**/*.rs"
     ],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "real"
   },
   {
     "id": "libuv",
@@ -113,6 +122,67 @@
       "src/unix/*.c",
       "include/*.h"
     ],
+    "capturedAt": "2026-08-24",
+    "origin": "real"
+  },
+  {
+    "id": "master-quiz-nexus",
+    "label": "generated",
+    "origin": "real",
+    "source": "github.com/Sathyamoorthy17/master-quiz-nexus @ eb2bc473",
+    "declaration": "README.md: # Welcome to your Lovable project",
+    "provenance": "Lovable output, and nothing else has ever touched it. The README opens with the line Lovable writes into every export, \"# Welcome to your Lovable project\", followed by the lovable.dev project URL for this specific build (project 48908dc5-be31-4bd0-a960-e9a81784f4a0). All four commits in the history are authored by lovable-dev[bot]; there is no human commit in the repository. Both facts are re-read out of the pinned checkout by the capture script rather than taken from this sentence.",
+    "sha": "eb2bc4732e43e0203d039343adb0fd898ca26dd6",
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "unifiedteam",
+    "label": "generated",
+    "origin": "real",
+    "source": "github.com/dharsshne/unifiedteam @ 1e8c9f1d",
+    "declaration": "README.md: # Welcome to your Lovable project",
+    "provenance": "Lovable output, a second member from the same vendor so no single build is carrying a whole tool. The README opens with Lovable's export heading and the project URL beneath it still reads \"REPLACE_WITH_PROJECT_ID\": the template was published without the substitution ever running. All three commits are the vendor's own (lovable-dev[bot], and a template commit authored \"Lovable <noreply@lovable.dev>\"), with no human commit at any point.",
+    "sha": "1e8c9f1daac343c65a756b3420fb5d2c58ddde6e",
+    "include": [
+      "src/**/*.ts",
+      "src/**/*.tsx"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "buildrs-social-network",
+    "label": "generated",
+    "origin": "real",
+    "source": "github.com/optimusv1/buildrs-social-network @ c983e367",
+    "declaration": "README.md: Automatically synced with your [v0.app](https://v0.app) deployments",
+    "provenance": "Vercel v0 output. The README, which v0 writes, states \"Automatically synced with your [v0.app](https://v0.app) deployments\" and \"Any changes you make to your deployed app will be automatically pushed to this repository from v0.app\". Every one of the six commits is authored by the v0 bot account; the repository is the tool's push target and has never received a human commit. A second vendor is in the set on purpose, so \"generated\" is not a fact about one company's habits.",
+    "sha": "c983e367d9a81e9ce5589304dbfdc24ac215e0ab",
+    "include": [
+      "app/**/*.ts",
+      "app/**/*.tsx",
+      "components/**/*.tsx",
+      "lib/**/*.ts"
+    ],
+    "capturedAt": "2026-08-24"
+  },
+  {
+    "id": "nano-banana-hackathon",
+    "label": "generated",
+    "origin": "real",
+    "source": "github.com/comfy-deploy/Nano-Banana-Hackathon @ 8833183f",
+    "declaration": "README.md: Automatically synced with your [v0.app](https://v0.app) deployments",
+    "provenance": "Vercel v0 output, published under a company account (comfy-deploy) rather than a personal one, which is why it is here: it is the case where a generated build ships with an organisation's name on it and nothing about the owner suggests a throwaway. The README carries v0's sync declaration and all three commits are authored by the v0 bot, with no human commit in the history.",
+    "sha": "8833183fd4b2254b50370b839261c0ed215312a7",
+    "include": [
+      "app/**/*.ts",
+      "app/**/*.tsx",
+      "components/**/*.tsx",
+      "lib/**/*.ts"
+    ],
     "capturedAt": "2026-08-24"
   },
   {
@@ -122,7 +192,8 @@
     "provenance": "Generated by this repository's own capture script to the shape a scaffold plus an agent pass produces: a create-next-app README, an agent instruction file, a committed session transcript, eighteen handlers of restating comments, unfilled placeholders, three files carrying one identical block, four unused dependencies, no tests, and fourteen conventional commits inside ninety minutes. Its label is 'generated' because we generated it, which is the only label in this corpus that needs no trust at all.",
     "sha": null,
     "include": [],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "synthetic"
   },
   {
     "id": "synthetic-agent-pass",
@@ -131,6 +202,7 @@
     "provenance": "Generated by this repository's own capture script as the case the product must survive after everyone learns to delete CLAUDE.md: no agent artifact of any kind, no scaffold README, no placeholders. Fourteen files of near-identical length, two near-identical functions each, and a test suite whose one assertion cannot fail. It can only be recognised by shape, so it is what keeps the shape families honest.",
     "sha": null,
     "include": [],
-    "capturedAt": "2026-08-24"
+    "capturedAt": "2026-08-24",
+    "origin": "synthetic"
   }
 ]

@@ -76,7 +76,7 @@ describe("no published accuracy claim exists outside the calibration harness", (
     expect(files.some((f) => f.endsWith("README.md")), "no README was scanned").toBe(true);
     expect(files.some((f) => f.includes("detectors-code")), "the code detector package was not scanned").toBe(true);
     expect(files.some((f) => f.includes("mcp-server")), "the MCP server package was not scanned").toBe(true);
-  });
+  }, 30_000);
 
   it("finds no accuracy figure in any shipped source, README or tool string", async () => {
     const files = await shippedFiles();
@@ -92,7 +92,12 @@ describe("no published accuracy claim exists outside the calibration harness", (
       });
     }
     expect(violations, violations.join("\n")).toEqual([]);
-  });
+    // A whole-tree read of every shipped .ts/.md/.json, line by line. It comfortably fits the
+    // 5s default on its own and comfortably does not when the rest of the suite is running in
+    // parallel on a cold cache, which made this the flakiest file in the repository. The
+    // timeout is raised rather than the scan narrowed: a guard that skips files to run faster
+    // is a guard with a hole in it, and this one only has to be quick enough to be run.
+  }, 30_000);
 
   it("the patterns themselves are not dead: each one matches a known-bad string", async () => {
     // Mutation-testing the guard. A pattern that can no longer express the thing it is

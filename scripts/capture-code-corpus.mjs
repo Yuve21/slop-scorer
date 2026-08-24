@@ -21,11 +21,32 @@
  * These are NOT clean-room artifacts. Several of them trip rules, and that is the point: the
  * tripwire asserts that tripping something is not enough to be called machine-made.
  *
- * Usage:  node scripts/capture-code-corpus.mjs [--only <id>] [--no-clone]
+ * HOW A REPOSITORY QUALIFIES AS A GENERATED POSITIVE. Two conditions, both re-checked against
+ * the pinned checkout by `assertGenerated` rather than asserted in prose, and both about what
+ * SOMEBODY ELSE recorded rather than what the code looks like to us. Inferring the label from
+ * the code's shape would be circular: the shape is the thing under test.
+ *
+ *   1. THE GENERATOR NAMED ITSELF IN A FILE. Lovable writes "# Welcome to your Lovable
+ *      project" into every export; v0 writes "Automatically synced with your v0.app
+ *      deployments" into the repository it pushes to. `declaration` records the exact file
+ *      and the exact words, and the capture aborts if they are not there at that SHA.
+ *   2. EVERY COMMIT IS THE GENERATOR'S OWN BOT. This is the condition that does the real work
+ *      and it is why two earlier candidates were thrown out. A repository can carry a Lovable
+ *      or Bolt README and then be developed by a person for six months, and calling that
+ *      "generated" would be a false label on a published rate. `botAuthors` requires 100% of
+ *      the captured history to be authored by the vendor's bot account, so what is stored is
+ *      a build the tool wrote and nobody rewrote. A single human commit disqualifies it.
+ *
+ * That second bar is deliberately harsher than it needs to be for the detector, and it is
+ * because of `packages/gauntlet`: the game publishes a human-discrimination rate against these
+ * labels. A rate measured against a mislabelled artifact is not a weaker claim, it is a false
+ * one, and it is the exact shape of claim the FTC pleaded in Workado.
+ *
+ * Usage:  node scripts/capture-code-corpus.mjs [--only <id>[,<id>...]] [--no-clone]
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,6 +155,100 @@ export const MANIFEST = [
   },
 ];
 
+/**
+ * Repositories a GENERATOR wrote, and that say so themselves.
+ *
+ * These are real, public, pinned checkouts, not fixtures. Three different vendors on purpose:
+ * a corpus of one tool's output measures that tool's habits, and the first thing a reader
+ * should be unable to say about this set is "they all came from the same product".
+ *
+ * They are also deliberately spread across the quality range rather than picked for being
+ * bad. `quillon` is a maintained project with a contributing guide and a licence that happens
+ * to have been built in Bolt; if the detector can only find the careless ones, the published
+ * rate is a rate about carelessness.
+ */
+/**
+ * The commit-author addresses each vendor's bot signs with.
+ *
+ * Anchored and literal rather than a substring test, because this predicate is the load-
+ * bearing half of a "generated" label: a loose pattern that happened to match a person's
+ * address would put a human's work in a corpus that publishes accuracy claims about machines.
+ * Lovable still signs as gpt-engineer-app, the account it shipped under before the rename.
+ */
+const LOVABLE_BOTS = /^(?:\d+\+)?(?:gpt-engineer-app|lovable-dev)\[bot\]@users\.noreply\.github\.com$|^noreply@lovable\.dev$/i;
+const V0_BOTS = /^(?:\d+\+)?v0\[bot\]@users\.noreply\.github\.com$/i;
+
+export const GENERATED_MANIFEST = [
+  {
+    id: "master-quiz-nexus",
+    label: "generated",
+    origin: "real",
+    url: "https://github.com/Sathyamoorthy17/master-quiz-nexus.git",
+    sha: "eb2bc4732e43e0203d039343adb0fd898ca26dd6",
+    include: ["src/**/*.ts", "src/**/*.tsx"],
+    source: "github.com/Sathyamoorthy17/master-quiz-nexus @ eb2bc473",
+    declaration: {
+      file: "README.md",
+      contains: "# Welcome to your Lovable project",
+      says: "the heading Lovable writes into every repository it exports, with the lovable.dev project URL under it",
+    },
+    botAuthors: LOVABLE_BOTS,
+    provenance:
+      "Lovable output, and nothing else has ever touched it. The README opens with the line Lovable writes into every export, \"# Welcome to your Lovable project\", followed by the lovable.dev project URL for this specific build (project 48908dc5-be31-4bd0-a960-e9a81784f4a0). All four commits in the history are authored by lovable-dev[bot]; there is no human commit in the repository. Both facts are re-read out of the pinned checkout by the capture script rather than taken from this sentence.",
+  },
+  {
+    id: "unifiedteam",
+    label: "generated",
+    origin: "real",
+    url: "https://github.com/dharsshne/unifiedteam.git",
+    sha: "1e8c9f1daac343c65a756b3420fb5d2c58ddde6e",
+    include: ["src/**/*.ts", "src/**/*.tsx"],
+    source: "github.com/dharsshne/unifiedteam @ 1e8c9f1d",
+    declaration: {
+      file: "README.md",
+      contains: "# Welcome to your Lovable project",
+      says: "Lovable's export heading, here with the project id placeholder never substituted",
+    },
+    botAuthors: LOVABLE_BOTS,
+    provenance:
+      "Lovable output, a second member from the same vendor so no single build is carrying a whole tool. The README opens with Lovable's export heading and the project URL beneath it still reads \"REPLACE_WITH_PROJECT_ID\": the template was published without the substitution ever running. All three commits are the vendor's own (lovable-dev[bot], and a template commit authored \"Lovable <noreply@lovable.dev>\"), with no human commit at any point.",
+  },
+  {
+    id: "buildrs-social-network",
+    label: "generated",
+    origin: "real",
+    url: "https://github.com/optimusv1/buildrs-social-network.git",
+    sha: "c983e367d9a81e9ce5589304dbfdc24ac215e0ab",
+    include: ["app/**/*.ts", "app/**/*.tsx", "components/**/*.tsx", "lib/**/*.ts"],
+    source: "github.com/optimusv1/buildrs-social-network @ c983e367",
+    declaration: {
+      file: "README.md",
+      contains: "Automatically synced with your [v0.app](https://v0.app) deployments",
+      says: "the line v0 writes and maintains in the repository it pushes builds to",
+    },
+    botAuthors: V0_BOTS,
+    provenance:
+      "Vercel v0 output. The README, which v0 writes, states \"Automatically synced with your [v0.app](https://v0.app) deployments\" and \"Any changes you make to your deployed app will be automatically pushed to this repository from v0.app\". Every one of the six commits is authored by the v0 bot account; the repository is the tool's push target and has never received a human commit. A second vendor is in the set on purpose, so \"generated\" is not a fact about one company's habits.",
+  },
+  {
+    id: "nano-banana-hackathon",
+    label: "generated",
+    origin: "real",
+    url: "https://github.com/comfy-deploy/Nano-Banana-Hackathon.git",
+    sha: "8833183fd4b2254b50370b839261c0ed215312a7",
+    include: ["app/**/*.ts", "app/**/*.tsx", "components/**/*.tsx", "lib/**/*.ts"],
+    source: "github.com/comfy-deploy/Nano-Banana-Hackathon @ 8833183f",
+    declaration: {
+      file: "README.md",
+      contains: "Automatically synced with your [v0.app](https://v0.app) deployments",
+      says: "the same v0 sync line, in a repository owned by a company rather than an individual",
+    },
+    botAuthors: V0_BOTS,
+    provenance:
+      "Vercel v0 output, published under a company account (comfy-deploy) rather than a personal one, which is why it is here: it is the case where a generated build ships with an organisation's name on it and nothing about the owner suggests a throwaway. The README carries v0's sync declaration and all three commits are authored by the v0 bot, with no human commit in the history.",
+  },
+];
+
 async function run(cwd, args) {
   return exec("git", ["-C", cwd, ...args], { maxBuffer: 64 * 1024 * 1024, windowsHide: true });
 }
@@ -191,8 +306,54 @@ function normalize(artifact, id, capturedAt) {
   };
 }
 
+/**
+ * Re-check both halves of a "generated" label against the pinned checkout and the scan.
+ *
+ * The manifest's provenance sentence is never the only copy of the claim. If the declaring
+ * file is gone, or the words moved, or one human commit is in the history, the capture stops
+ * here rather than writing an artifact whose label nobody can check any more. Two candidates
+ * were dropped by exactly this: both carried a builder's README and both turned out to have
+ * been developed by a person for months afterwards.
+ */
+async function assertGenerated(dir, entry, artifact) {
+  const { file, contains } = entry.declaration;
+  const full = path.join(dir, file);
+  if (!existsSync(full)) {
+    throw new Error(
+      `${entry.id}: ${file} does not exist at ${entry.sha}, but the "generated" label rests on it. ` +
+        `Refusing to store an artifact whose stated provenance cannot be re-read.`,
+    );
+  }
+  const body = await readFile(full, "utf8");
+  if (!body.includes(contains)) {
+    throw new Error(
+      `${entry.id}: ${file} at ${entry.sha} does not contain ${JSON.stringify(contains)}. The generator's ` +
+        `own declaration is the entire basis for this member's label, and it is not there.`,
+    );
+  }
+
+  const commits = artifact.history.commits;
+  if (!artifact.history.available || commits.length === 0) {
+    throw new Error(
+      `${entry.id}: no commit history was read (${artifact.history.reason ?? "no reason given"}), so the ` +
+        `"every commit is the generator's bot" condition passed having checked nothing. That is the ` +
+        `vacuous-pass shape this repository fails builds over.`,
+    );
+  }
+  const human = [...new Set(commits.map((c) => c.authorEmail).filter((e) => !entry.botAuthors.test(e)))];
+  if (human.length > 0) {
+    throw new Error(
+      `${entry.id}: ${human.length} non-bot author address(es) in ${commits.length} commits: ${human.join(", ")}. ` +
+        `A repository a person worked on is not a generated artifact, whatever its README says.`,
+    );
+  }
+  return `${file} + ${commits.length}/${commits.length} commits by ${
+    [...new Set(commits.map((c) => c.authorEmail))].join(", ")
+  }`;
+}
+
 const args = process.argv.slice(2);
-const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
+const only = args.includes("--only") ? (args[args.indexOf("--only") + 1] ?? "").split(",").filter(Boolean) : null;
 const clone = !args.includes("--no-clone");
 const capturedAt = new Date().toISOString().slice(0, 10);
 
@@ -201,7 +362,7 @@ await mkdir(OUT, { recursive: true });
 
 const captured = [];
 for (const entry of MANIFEST) {
-  if (only && only !== entry.id) continue;
+  if (only && !only.includes(entry.id)) continue;
   process.stdout.write(`${entry.id}: `);
   const dir = await ensureClone(entry, { clone });
   const artifact = await scanRepo(dir, { include: entry.include, historyLimit: HISTORY_DEPTH });
@@ -209,6 +370,16 @@ for (const entry of MANIFEST) {
   console.log(
     `${artifact.files.length} files, ${artifact.comments.length} comments, ${artifact.history.commits.length} commits`,
   );
+}
+
+for (const entry of GENERATED_MANIFEST) {
+  if (only && !only.includes(entry.id)) continue;
+  process.stdout.write(`${entry.id}: `);
+  const dir = await ensureClone(entry, { clone });
+  const artifact = await scanRepo(dir, { include: entry.include, historyLimit: HISTORY_DEPTH });
+  const declared = await assertGenerated(dir, entry, artifact);
+  captured.push({ entry, artifact: normalize(artifact, entry.id, capturedAt) });
+  console.log(`${artifact.files.length} files, declared by ${declared}`);
 }
 
 const SYNTHETIC = [
@@ -249,7 +420,16 @@ for (const spec of SYNTHETIC) {
   const dir = await writeSynthetic(spec.id, spec.files, spec.subjects, spec.spacingMinutes);
   const artifact = await scanRepo(dir, { historyLimit: 50 });
   captured.push({
-    entry: { id: spec.id, source: spec.source, provenance: spec.provenance, label: "generated" },
+    entry: {
+      id: spec.id,
+      source: spec.source,
+      provenance: spec.provenance,
+      label: "generated",
+      // Stated in the index, not just in prose: this one we wrote. Every rate the gauntlet
+      // publishes is split on this field, because a rate measured against our own fixtures is
+      // a different claim from one measured against a stranger's real build.
+      origin: "synthetic",
+    },
     artifact: normalize(artifact, spec.id, capturedAt),
   });
   console.log(`${artifact.files.length} files, ${artifact.placeholders.length} placeholders, ${artifact.tests.length} tests`);
@@ -262,14 +442,36 @@ for (const { entry, artifact } of captured) {
   console.log(`  wrote ${path.relative(ROOT, file)} (${kb} KB)`);
 }
 
-const index = captured.map(({ entry }) => ({
-  id: entry.id,
-  label: entry.label ?? "human",
-  source: entry.source,
-  provenance: entry.provenance,
-  sha: entry.sha ?? null,
-  include: entry.include ?? [],
-  capturedAt,
-}));
-await writeFile(path.join(OUT, "code-corpus.index.json"), `${JSON.stringify(index, null, 2)}\n`, "utf8");
-console.log(`\n${captured.length} artifact(s) captured at ${capturedAt}.`);
+/**
+ * Merge, rather than overwrite.
+ *
+ * `--only` exists so one member can be re-captured without touching the other fifteen, and an
+ * index rebuilt from just that one member would silently delete the rest. The order is taken
+ * from the manifests, so the file's shape is a property of the source and not of the argument
+ * somebody happened to pass.
+ */
+const indexPath = path.join(OUT, "code-corpus.index.json");
+const previous = existsSync(indexPath) ? JSON.parse(await readFile(indexPath, "utf8")) : [];
+const byId = new Map(
+  // Backfill `origin` on members captured before the field existed, from the only two things
+  // it can be: a pinned public repository is real, and anything generated with no SHA is ours.
+  previous.map((e) => [e.id, { ...e, origin: e.origin ?? (e.sha ? "real" : "synthetic") }]),
+);
+for (const { entry } of captured) {
+  byId.set(entry.id, {
+    id: entry.id,
+    label: entry.label ?? "human",
+    // "real" = a public artifact somebody else made and published. "synthetic" = we wrote it.
+    origin: entry.origin ?? (entry.label === "generated" ? "synthetic" : "real"),
+    source: entry.source,
+    ...(entry.declaration ? { declaration: `${entry.declaration.file}: ${entry.declaration.contains}` } : {}),
+    provenance: entry.provenance,
+    sha: entry.sha ?? null,
+    include: entry.include ?? [],
+    capturedAt: entry.capturedAt ?? capturedAt,
+  });
+}
+const order = [...MANIFEST, ...GENERATED_MANIFEST, ...SYNTHETIC].map((m) => m.id);
+const index = [...byId.values()].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+await writeFile(indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+console.log(`\n${captured.length} artifact(s) captured at ${capturedAt}; ${index.length} in the index.`);

@@ -8,7 +8,14 @@ import {
   formatCalibration,
   runCalibration,
 } from "@slop/core";
-import { CODE_CORPUS, CODE_CORPUS_INDEX, CODE_GENERATED_CORPUS, CODE_NEGATIVE_CORPUS } from "./corpus/index.js";
+import {
+  CODE_CORPUS,
+  CODE_CORPUS_INDEX,
+  CODE_GENERATED_CORPUS,
+  CODE_GENERATED_REAL_CORPUS,
+  CODE_NEGATIVE_CORPUS,
+  CODE_SYNTHETIC_CORPUS,
+} from "./corpus/index.js";
 
 /**
  * The code detector's regression tripwire.
@@ -35,6 +42,19 @@ const score = (artifact: RepoArtifact, id: string) =>
 
 const calibration = runCalibration(CODE_CONFIG.corpusVersion, CODE_CORPUS, score);
 const humans = calibration.rows.filter((r) => r.label === "human");
+
+/**
+ * The two real generated repositories the engine declines to score, pinned by name.
+ *
+ * Both are v0 builds whose only accusing finding is `scaffold.unused-dependencies`, and one
+ * family on its own is a correlated observation rather than corroboration, so the engine
+ * abstains at `single_family_only` rather than publishing a 47. That is the advertised
+ * behaviour working on a case where it costs us: these two ARE generated and we are declining
+ * to say so, because saying so on one family's evidence is the accusation this product exists
+ * not to make. It is pinned here rather than described anywhere, so a rule change that turns
+ * either of them into a confident number is a visible, deliberate edit to this list.
+ */
+const ABSTAINERS: readonly string[] = ["buildrs-social-network", "nano-banana-hackathon"];
 
 /**
  * The base rate: what the engine prints for an artifact with NO evidence either way. A human
@@ -73,12 +93,21 @@ describe("calibration against ten repositories a person wrote", () => {
     }
   });
 
-  it("every member was actually examined: none abstained for lack of coverage", () => {
+  it("every member was actually examined, and the two abstentions are named ones", () => {
     for (const row of calibration.rows) {
       expect(row.coverage, `${row.id} coverage`).toBeGreaterThanOrEqual(0.6);
+    }
+    // Every human negative and both synthetic specimens are SCORED. If one of them ever went
+    // quiet, the tripwire below would be measuring a shrinking set without saying so.
+    for (const row of calibration.rows.filter((r) => !ABSTAINERS.includes(r.id))) {
       expect(row.status, `${row.id} status`).toBe("assessed");
     }
     expect(calibration.byLabel.human.scored).toBe(humans.length);
+    // And the two that DO abstain are pinned by name, with the reason. See the block below for
+    // why this is the engine working rather than the engine failing.
+    for (const id of ABSTAINERS) {
+      expect(calibration.rows.find((r) => r.id === id)?.status, `${id} status`).toBe("inconclusive");
+    }
   });
 
   it("the corpus is not vacuous: a signal rule does fire on human work", () => {
@@ -111,13 +140,21 @@ describe("calibration against ten repositories a person wrote", () => {
 
 describe("discrimination: the corpus must still be able to fire", () => {
   const generated = calibration.rows.filter((r) => r.label === "generated");
+  const syntheticIds = CODE_SYNTHETIC_CORPUS.map((c) => c.id);
+  const synthetic = generated.filter((r) => syntheticIds.includes(r.id));
 
   it("both synthetic specimens score high", () => {
     // Without these, ten quiet negatives could be satisfied by deleting every rule. Both are
     // written to disk by the capture script and read by the SAME scanner as the ten
     // repositories, so a scanner that breaks breaks this too.
-    expect(generated).toHaveLength(2);
-    for (const row of generated) {
+    //
+    // Scoped to the SYNTHETIC pair deliberately. These two are ours, written to trip things,
+    // and they establish a sensitivity floor - not a recall figure, and not a claim about what
+    // real generated code looks like. The four real ones are held to their own, measured bar
+    // in the block below, and the two numbers are never pooled.
+    expect(synthetic).toHaveLength(2);
+    expect(generated.length).toBeGreaterThan(synthetic.length);
+    for (const row of synthetic) {
       expect(row.score ?? 0, `${row.id} scored ${row.score}`).toBeGreaterThan(70);
     }
     expect(calibration.rows.find((r) => r.id === "synthetic-scaffold")?.band).toBe("heavy-template-signature");
@@ -143,16 +180,97 @@ describe("discrimination: the corpus must still be able to fire", () => {
     expect(dead, `these rules fire on nothing in the whole corpus: ${dead.join(", ")}`).toEqual([]);
   });
 
-  it("the gap between the human maximum and the generated minimum is wide", () => {
+  it("the gap between the human maximum and the synthetic minimum is wide", () => {
     const worstHuman = Math.max(...humans.map((r) => r.score ?? 0));
-    const bestGenerated = Math.min(...generated.map((r) => r.score ?? 0));
-    expect(bestGenerated - worstHuman, `human max ${worstHuman}, generated min ${bestGenerated}`).toBeGreaterThan(40);
+    const bestGenerated = Math.min(...synthetic.map((r) => r.score ?? 0));
+    expect(bestGenerated - worstHuman, `human max ${worstHuman}, synthetic min ${bestGenerated}`).toBeGreaterThan(40);
   });
 
   it("the generated case trips the families the corpus is built around", () => {
     const fired = new Set(CODE_GENERATED_CORPUS.flatMap((c) => score(c.artifact, c.id).receipt.lines.map((l) => l.family)));
     for (const family of ["agent-artifact", "scaffold-residue", "verification-floor", "history"]) {
       expect(fired.has(family), `the generated fixture fired nothing in "${family}"`).toBe(true);
+    }
+  });
+});
+
+/**
+ * The four repositories a GENERATOR wrote, and what this detector actually does with them.
+ *
+ * This block exists because the synthetic pair cannot answer the only question that matters:
+ * the specimens we wrote score 99 and 74 because we wrote them to. These four are public,
+ * pinned by SHA, and labelled from what somebody else recorded - each README is written by the
+ * generator and names it, and every commit in each history is the vendor's own bot account, so
+ * the label is not an inference from how the code looks. `scripts/capture-code-corpus.mjs`
+ * re-checks both conditions against the checkout on every capture.
+ *
+ * WHAT IS PINNED HERE IS THE MEASURED RESULT, NOT A HOPE. Two are scored and land above every
+ * human negative; two abstain at `single_family_only`. Writing down the honest version, with
+ * the two abstentions named, is the whole point: this is the number a customer would get, and
+ * a rule change that quietly moves it - in EITHER direction - has to come through this file.
+ */
+describe("the four repositories a generator actually wrote", () => {
+  const realIds = CODE_GENERATED_REAL_CORPUS.map((c) => c.id);
+  const rows = calibration.rows.filter((r) => realIds.includes(r.id));
+  const worstHuman = Math.max(...humans.map((r) => r.score ?? 0));
+
+  it("is four real, pinned, self-declared captures and not one fixture", () => {
+    expect(CODE_GENERATED_REAL_CORPUS).toHaveLength(4);
+    for (const entry of CODE_CORPUS_INDEX.filter((e) => e.label === "generated" && e.origin === "real")) {
+      expect(entry.sha, `${entry.id} is not pinned to a commit`).toMatch(/^[0-9a-f]{40}$/);
+      expect(entry.declaration, `${entry.id} states no self-declaration`).toBeTruthy();
+      expect(entry.provenance.length, `${entry.id} has no stated basis for its label`).toBeGreaterThan(120);
+      expect(entry.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it("is not one vendor wearing four hats", () => {
+    // Two Lovable exports and two v0 builds. A corpus of one tool's output measures that
+    // tool's habits, and the assertion reads the declarations rather than a comment.
+    const declarations = CODE_CORPUS_INDEX.filter((e) => e.label === "generated" && e.origin === "real").map(
+      (e) => e.declaration ?? "",
+    );
+    expect(declarations.filter((d) => /Lovable/i.test(d))).toHaveLength(2);
+    expect(declarations.filter((d) => /v0\.app/i.test(d))).toHaveLength(2);
+  });
+
+  it("scores the two it can, and both land clear of every human negative", () => {
+    const scored = rows.filter((r) => r.status === "assessed");
+    expect(scored.map((r) => r.id).sort()).toEqual(["master-quiz-nexus", "unifiedteam"]);
+    for (const row of scored) {
+      expect(
+        row.score ?? 0,
+        `${row.id} scored ${row.score} against a human maximum of ${worstHuman}; rules: ${row.firedRules.join(", ")}`,
+      ).toBeGreaterThan(worstHuman * 3);
+    }
+  });
+
+  it("declines to score the other two, for a stated reason, rather than guessing", () => {
+    // The honest failure, pinned. Both fire `scaffold.unused-dependencies` and nothing else,
+    // and one family is a correlated observation rather than corroboration. The engine would
+    // otherwise print 47 on a single rule, which is the accusation shape this product refuses.
+    for (const id of ABSTAINERS) {
+      const c = CODE_GENERATED_REAL_CORPUS.find((x) => x.id === id)!;
+      const full = score(c.artifact, id);
+      expect(full.status, `${id} status`).toBe("inconclusive");
+      expect(full.score, `${id} must publish no number`).toBeNull();
+      expect(full.familiesFired, `${id} families`).toBe(1);
+      expect(full.abstention.map((a) => a.code), `${id} abstention`).toContain("single_family_only");
+      // Not a quiet zero: the computed number exists and is well above the human maximum. The
+      // engine is withholding a real reading, not failing to take one.
+      expect(full.receipt.computedScore).toBeGreaterThan(worstHuman * 3);
+    }
+  });
+
+  it("never puts one of them below a human negative", () => {
+    // The regression that would matter most and is easiest to miss: a rule change that leaves
+    // the synthetic pair at 99 and 74 while quietly sinking the real captures into the noise.
+    for (const c of CODE_GENERATED_REAL_CORPUS) {
+      const full = score(c.artifact, c.id);
+      expect(
+        full.receipt.computedScore,
+        `${c.id} computes ${full.receipt.computedScore}, at or under the human maximum of ${worstHuman}`,
+      ).toBeGreaterThan(worstHuman);
     }
   });
 });

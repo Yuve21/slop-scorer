@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "recordedAt": "2026-08-24T04:55:58.054Z",
+  "recordedAt": "2026-08-24T06:14:21.631Z",
   "corpusVersions": {
     "web": "corpus-2026.09",
     "code": "code-corpus-2026.09",
@@ -137,6 +137,17 @@
       ]
     },
     {
+      "id": "buildrs-social-network",
+      "corpus": "code",
+      "label": "generated",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": [
+        "scaffold.unused-dependencies"
+      ]
+    },
+    {
       "id": "chalk",
       "corpus": "code",
       "label": "human",
@@ -202,6 +213,29 @@
       "firedRules": []
     },
     {
+      "id": "master-quiz-nexus",
+      "corpus": "code",
+      "label": "generated",
+      "status": "assessed",
+      "score": 26,
+      "band": "few-signals",
+      "firedRules": [
+        "scaffold.readme-template-markers",
+        "scaffold.unused-dependencies"
+      ]
+    },
+    {
+      "id": "nano-banana-hackathon",
+      "corpus": "code",
+      "label": "generated",
+      "status": "inconclusive",
+      "score": null,
+      "band": null,
+      "firedRules": [
+        "scaffold.unused-dependencies"
+      ]
+    },
+    {
       "id": "requests",
       "corpus": "code",
       "label": "human",
@@ -263,6 +297,19 @@
         "scaffold.unused-dependencies",
         "uniform.duplicate-blocks",
         "verify.no-tests"
+      ]
+    },
+    {
+      "id": "unifiedteam",
+      "corpus": "code",
+      "label": "generated",
+      "status": "assessed",
+      "score": 40,
+      "band": "some-signals",
+      "firedRules": [
+        "scaffold.readme-template-markers",
+        "uniform.duplicate-blocks",
+        "verify.tautological-tests"
       ]
     },
     {
@@ -601,6 +648,24 @@
       ]
     },
     {
+      "id": "flappy-bird-game",
+      "corpus": "web",
+      "label": "generated",
+      "status": "assessed",
+      "score": 58,
+      "band": "some-signals",
+      "firedRules": [
+        "builder.ai-generator-meta",
+        "builder.bare-platform-domain",
+        "craft.crawler-files",
+        "craft.no-canonical",
+        "craft.no-favicon",
+        "craft.no-og-image",
+        "css.default-sans",
+        "css.one-family"
+      ]
+    },
+    {
       "id": "overtone",
       "corpus": "web",
       "label": "human",
@@ -641,6 +706,57 @@
       "firedRules": [
         "craft.js-weight",
         "dom.uniform-cards"
+      ]
+    },
+    {
+      "id": "study-snapshot-space",
+      "corpus": "web",
+      "label": "generated",
+      "status": "assessed",
+      "score": 53,
+      "band": "some-signals",
+      "firedRules": [
+        "builder.bare-platform-domain",
+        "craft.crawler-files",
+        "craft.no-canonical",
+        "craft.no-favicon",
+        "craft.no-meta-description",
+        "craft.soft-404",
+        "dom.uniform-cards"
+      ]
+    },
+    {
+      "id": "vintage-pager-app",
+      "corpus": "web",
+      "label": "generated",
+      "status": "assessed",
+      "score": 74,
+      "band": "many-signals",
+      "firedRules": [
+        "builder.ai-generator-meta",
+        "builder.bare-platform-domain",
+        "craft.crawler-files",
+        "craft.no-canonical",
+        "craft.no-meta-description",
+        "craft.no-og-image",
+        "dom.icon-tile-stack",
+        "dom.ping-dot"
+      ]
+    },
+    {
+      "id": "wav0-landing",
+      "corpus": "web",
+      "label": "generated",
+      "status": "assessed",
+      "score": 80,
+      "band": "many-signals",
+      "firedRules": [
+        "builder.ai-generator-meta",
+        "builder.bare-platform-domain",
+        "craft.crawler-files",
+        "craft.no-canonical",
+        "craft.no-og-image",
+        "dom.numbered-steps"
       ]
     }
   ]

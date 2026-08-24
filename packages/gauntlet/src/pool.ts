@@ -3,11 +3,15 @@
  *
  * `CONTRIBUTING.md` in this repository says adding a negative is a bigger contribution than adding
  * a rule, and states the bar: named authorship, substantial pre-2022 history, an institution behind
- * it. Those artifacts are already here - ten repositories pinned by SHA in `packages/detectors-code`
- * and five provenanced pages in `packages/detectors-web` - so the gauntlet draws from them rather
- * than inventing a fixture, and the discrimination table it produces is about the same artifacts
- * the detector is calibrated on. Two numbers about two different corpora would not be comparable,
- * and comparing them is the entire published claim.
+ * it. Those artifacts are already here - sixteen repositories pinned by SHA in
+ * `packages/detectors-code` and nine pages in `packages/detectors-web` - so the gauntlet draws from
+ * them rather than inventing a fixture, and the discrimination table it produces is about the same
+ * artifacts the detector is calibrated on. Two numbers about two different corpora would not be
+ * comparable, and comparing them is the entire published claim.
+ *
+ * Both media carry both labels, and that is deliberate. If every generated member were a
+ * repository, "which of these is not a repo" would be a different and much easier puzzle than the
+ * one the prompt asks, and the rate would be a measurement of that easier puzzle.
  *
  * A member with an `unknown` label is SKIPPED, by name, in the returned list. A round needs a
  * correct answer, and there is no honest way to grade a guess against a label nobody can state.

@@ -27,24 +27,40 @@ import { analyzeAudioArtifact, AUDIO_CONFIG, AUDIO_CORPUS } from "@slop/detector
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE = path.join(ROOT, "calibration", "baseline.json");
 const CODE_CORPUS_DIR = path.join(ROOT, "packages", "detectors-code", "test", "corpus");
+const WEB_CORPUS_DIR = path.join(ROOT, "packages", "detectors-web", "test", "corpus");
 
 const read = (p) => JSON.parse(readFileSync(p, "utf8"));
 
+/**
+ * Read a captured corpus off disk, index first.
+ *
+ * The index is the membership list the capture script wrote, so a member that was captured but
+ * never indexed - or indexed but never captured - fails here rather than silently shrinking the
+ * baseline. Both corpora are read this way, from plain Node with no TypeScript step, which is
+ * why the artifacts are JSON on disk rather than compiled literals.
+ */
+const fromDisk = (dir, indexName) =>
+  read(path.join(dir, indexName)).map((entry) => ({
+    id: entry.id,
+    label: entry.label,
+    source: entry.source,
+    provenance: entry.provenance,
+    capturedAt: entry.capturedAt,
+    artifact: read(path.join(dir, `${entry.id}.artifact.json`)),
+  }));
+
 // ---- web -------------------------------------------------------------------------------
+// The five human pages ship inside the package; the four generated ones are pinned browser
+// captures under test/corpus, replayed here exactly as the code corpus is. They are in the
+// baseline for the reason everything else is: a reweighting that stops moving a page which
+// names its own generator in its own head has to appear in a diff, not in a support ticket.
 const webReport = (artifact, id) =>
   buildReport([analyzeArtifact(artifact, { kind: "url", url: `https://calibration.invalid/${id}` })]);
-const web = runCalibration(CORPUS_VERSION, NEGATIVE_CORPUS, webReport);
+const webCases = [...NEGATIVE_CORPUS, ...fromDisk(WEB_CORPUS_DIR, "web-corpus.index.json")];
+const web = runCalibration(CORPUS_VERSION, webCases, webReport);
 
 // ---- code ------------------------------------------------------------------------------
-const index = read(path.join(CODE_CORPUS_DIR, "code-corpus.index.json"));
-const codeCases = index.map((entry) => ({
-  id: entry.id,
-  label: entry.label,
-  source: entry.source,
-  provenance: entry.provenance,
-  capturedAt: entry.capturedAt,
-  artifact: read(path.join(CODE_CORPUS_DIR, `${entry.id}.artifact.json`)),
-}));
+const codeCases = fromDisk(CODE_CORPUS_DIR, "code-corpus.index.json");
 const codeReport = (artifact, id) =>
   buildReport([analyzeRepoArtifact(artifact, { kind: "repo", path: `calibration://${id}` })], { config: CODE_CONFIG });
 const code = runCalibration(CODE_CONFIG.corpusVersion, codeCases, codeReport);
@@ -83,7 +99,7 @@ const corpusVersions = {
   audio: AUDIO_CONFIG.corpusVersion,
 };
 const baseRates = {
-  web: baseRate(webReport(NEGATIVE_CORPUS[0].artifact, "base-rate")),
+  web: baseRate(webReport(webCases[0].artifact, "base-rate")),
   code: baseRate(codeReport(codeCases[0].artifact, "base-rate")),
   image: baseRate(imageReport(IMAGE_CORPUS[0].artifact, "base-rate")),
   video: baseRate(videoReport(VIDEO_CORPUS[0].artifact, "base-rate")),
