@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Slop Scorer">
+  <!-- A receipt: square corners, a rule, and three lines of a citation column. No rounded
+       corners anywhere, which is the same argument the rest of the product makes. -->
+  <rect width="32" height="32" fill="#123E70"/>
+  <rect x="7" y="5" width="18" height="22" fill="#F4F4F2"/>
+  <rect x="10" y="9" width="12" height="2" fill="#123E70"/>
+  <rect x="10" y="15" width="5" height="1.5" fill="#123E70"/>
+  <rect x="17" y="15" width="5" height="1.5" fill="#8A8A84"/>
+  <rect x="10" y="19" width="5" height="1.5" fill="#123E70"/>
+  <rect x="17" y="19" width="5" height="1.5" fill="#8A8A84"/>
+  <rect x="10" y="23" width="5" height="1.5" fill="#123E70"/>
+</svg>

@@ -1,0 +1,257 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Slop Scorer theme.
+ *
+ * Every value here comes from design/DESIGN.md and carries its reason there. Three things
+ * are deliberately ABSENT and must stay absent, because this product gets run through its
+ * own detector and each of them is a tell we encode:
+ *
+ *   1. --destructive and --chart-1..5, the shadcn defaults. --destructive would reintroduce
+ *      the severity ramp this palette does not have: red asserts guilt before a word is
+ *      read, and this product never asserts. The variables are deleted rather than left
+ *      unused, and the destructive VARIANTS are deleted from the component files, so red is
+ *      unreachable rather than merely unfashionable.
+ *   2. A non-zero radius on documents. Documents do not have rounded corners.
+ *   3. box-shadow in light mode. Elevation is a surface-value change plus a 1px border.
+ *
+ * There is no theme-switcher control: the dark palette is served by prefers-color-scheme.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------------------------------------------------------------------------------------
+ * Typeface plumbing.
+ *
+ * The shipping faces are ABC Diatype and ABC Diatype Mono (Dinamo), self-hosted woff2, zero
+ * third-party font requests. THE LICENCE IS NOT BOUGHT YET, so the woff2 files are not in
+ * this repository and the @font-face blocks that would reference them are commented out
+ * rather than pointed at files that would 404. Shipping a *Trial* or *DEMO* build of a
+ * commercial face is a named tell in our own corpus (Overtone ships Focal Trial; Sitch
+ * ships Belmonte Ballpoint Trial and Padlock Script DEMO). We do not do the thing we detect.
+ *
+ * Until the licence lands the site runs the documented fallback stack and says so on
+ * /method. Note the absence of `system-ui` and of `Inter`: system-ui resolves to an
+ * Inter-alike on several Linux and Android configurations, which would quietly reintroduce
+ * a banned face.
+ *
+ * To ship the licensed faces: drop the four woff2 files into public/fonts/, uncomment the
+ * blocks below, and MEASURE the metric overrides on the fallback faces against Diatype
+ * rather than guessing them.
+ *
+ *   @font-face { font-family: "ABC Diatype"; font-weight: 400; font-display: swap;
+ *     src: url("/fonts/ABCDiatype-Regular.woff2") format("woff2");
+ *     unicode-range: U+0000-00FF, U+2010-2027, U+2030-205E, U+2190-2193, U+2212; }
+ *   @font-face { font-family: "ABC Diatype"; font-weight: 500; font-display: swap;
+ *     src: url("/fonts/ABCDiatype-Medium.woff2") format("woff2"); ... }
+ *   @font-face { font-family: "ABC Diatype Mono"; font-weight: 400; font-display: swap;
+ *     src: url("/fonts/ABCDiatypeMono-Regular.woff2") format("woff2"); ... }
+ *   @font-face { font-family: "ABC Diatype Mono"; font-weight: 500; font-display: swap;
+ *     src: url("/fonts/ABCDiatypeMono-Medium.woff2") format("woff2"); ... }
+ *
+ * The two faces below are the marked fallback and are wired the same way the licensed ones
+ * will be. They make zero network requests: every source is a local() reference, so a
+ * machine without the face simply moves one step down the stack.
+ * ------------------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Slop Fallback Sans";
+  src:
+    local("Segoe UI"),
+    local("Helvetica Neue"),
+    local("Arial");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+  /* size-adjust / ascent-override / descent-override belong here, and are omitted on
+     purpose: their correct values are measured against Diatype, and inventing them now
+     would put three made-up numbers in a product about measured ones. */
+}
+
+@font-face {
+  font-family: "Slop Fallback Mono";
+  src:
+    local("Cascadia Mono"),
+    local("SF Mono"),
+    local("Menlo"),
+    local("Consolas");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  /* Palette. Our own tokens first; the shadcn semantic names are mapped onto them so an
+     installed component inherits this palette instead of the shadcn default. */
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-hairline: var(--hairline);
+  --color-border-control: var(--border-control);
+  --color-ink-accent: var(--accent);
+  --color-ink-accent-fg: var(--accent-ink);
+
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface-raised);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface-raised);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-secondary: var(--surface);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface);
+  --color-muted-foreground: var(--ink-muted);
+  /* shadcn's --accent is a hover wash, not a brand accent. Ours is a brand accent and must
+     never be smeared across hover states, so the two are mapped apart deliberately. */
+  --color-accent: var(--hover-wash);
+  --color-accent-foreground: var(--ink);
+  --color-border: var(--hairline);
+  --color-input: var(--border-control);
+  --color-ring: var(--accent);
+
+  /* Radii: 0 on documents, 3px on controls, 6px on overlays. 16px is not reachable. */
+  --radius: 0px;
+  --radius-sm: 3px;
+  --radius-md: 3px;
+  --radius-lg: 3px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+  --radius-3xl: 6px;
+  --radius-4xl: 6px;
+  --radius-doc: 0px;
+  --radius-control: 3px;
+  --radius-overlay: 6px;
+
+  /* Type. Ten steps snapped to the 4px grid and deliberately NOT a clean geometric ramp:
+     a perfectly regular 1.25 ratio is itself a generated-looking artifact. */
+  --font-sans: var(--font-doc-sans);
+  --font-mono: var(--font-doc-mono);
+  --font-heading: var(--font-doc-sans);
+
+  --text-mono-xs: 12px;
+  --text-mono-xs--line-height: 145%;
+  --text-mono-xs--letter-spacing: 0.06em;
+  --text-mono-sm: 13px;
+  --text-mono-sm--line-height: 145%;
+  --text-mono-md: 14px;
+  --text-mono-md--line-height: 145%;
+  --text-sm: 14px;
+  --text-sm--line-height: 145%;
+  --text-body: 16px;
+  --text-body--line-height: 145%;
+  --text-lg: 18px;
+  --text-lg--line-height: 140%;
+  --text-lead: 21px;
+  --text-lead--line-height: 132%;
+  --text-h3: 26px;
+  --text-h3--line-height: 128%;
+  --text-h3--letter-spacing: -0.005em;
+  --text-h2: 32px;
+  --text-h2--line-height: 118%;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h1: 42px;
+  --text-h1--line-height: 108%;
+  --text-h1--letter-spacing: -0.01em;
+  --text-display: 56px;
+  --text-display--line-height: 106%;
+  --text-display--letter-spacing: -0.01em;
+
+  /* Measures: 1056 on the receipt, 1248 on the landing, 72ch on prose. */
+  --container-receipt: 1056px;
+  --container-page: 1248px;
+}
+
+:root {
+  color-scheme: light;
+
+  --surface: #f4f4f2;
+  --surface-raised: #ffffff;
+  --ink: #14161a;
+  --ink-muted: #5a6068;
+  --hairline: #c9c9c3;
+  --border-control: #8a8a84;
+  --accent: #123e70;
+  --accent-ink: #ffffff;
+  --hover-wash: #e9e9e5;
+
+  --font-doc-sans:
+    "ABC Diatype", "Slop Fallback Sans", ui-sans-serif, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-doc-mono:
+    "ABC Diatype Mono", "Slop Fallback Mono", ui-monospace, "SF Mono", "Cascadia Mono",
+    "Roboto Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --surface: #101215;
+    --surface-raised: #191c21;
+    --ink: #e8e8e4;
+    --ink-muted: #9aa0a8;
+    --hairline: #2a2e34;
+    --border-control: #4c525a;
+    --accent: #7fa8e8;
+    --accent-ink: #101215;
+    --hover-wash: #22262c;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--hairline);
+  }
+
+  html {
+    font-family: var(--font-doc-sans);
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 145%;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Documents. Square, unshadowed, bordered. The dark mode gets exactly one affordance,
+     a 1px top inner highlight, because a surface-value change alone is too weak there. */
+  [data-doc] {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    [data-doc] {
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+    }
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+  }
+}
+
+/*
+ * Reduced motion. The one timeline (ReceiptReveal) jumps to its end state, which is the
+ * state the server already rendered: the elapsed number is in the HTML, the evidence list
+ * is in the HTML. This block is the belt to that braces, for anything a component library
+ * brings with it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
