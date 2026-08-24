@@ -11,31 +11,77 @@ selector and a computed style value, that you can go and check yourself.
 
 ## Install
 
-### macOS and Linux
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/OWNER/slop-scorer/main/packages/mcp-server/install.sh | sh
-```
-
-### Windows
-
-```powershell
-powershell -c "irm https://raw.githubusercontent.com/OWNER/slop-scorer/main/packages/mcp-server/install.ps1 | iex"
-```
-
-Both scripts find every MCP client on the machine, register the server, back up any file they
-edit, and are idempotent. Node 20+ is the only requirement; the server itself is fetched by
-`npx` at launch, so there is nothing to keep updated.
-
-> The `OWNER` placeholder is deliberate: substitute it when the repository is published. Until
-> then, run the script from a checkout (`sh packages/mcp-server/install.sh`) or use the config
-> snippets below, which work today.
-
-### One command, no script
+The one line, for Claude Code:
 
 ```sh
 claude mcp add slop-scorer -- npx -y slop-scorer-mcp
 ```
+
+That is the whole install. It needs Node 20+ and nothing else: `npx` fetches the package,
+`claude mcp add` registers it, and there is no separate build or update step because npx always
+runs the version on the registry.
+
+### Claude Desktop
+
+Add this to `claude_desktop_config.json`
+(macOS `~/Library/Application Support/Claude/claude_desktop_config.json`,
+Windows `%APPDATA%\Claude\claude_desktop_config.json`) and restart the app:
+
+```json
+{ "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] } } }
+```
+
+### Cursor
+
+Add the same block to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per project):
+
+```json
+{ "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] } } }
+```
+
+### Just tell your agent to install it
+
+Paste this into any coding agent with shell access, in any client:
+
+```
+Install the slop-scorer MCP server for yourself. Run:
+  claude mcp add slop-scorer -- npx -y slop-scorer-mcp
+If that CLI isn't available, add {"command":"npx","args":["-y","slop-scorer-mcp"]} under
+mcpServers in whatever MCP config file you use, then restart. Verify by calling list_rules.
+```
+
+### Or run the installer script
+
+Finds every MCP client on the machine, registers the server, backs up any file it edits, and is
+idempotent.
+
+macOS and Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Yuve21/slop-scorer/main/packages/mcp-server/install.sh | sh
+```
+
+Windows:
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/Yuve21/slop-scorer/main/packages/mcp-server/install.ps1 | iex"
+```
+
+Both scripts check, before touching any config, that `slop-scorer-mcp` actually exists on the
+npm registry, and refuse with a clear message instead of silently registering a command that
+would 404 the first time a client tried to launch it.
+
+### Before this package is published
+
+The two commands above fetch from the npm registry, which is empty until `npm publish` has been
+run once (see the repository root README for that step). Until then, install from a checkout:
+
+```sh
+npm run install:local --workspace=packages/mcp-server
+```
+
+This builds the package and registers the built binary with `claude mcp add` by absolute path,
+in one command.
 
 ### Rendering pages needs a browser
 
@@ -54,39 +100,12 @@ route whose heading does not exist until hydration.
 
 ## Client configuration, by hand
 
-**Claude Code** (`.mcp.json` in the project root, or `~/.claude.json` for every project):
+Every client above uses the identical `{ "command": "npx", "args": ["-y", "slop-scorer-mcp"] }`
+block; only the file it goes in differs. For Claude Code specifically, that file is `.mcp.json`
+in the project root (or `~/.claude.json` for every project), if you would rather edit it than
+run `claude mcp add`.
 
-```json
-{
-  "mcpServers": {
-    "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] }
-  }
-}
-```
-
-**Claude Desktop**
-(macOS `~/Library/Application Support/Claude/claude_desktop_config.json`,
-Windows `%APPDATA%\Claude\claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] }
-  }
-}
-```
-
-**Cursor** (`~/.cursor/mcp.json` globally, or `.cursor/mcp.json` per project):
-
-```json
-{
-  "mcpServers": {
-    "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] }
-  }
-}
-```
-
-Restart the client afterwards, then ask it to call `list_rules`.
+Restart the client after editing its config, then ask it to call `list_rules`.
 
 ---
 
@@ -190,3 +209,49 @@ This server publishes no accuracy figure. A test in `@slop/core` scans this file
 source for one and fails the build if it finds it. The reason is *In re Workado*: an accuracy
 claim about an inference is substantiation-bearing under FTC Act s5, so the only defensible way
 to hold one is to compute it from a named corpus at test time.
+
+---
+
+## Publishing this package
+
+The package is self-contained: `npm run build` (which `prepack` and `prepublishOnly` both run
+automatically) bundles the three internal workspace packages this server depends on
+(`@slop/core`, `@slop/detectors-code`, `@slop/detectors-web`, all `"private": true` and never
+published on their own) into `dist/bin.js` and `dist/index.js` with esbuild, and vendors their
+type declarations into `dist/vendor/` with the `@slop/*` specifiers rewritten to relative paths.
+Nothing in the published tarball points back at an unpublished package. `@modelcontextprotocol/sdk`
+and `zod` stay real, external, registry dependencies; `playwright` stays an optional peer.
+
+Chosen name: **`slop-scorer-mcp`** (matches the existing `bin` name and the server's own
+`SERVER_NAME`). Confirmed unclaimed on the npm registry (`npm view slop-scorer-mcp` returns
+404). Fallbacks, also confirmed unclaimed, if the founder's npm account already holds the first
+one or prefers a different shape: `mcp-slop-scorer`, `slop-scorer-server`.
+
+To publish, from a checkout, as the account that owns the name:
+
+```sh
+cd packages/mcp-server
+npm login                        # once, if not already
+npm publish --access public      # runs the build automatically via prepublishOnly
+```
+
+This has deliberately not been run: the founder owns the npm account and the decision of when a
+public package first appears under it. Everything up to that command is done; that command is
+the one thing left.
+
+To prove the artifact works before publishing, without touching the registry:
+
+```sh
+cd packages/mcp-server
+npm run build
+npm pack                                        # writes slop-scorer-mcp-0.1.0.tgz
+mkdir /tmp/slop-scorer-smoke-test && cd $_
+npm init -y
+npm install /path/to/slop-scorer-mcp-0.1.0.tgz  # installs from the tarball, nothing else
+node node_modules/slop-scorer-mcp/dist/bin.js   # speaks MCP on stdio; Ctrl-C to stop
+```
+
+A clean `npm install` of that tarball pulls in only `@modelcontextprotocol/sdk` and `zod`; there
+is no `node_modules/@slop` and nothing 404s. This is exactly what happened in the verification
+for this change: the tarball installed and the binary answered `initialize` and `tools/list`
+correctly (all three tools present) from a directory with no relationship to this monorepo.

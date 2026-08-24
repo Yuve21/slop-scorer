@@ -162,3 +162,17 @@ the reproduction / "we remade it" feature, image, video and voice detection, the
 the Turing gauntlet, and the process notary. There are no speculative stubs for them.
 
 See `packages/mcp-server/README.md` for install and tool documentation.
+
+## Installing the MCP plugin
+
+```sh
+claude mcp add slop-scorer -- npx -y slop-scorer-mcp
+```
+
+That is the whole install once the package is published. `packages/mcp-server` is
+publish-ready: self-contained (the workspace-only `@slop/*` packages are bundled into the
+artifact, not depended on), packed and installed from a tarball into a clean directory as
+verification, name (`slop-scorer-mcp`) checked unclaimed on the registry. Publishing itself
+(`npm publish --access public`) has not been run: that is the founder's npm account and call.
+See `packages/mcp-server/README.md#publishing-this-package` for the exact command and the
+before-publish local-dev fallback (`npm run install:local`).

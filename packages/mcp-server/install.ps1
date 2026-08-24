@@ -1,13 +1,18 @@
 # slop-scorer MCP: one-line install for Windows.
 #
-#   powershell -c "irm https://raw.githubusercontent.com/OWNER/slop-scorer/main/packages/mcp-server/install.ps1 | iex"
+#   powershell -c "irm https://raw.githubusercontent.com/Yuve21/slop-scorer/main/packages/mcp-server/install.ps1 | iex"
 #
 # or, if you would rather use curl (Windows 10+ ships it):
 #
-#   curl -fsSL https://raw.githubusercontent.com/OWNER/slop-scorer/main/packages/mcp-server/install.ps1 -o install.ps1; powershell -ExecutionPolicy Bypass -File install.ps1
+#   curl -fsSL https://raw.githubusercontent.com/Yuve21/slop-scorer/main/packages/mcp-server/install.ps1 -o install.ps1; powershell -ExecutionPolicy Bypass -File install.ps1
 #
 # Registers the server with every MCP client it finds. Idempotent, backs up any file it edits,
 # and never touches an entry belonging to a different server.
+#
+# The package name below is overridable ($env:SLOP_PKG) for a fork that publishes under a
+# different name; everything else about this script is name-agnostic. It never guesses a GitHub
+# owner or repo, because it does not need one: by the time it is running, it has already been
+# fetched from wherever it lives.
 $ErrorActionPreference = 'Stop'
 
 $Pkg  = if ($env:SLOP_PKG) { $env:SLOP_PKG } else { 'slop-scorer-mcp' }
@@ -24,6 +29,19 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 }
 $major = [int](node -p 'process.versions.node.split(".")[0]')
 if ($major -lt 20) { throw "node $major found, but this server needs Node 20 or newer." }
+
+# The one property this script can check up front: does the published package actually exist
+# under the name it is about to tell every client to run? If npm has never heard of it, every
+# registration below would 404 the instant a client tried to launch it. Fail loudly now instead
+# of leaving that surprise for later. Skipped (not failed) if npm itself is unreachable: that is
+# not itself grounds to abort, since registration can still succeed against a mirror or an
+# npm-less runtime that still has npx.
+if (Get-Command npm -ErrorAction SilentlyContinue) {
+  npm view $Pkg version *>$null
+  if ($LASTEXITCODE -ne 0) {
+    throw "npm has no published package named '$Pkg'. If you are testing before it is published, run ``npm run install:local`` from a checkout instead of this script. If the package was renamed, re-run with `$env:SLOP_PKG='<new-name>'` set first."
+  }
+}
 
 function Add-McpServer($Path, $Key, $Label) {
   $dir = Split-Path -Parent $Path

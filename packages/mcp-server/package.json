@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "description": "MCP server exposing scan_codebase, scan_ui and list_rules: cited, deterministic vibe-coded tells for coding agents.",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yuve21/slop-scorer.git",
+    "directory": "packages/mcp-server"
+  },
+  "homepage": "https://github.com/Yuve21/slop-scorer/tree/main/packages/mcp-server#readme",
+  "bugs": "https://github.com/Yuve21/slop-scorer/issues",
+  "keywords": ["mcp", "model-context-protocol", "claude", "ai-detection", "code-review", "linter"],
   "bin": {
     "slop-scorer-mcp": "./dist/bin.js"
   },
@@ -17,16 +25,20 @@
   "types": "./dist/index.d.ts",
   "files": ["dist", "README.md"],
   "engines": { "node": ">=20" },
+  "publishConfig": { "access": "public" },
   "scripts": {
-    "build": "tsc -b",
-    "start": "node ./dist/bin.js"
+    "build": "tsc -b && node build.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run build",
+    "start": "node ./dist/bin.js",
+    "install:local": "npm run build && node scripts/install-local.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "@slop/core": "*",
-    "@slop/detectors-code": "*",
-    "@slop/detectors-web": "*",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5"
   },
   "peerDependencies": {
     "playwright": ">=1.40.0"
