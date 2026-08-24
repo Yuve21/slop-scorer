@@ -1,0 +1,23 @@
+{
+  "name": "@slop/notary",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Attest the making, never the person. A hash chain over recorded process events, timestamped by several independent RFC 3161 authorities, and a credential that says only what is provable.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@slop/core": "*",
+    "@slop/db": "*"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@slop/gauntlet",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Five artifacts, one made by a person. The game is the surface; the labeling pipeline that feeds the published calibration table is the point.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@slop/core": "*",
+    "@slop/db": "*",
+    "@slop/detectors-code": "*",
+    "@slop/detectors-web": "*"
+  }
+}

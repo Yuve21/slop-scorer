@@ -1,0 +1,19 @@
+{
+  "name": "@slop/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Persistence for the gauntlet's labels and the notary's attestations. Supabase in production, in-memory in tests, and nothing about a detection anywhere.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

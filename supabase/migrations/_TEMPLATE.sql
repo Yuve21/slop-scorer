@@ -1,0 +1,44 @@
+-- Migration TEMPLATE. Copy it, do not edit it in place.
+-- Filename: <MAX+1>_short_description.sql  (take MAX + 1 of the existing numbers, never count + 1;
+-- the sequence is allowed to have gaps and counting produces a collision the first time it does.)
+--
+-- This template is carried over from the Lark Dating database contract, because that contract was
+-- written by paying for the failures: a schema record that went stale by six migrations including
+-- two security-critical ones, and a CHECK constraint whose stored vocabulary differed from the
+-- app-facing wording and 500'd every signup on a live form.
+--
+-- THE FIVE RULES, and how a file satisfies each.
+--
+--   1. ADDITIVE ONLY. A forward migration ADDS. DROP / TRUNCATE / DELETE / ALTER COLUMN TYPE belong
+--      in a separate later migration, run after the new code is deployed and proven.
+--
+--   2. IDEMPOTENT. Every statement is `if not exists`, `create or replace`, or a guarded
+--      `do $$ ... end $$`. Replaying the file must be safe, because that is what makes the same
+--      bytes runnable on a local database, then a staging project, then production.
+--
+--   3. ROLLBACK WRITTEN BEFORE THE FORWARD SQL EVER RUNS. Every file ends with a `-- ROLLBACK:`
+--      block of runnable undo SQL, in a comment so it cannot fire by accident. If the honest
+--      rollback is "restore from a backup", say that, and treat it as a reason to reconsider.
+--
+--   4. RLS ON, DENY FIRST. Every table created here does `enable row level security` in the same
+--      statement group, and ships with NO permissive policy until one is written deliberately. A
+--      table with RLS on and no policy is unreadable by `anon` and `authenticated`, which is the
+--      correct default for a table nobody has thought about yet.
+--
+--   5. GRANTS ARE PER COLUMN WHERE A COLUMN IS THE SECRET. RLS filters ROWS; it cannot hide a
+--      COLUMN. Where a row must be visible but one of its fields must not be (the gauntlet's answer
+--      key is the live example), the control is `revoke all` followed by `grant select (cols)`.
+--
+-- COMMIT MESSAGE must state: the project ref applied to, the exact command, and for any CHECK
+-- constraint the literal allowed values.
+
+-- ============================================================================
+-- FORWARD  (additive only)
+-- ============================================================================
+
+-- create table if not exists public.example ( ... );
+-- alter table public.example enable row level security;
+
+-- ============================================================================
+-- ROLLBACK:
+-- drop table if exists public.example;

@@ -15,6 +15,15 @@
     },
     {
       "path": "./packages/reproduce"
+    },
+    {
+      "path": "./packages/db"
+    },
+    {
+      "path": "./packages/gauntlet"
+    },
+    {
+      "path": "./packages/notary"
     }
   ]
 }
