@@ -37,7 +37,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { probeUrl } from "@slop/detectors-web";
@@ -113,6 +113,25 @@ function write(out, record) {
   return record;
 }
 
+/**
+ * The reading committed to the repository, if there is one.
+ *
+ * WHEN A BUILD CANNOT TAKE ITS OWN READING, THE PREVIOUS ONE IS KEPT, and the record says so.
+ * The alternative is a fold with nothing in it on a page whose headline is about having been
+ * scanned, which is the failure this whole file exists to end. Keeping it is only honest
+ * because the age, the commit and the fact that THIS build did not take it are all printed:
+ * an old measurement labelled old is evidence, an old measurement labelled fresh is a lie.
+ */
+function previous(out) {
+  if (!existsSync(out)) return null;
+  try {
+    const record = JSON.parse(readFileSync(out, "utf8"));
+    return record?.artifact ? record : null;
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const out = arg("out") ? path.resolve(arg("out")) : DEFAULT_OUT;
   const target = resolveTarget();
@@ -126,16 +145,22 @@ async function main() {
     unavailable: null,
   };
 
-  if (!target) {
-    console.warn("[self-scan] no target URL (set NEXT_PUBLIC_SITE_URL); writing an unavailable record.");
-    write(out, {
-      ...base,
-      unavailable: {
-        code: "cannot_fetch",
-        detail:
-          "This build did not know which URL it was going to be served from, so no page was rendered. NEXT_PUBLIC_SITE_URL was unset, or was not a URL anything could fetch.",
-      },
+  /** Fall back to the committed reading, keeping ITS age and commit, and say what happened. */
+  const degrade = (detail, code = "detector_unavailable") => {
+    const kept = previous(out);
+    if (!kept) return write(out, { ...base, unavailable: { code, detail } });
+    return write(out, {
+      ...kept,
+      staleReason: detail,
     });
+  };
+
+  if (!target) {
+    console.warn("[self-scan] no target URL (set NEXT_PUBLIC_SITE_URL); keeping the previous reading if there is one.");
+    degrade(
+      "This build did not know which URL it was going to be served from, so it took no reading of its own. NEXT_PUBLIC_SITE_URL was unset, or was not a URL anything could fetch.",
+      "cannot_fetch",
+    );
     return;
   }
 
@@ -154,6 +179,19 @@ async function main() {
         ).unref?.(),
       ),
     ]);
+    // A successful capture always replaces the file wholesale, `staleReason` included: this
+    // reading is this build's, and nothing about the last one survives into it.
+    // A PROBE THAT RETURNED IS NOT A PAGE THAT LOADED. `probeUrl` hands back an artifact even
+    // when the navigation failed: the probes it could not fill are marked `ran: false`, and
+    // an unreachable host still yields a shaped object with six of ten probes "run". Publishing
+    // that would put a reading of an error page in the fold under this site's name. So the
+    // capture is only accepted when every probe ran, and anything less degrades like a crash.
+    const dead = artifact.probes.filter((p) => !p.ran).map((p) => p.id);
+    if (dead.length > 0) {
+      throw new Error(
+        `the page did not load completely: ${dead.length} of ${artifact.probes.length} probes could not be filled (${dead.join(", ")})`,
+      );
+    }
     const record = write(out, { ...base, elapsedMs: Date.now() - startedAt, artifact });
     console.log(
       `[self-scan] captured ${target} in ${(record.elapsedMs / 1000).toFixed(1)} s, ` +
@@ -162,14 +200,14 @@ async function main() {
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[self-scan] capture failed: ${detail}`);
-    write(out, {
-      ...base,
-      elapsedMs: Date.now() - startedAt,
-      unavailable: {
-        code: "detector_unavailable",
-        detail: `This build could not render ${target} in a real browser, so the fold has no reading of its own to show: ${detail}`,
-      },
-    });
+    const record = degrade(
+      `This build could not render ${target} in a real browser (${detail}), so it took no reading of its own. What is shown was measured by an earlier build, at the time and commit printed on it.`,
+    );
+    console.warn(
+      record.artifact
+        ? `[self-scan] kept the reading from ${record.capturedAt}, labelled as not this build's.`
+        : "[self-scan] no earlier reading to keep; the fold will say so.",
+    );
   }
 }
 

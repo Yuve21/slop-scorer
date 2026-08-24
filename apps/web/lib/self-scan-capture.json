@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "capturedAt": "2026-08-24T15:48:20.154Z",
-  "commit": "8e3a0f81370bea1ee1627be87952c42629a2ad93",
+  "capturedAt": "2026-08-24T15:58:31.595Z",
+  "commit": "c29d62fcf5353a21c95eb24274f5efd7cbd0b005",
   "target": "https://slop-scorer.vercel.app",
-  "elapsedMs": 6069,
+  "elapsedMs": 4276,
   "artifact": {
     "schemaVersion": 1,
     "url": "https://slop-scorer.vercel.app",
     "finalUrl": "https://slop-scorer.vercel.app/",
-    "fetchedAt": "2026-08-24T15:48:28.122Z",
+    "fetchedAt": "2026-08-24T15:58:37.796Z",
     "tier": "rendered",
     "viewport": {
       "width": 1440,
@@ -21,14 +21,14 @@
         "cache-control": "private, no-cache, no-store, max-age=0, must-revalidate",
         "content-encoding": "br",
         "content-type": "text/html; charset=utf-8",
-        "date": "Mon, 24 Aug 2026 15:48:25 GMT",
+        "date": "Mon, 24 Aug 2026 15:58:35 GMT",
         "server": "Vercel",
         "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
         "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
         "x-matched-path": "/",
         "x-powered-by": "Next.js",
         "x-vercel-cache": "MISS",
-        "x-vercel-id": "iad1::iad1::ck6xf-1787586504783-2ca45fe71e38"
+        "x-vercel-id": "iad1::iad1::mpdsf-1787587115803-bfa78c5d4d13"
       }
     },
     "head": {
@@ -107,26 +107,20 @@
     "assets": {
       "chunks": [
         {
-          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
-          "bytes": 5364,
-          "sourceMappingURL": false,
-          "mapReachable": false
-        },
-        {
-          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/25wx5huh2xcpe.js",
-          "bytes": 229617,
-          "sourceMappingURL": false,
-          "mapReachable": false
-        },
-        {
           "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/turbopack-2_xscwtit7ei8.js",
           "bytes": 10986,
           "sourceMappingURL": false,
           "mapReachable": false
         },
         {
-          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/2corl6wyj4669.js",
-          "bytes": 14377,
+          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/0zdcupoi7pk17.js",
+          "bytes": 12613,
+          "sourceMappingURL": false,
+          "mapReachable": false
+        },
+        {
+          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/25kvgcvbp6c14.js",
+          "bytes": 5364,
           "sourceMappingURL": false,
           "mapReachable": false
         },
@@ -137,14 +131,14 @@
           "mapReachable": false
         },
         {
-          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/0ky_s0fujwq27.js",
-          "bytes": 35151,
+          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/25wx5huh2xcpe.js",
+          "bytes": 229617,
           "sourceMappingURL": false,
           "mapReachable": false
         },
         {
-          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/0zdcupoi7pk17.js",
-          "bytes": 12613,
+          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/0ky_s0fujwq27.js",
+          "bytes": 35151,
           "sourceMappingURL": false,
           "mapReachable": false
         },
@@ -163,6 +157,12 @@
         {
           "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/023re24j275ot.js",
           "bytes": 161823,
+          "sourceMappingURL": false,
+          "mapReachable": false
+        },
+        {
+          "url": "https://slop-scorer.vercel.app/_next/static/immutable/chunks/2corl6wyj4669.js",
+          "bytes": 14377,
           "sourceMappingURL": false,
           "mapReachable": false
         },

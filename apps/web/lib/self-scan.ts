@@ -63,6 +63,8 @@ export interface SelfScan {
   readonly origin: ScanOrigin;
   /** The commit the capture was taken at. Null for a live run, which needs no provenance. */
   readonly commit: string | null;
+  /** Set when the reading predates this deployment, in the words of the build that skipped it. */
+  readonly staleReason?: string;
   /** True when this call rendered the page rather than reusing an earlier reading. */
   readonly fresh: boolean;
 }
@@ -89,6 +91,12 @@ interface CaptureRecord {
   readonly elapsedMs: number;
   readonly artifact: unknown;
   readonly unavailable: { readonly code: string; readonly detail: string } | null;
+  /**
+   * Present when THIS build could not take a reading and kept the previous one. The card
+   * prints it verbatim, because a measurement that is older than the deployment serving it is
+   * still evidence, and only stops being evidence when nobody is told.
+   */
+  readonly staleReason?: string;
 }
 
 const record = capture as CaptureRecord;
@@ -157,6 +165,7 @@ async function scoreCapture(): Promise<SelfScan> {
     }),
     origin: "build-capture",
     commit: record.commit,
+    ...(record.staleReason ? { staleReason: record.staleReason } : {}),
     fresh: false,
   };
 }

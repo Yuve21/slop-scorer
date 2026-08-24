@@ -45,12 +45,15 @@ export function SelfScanCard({
   target,
   commit,
   capturedAt,
+  staleReason,
 }: {
   readonly initial: ScanView;
   readonly ruleTitles: Readonly<Record<string, string>>;
   readonly target: string;
   readonly commit: string | null;
   readonly capturedAt: string;
+  /** Set when the reading predates this deployment. Printed, never hidden. */
+  readonly staleReason?: string;
 }) {
   const [view, setView] = React.useState<ScanView>(initial);
   const [live, setLive] = React.useState(false);
@@ -106,9 +109,13 @@ export function SelfScanCard({
     .filter((id) => !findings.some((f) => f.ruleId === id))
     .slice(0, Math.max(0, ROWS - findings.length));
 
+  // "at build" is dropped when the reading is not this build's. The sentence under the rows
+  // explains why; the label above them must not claim a provenance it does not have.
   const provenance = live
     ? `live run${age ? `, ${age}` : ""}`
-    : `${age ? `captured ${age}` : "captured"} at build${commit ? `, commit ${commit.slice(0, 7)}` : ""}`;
+    : `${age ? `captured ${age}` : "captured"}${staleReason ? "" : " at build"}${
+        commit ? `, commit ${commit.slice(0, 7)}` : ""
+      }`;
 
   return (
     <ReceiptReveal>
@@ -197,6 +204,15 @@ export function SelfScanCard({
               ? "The engine declined to publish a number for this page: everything above came from a single rule family, and one family on its own is a correlated observation rather than corroboration. What was found is still what was found, and it is listed above."
               : (view.abstention[0]?.detail ??
                 "The engine declined to publish a number for this page.")}
+          </p>
+        ) : null}
+
+        {staleReason && !live ? (
+          // The reading is older than the deployment showing it. Said out loud, at the same
+          // size as everything else in the card, because the only thing that makes keeping an
+          // older measurement honest is telling you it is one.
+          <p className="max-w-[72ch] border-t border-hairline px-5 py-4 text-sm text-ink-muted">
+            {staleReason}
           </p>
         ) : null}
 

@@ -102,6 +102,24 @@ describe("the landing fold ships a real reading", () => {
     expect(scanHost("")).toBe("this deployment");
   });
 
+  it("a reading older than the deployment says so, and drops the 'at build' label", async () => {
+    const { view } = await capturedSelfScan();
+    const reason = "This build could not render it, so this reading is from an earlier one.";
+    const html = renderToStaticMarkup(
+      createElement(SelfScanCard, {
+        initial: view,
+        ruleTitles: {},
+        target: "slop-scorer.vercel.app",
+        commit: "0123456789",
+        capturedAt: view.ranAt,
+        staleReason: reason,
+      }),
+    );
+    expect(html).toContain(reason);
+    expect(html).not.toContain("at build");
+    expect(html).toContain("commit 0123456");
+  });
+
   it("an unassessed reading renders its reason, terminally, instead of spinning", () => {
     const abstained = {
       target: "https://slop-scorer.vercel.app",

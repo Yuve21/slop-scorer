@@ -93,6 +93,7 @@ export default async function Home() {
           target={target}
           commit={self.commit}
           capturedAt={self.view.ranAt}
+          staleReason={self.staleReason}
         />
 
         {ownGoal ? (

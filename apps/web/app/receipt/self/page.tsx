@@ -48,7 +48,7 @@ const REPRODUCTION: Reproduction = {
 };
 
 export default async function SelfReceiptPage() {
-  const { view, commit } = await capturedSelfScan();
+  const { view, commit, staleReason } = await capturedSelfScan();
   const ran = view.status !== "not_assessed";
   const when = new Date(view.ranAt).toISOString().replace("T", " ").slice(0, 16);
 
@@ -61,7 +61,9 @@ export default async function SelfReceiptPage() {
         ran
           ? `A real browser rendered this site and read its computed styles on ${when} UTC${
               commit ? `, building commit ${commit.slice(0, 7)}` : ""
-            }, and that render took ${seconds(view.elapsedMs)} seconds. Everything below was measured in it and scored by the corpus this deployment ships. We publish it whether or not it flatters us, because a detector that cannot survive its own test is not worth running.`
+            }, and that render took ${seconds(view.elapsedMs)} seconds. Everything below was measured in it and scored by the corpus this deployment ships. We publish it whether or not it flatters us, because a detector that cannot survive its own test is not worth running.${
+              staleReason ? ` ${staleReason}` : ""
+            }`
           : "The scan of our own page did not produce a publishable read. That is a result about us, and we are showing it rather than the last run that happened to look good. The band below says exactly what did not run."
       }
       view={view}
