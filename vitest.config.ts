@@ -24,6 +24,13 @@ export default defineConfig({
       // copy of its logic. The export endpoint is the legally load-bearing one and it is tested
       // through this door: see apps/web/test/export-route.test.ts.
       "@": r("./apps/web"),
+      // `server-only` is a marker package: under the `react-server` export condition it
+      // resolves to an empty module, and under every other condition it resolves to a module
+      // that THROWS on import. Vitest's node environment does not apply the react-server
+      // condition, so without this line no test can import a Server Component at all, and the
+      // receipt page - the most legally load-bearing surface in the product - would stay
+      // untestable. Mapping it to the package's own `empty.js` is what the RSC compiler does.
+      "server-only": r("./node_modules/server-only/empty.js"),
     },
   },
   test: {

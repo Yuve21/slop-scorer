@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ScanForm } from "@/components/landing/scan-form";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { SAMPLE_IDS } from "@/lib/receipts";
+import { isSampleId } from "@/lib/sample-ids";
 import { absolute } from "@/lib/site";
 
 /**
@@ -63,7 +63,7 @@ export default function ReceiptIndex() {
           The four shapes a report can take, one sample each
         </h2>
         <div className="flex flex-col gap-px bg-hairline">
-          {SHAPES.filter((s) => SAMPLE_IDS.includes(s.id)).map((sample) => (
+          {SHAPES.filter((s) => isSampleId(s.id)).map((sample) => (
             <Link
               key={sample.id}
               href={`/receipt/${sample.id}`}

@@ -3,6 +3,7 @@ import "server-only";
 import { buildReport, makeFinding, notAssessed } from "@slop/core";
 import type { Coverage, DetectorResult, Evidence, Finding, ProbeStatus } from "@slop/core";
 import { PROBE_WEIGHTS, RULE_DESCRIPTORS, ruleById, WEB_DETECTOR_ID } from "@slop/detectors-web";
+import { SAMPLE_IDS } from "./sample-ids";
 import { toScanView } from "./view";
 import type { ScanView } from "./view";
 
@@ -252,7 +253,25 @@ const BUILDERS: Readonly<Record<string, () => SampleReceipt>> = {
   "A05E-13": quietPageWithCounters,
 };
 
-export const SAMPLE_IDS = Object.keys(BUILDERS);
+/**
+ * The id list is owned by `lib/sample-ids.ts`, which is deliberately free of `server-only` and
+ * of every `@slop/*` import so that `generateStaticParams` and the sitemap can read it from a
+ * worker process. This module holds the BUILDERS, and the two are reconciled here rather than
+ * trusted to stay in step: a builder with no id would be an unreachable receipt, and an id with
+ * no builder would be a prerendered 404.
+ */
+{
+  const built = Object.keys(BUILDERS).sort().join(",");
+  const listed = [...SAMPLE_IDS].sort().join(",");
+  if (built !== listed) {
+    throw new Error(
+      `SAMPLE_IDS (${listed}) and the sample receipt builders (${built}) have drifted. ` +
+        `lib/sample-ids.ts owns the list; add or remove the builder to match it.`,
+    );
+  }
+}
+
+export { SAMPLE_IDS };
 
 export function sampleReceipt(id: string): SampleReceipt | null {
   const build = BUILDERS[id];

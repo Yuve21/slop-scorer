@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ReceiptView } from "@/components/receipt/receipt-view";
 import { reproductionFor } from "@/lib/reproduction";
-import { SAMPLE_IDS, sampleReceipt } from "@/lib/receipts";
+import { sampleReceipt } from "@/lib/receipts";
+import { SAMPLE_IDS } from "@/lib/sample-ids";
 import { absolute } from "@/lib/site";
 import { seconds } from "@/lib/view";
 
@@ -15,6 +16,15 @@ import { seconds } from "@/lib/view";
  * system was learned from, where an auth matcher 307'd every unmatched path to sign-in.
  */
 
+/**
+ * Next evaluates this in a worker process of its own, separate from the page render. It must
+ * therefore reach NOTHING that is `server-only`: `lib/receipts.ts` is, because it builds every
+ * sample through the real scoring engine, and importing it here made the id list depend on a
+ * module that throws outside a react-server environment. When that throw happened the worker
+ * died and Next reported only "Jest worker encountered 2 child process exceptions", with every
+ * `[id]` route answering 500 and every route without a `generateStaticParams` unaffected.
+ * `lib/sample-ids.ts` is the list, and it has no imports at all. Keep it that way.
+ */
 export function generateStaticParams() {
   return SAMPLE_IDS.map((id) => ({ id }));
 }

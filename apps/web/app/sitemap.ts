@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SAMPLE_IDS } from "@/lib/receipts";
+import { SAMPLE_IDS } from "@/lib/sample-ids";
 import { absolute } from "@/lib/site";
 
 /**
