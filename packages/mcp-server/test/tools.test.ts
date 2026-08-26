@@ -135,11 +135,15 @@ describe("scan_ui", () => {
 });
 
 describe("list_rules", () => {
-  const listing = listRules();
+  // The full listing. It is opt-in now, because it measures about 18k tokens and this tool's
+  // own instructions ask an agent to call it BEFORE generating anything; see
+  // `list-rules-compact.test.ts` for the price of each shape and for what the default returns.
+  const listing = listRules({ verbose: true });
 
   it("returns every rule in both corpora with its weight and rationale", () => {
-    expect(listing.rules.length).toBe(WEB_RULES.length + CODE_RULES.length);
-    for (const r of listing.rules) {
+    expect(listing.fullEntries.length).toBe(WEB_RULES.length + CODE_RULES.length);
+    expect(listing.index.length).toBe(listing.fullEntries.length);
+    for (const r of listing.fullEntries) {
       expect(r.baseWeight).toBeTypeOf("number");
       expect(r.whyItReadsAsGenerated.length).toBeGreaterThan(40);
       expect(r.counterEvidenceThatWouldRebutIt.length).toBeGreaterThan(30);
@@ -153,20 +157,20 @@ describe("list_rules", () => {
     expect(listing.scoring.note).toMatch(/capped/);
     expect(listing.scoring.note).toMatch(/counter-evidence/);
     expect(listing.scoring.families.length).toBeGreaterThan(6);
-    for (const f of listing.scoring.families) expect(f.caveat.length).toBeGreaterThan(40);
+    for (const f of listing.scoring.families) expect((f.caveat ?? "").length).toBeGreaterThan(40);
   });
 
   it("filters by modality and by family", () => {
-    expect(listRules({ modality: "code" }).rules.every((r) => r.modality === "code")).toBe(true);
-    expect(listRules({ modality: "web" }).rules.every((r) => r.modality === "web")).toBe(true);
-    const family = listRules({ family: "agent-artifact" });
-    expect(family.rules.length).toBeGreaterThan(0);
-    expect(family.rules.every((r) => r.family === "agent-artifact")).toBe(true);
+    expect(listRules({ modality: "code", verbose: true }).fullEntries.every((r) => r.modality === "code")).toBe(true);
+    expect(listRules({ modality: "web", verbose: true }).fullEntries.every((r) => r.modality === "web")).toBe(true);
+    const family = listRules({ family: "agent-artifact", verbose: true });
+    expect(family.fullEntries.length).toBeGreaterThan(0);
+    expect(family.fullEntries.every((r) => r.family === "agent-artifact")).toBe(true);
   });
 
   it("most rules carry a prevention hint, which is the payload an agent can act on", () => {
-    const withPrevention = listing.rules.filter((r) => r.prevention);
-    expect(withPrevention.length / listing.rules.length).toBeGreaterThan(0.6);
+    const withPrevention = listing.fullEntries.filter((r) => r.prevention);
+    expect(withPrevention.length / listing.fullEntries.length).toBeGreaterThan(0.6);
   });
 });
 
@@ -193,9 +197,19 @@ describe("the server itself", () => {
       expect(tool.description?.length ?? 0, `${tool.name} has a thin description`).toBeGreaterThan(120);
     }
 
+    // Over the wire, in the shape an agent actually receives: the index is the complete
+    // membership list and the full entries are opt-in.
     const rules = await client.callTool({ name: "list_rules", arguments: { modality: "code" } });
-    const structured = rules.structuredContent as { rules: unknown[] } | undefined;
-    expect(structured?.rules.length).toBe(CODE_RULES.length);
+    const structured = rules.structuredContent as { index: unknown[]; fullEntries: unknown[] } | undefined;
+    expect(structured?.index.length).toBe(CODE_RULES.length);
+    expect(structured?.fullEntries.length).toBe(0);
+
+    const verbose = await client.callTool({
+      name: "list_rules",
+      arguments: { modality: "code", verbose: true },
+    });
+    const full = verbose.structuredContent as { fullEntries: unknown[] } | undefined;
+    expect(full?.fullEntries.length).toBe(CODE_RULES.length);
 
     await client.close();
     await server.close();

@@ -102,8 +102,8 @@ export interface ListRulesArgs {
   readonly ruleIds?: readonly string[];
 }
 
-/** What every listed rule carries: enough to know it exists, what it costs and roughly why. */
-export interface CompactRule {
+/** The full entry for one rule: everything the corpus holds about it. */
+export interface FullRule {
   readonly id: string;
   readonly modality: string;
   readonly family: string;
@@ -112,10 +112,6 @@ export interface CompactRule {
   readonly polarity: string;
   /** One line. The rule's own title, which is written as a sentence about the artifact. */
   readonly rationale: string;
-}
-
-/** The full entry, including the two things that make a finding arguable. */
-export interface FullRule extends CompactRule {
   readonly since: string;
   readonly whyItReadsAsGenerated: string;
   readonly counterEvidenceThatWouldRebutIt: string;
@@ -136,7 +132,16 @@ export interface RulesListing {
   };
   /** How to get what this response left out. Present on every response, verbose included. */
   readonly retrieval: string;
-  readonly rules: readonly (CompactRule | FullRule)[];
+  /** How to read a line of `index`. Present whenever `index` is, so the format is never guessed. */
+  readonly indexFormat: string;
+  /**
+   * EVERY rule the filters selected, one line each. This is the complete membership list, and
+   * it is a line of text rather than an object because the per-key overhead of ninety small
+   * JSON objects was two thirds of the payload.
+   */
+  readonly index: readonly string[];
+  /** Full entries: all of them under `verbose`, the named ones under `ruleIds`, else none. */
+  readonly fullEntries: readonly FullRule[];
 }
 
 /**
@@ -148,11 +153,17 @@ export interface RulesListing {
  * so the prevention half of this product was priced out of the loop it exists for. The compact
  * form is under a tenth of it.
  *
- * NOTHING IS LOST, IT MOVED. `verbose: true` returns exactly what this function used to return,
- * and `ruleIds: [...]` returns the full entry for named rules while the rest stay compact —
- * which is the shape an agent actually needs after a scan: it has five rule ids and wants the
- * rebuttal and the prevention note for those five. Every response says so in `retrieval`, so an
- * agent that read only the compact form still knows the rest is one call away.
+ * NOTHING IS LOST, IT MOVED. `index` is the complete membership list on every response, so no
+ * rule is ever invisible. `verbose: true` returns every full entry, and `ruleIds: [...]` returns
+ * the full entries for named rules only — which is the shape an agent actually needs after a
+ * scan: it has five rule ids and wants the rebuttal and the prevention note for those five.
+ * Every response says so in `retrieval`, so an agent that read only the index still knows the
+ * rest is one call away.
+ *
+ * WHY `index` IS TEXT AND NOT OBJECTS. Ninety small JSON objects spend two thirds of their bytes
+ * on repeated key names and pretty-printed braces. Measured: 5,176 tokens as objects, 2,753 as
+ * one line per rule. `indexFormat` ships with it so the layout is documented rather than
+ * guessed, and `fullEntries` is structured, because that is the half a program parses.
  *
  * The two fields the full entry adds are the two that make a finding arguable: the counter-
  * evidence that would rebut the rule, and how to avoid producing it. They are the most valuable
@@ -167,8 +178,27 @@ export function listRules(args: ListRulesArgs = {}): RulesListing {
     { modality: "code" as const, detectorId: CODE_DETECTOR_ID, corpusVersion: codeDetector.corpusVersion, rules: CODE_RULE_DESCRIPTORS },
   ].filter((s) => modality === "all" || s.modality === modality);
 
-  const families = [...DEFAULT_CONFIG.families, ...CODE_CONFIG.families]
-    .filter((f, i, all) => all.findIndex((x) => x.id === f.id && x.title === f.title) === i);
+  const families = [...DEFAULT_CONFIG.families, ...CODE_CONFIG.families].filter(
+    (f, i, all) => all.findIndex((x) => x.id === f.id && x.title === f.title) === i,
+  );
+
+  const selected = sets
+    .flatMap((s) => s.rules.map((r) => ({ ...r, modality: s.modality })))
+    .filter((r) => !args.family || r.family === args.family);
+
+  const full = (r: (typeof selected)[number]): FullRule => ({
+    id: r.id,
+    modality: r.modality,
+    family: r.family,
+    severity: r.severity,
+    baseWeight: r.baseWeight,
+    polarity: r.polarity,
+    rationale: r.title,
+    since: r.since,
+    whyItReadsAsGenerated: r.explanation,
+    counterEvidenceThatWouldRebutIt: r.falsePositiveNote,
+    ...(r.prevention ? { prevention: r.prevention } : {}),
+  });
 
   return {
     corpora: sets.map((s) => ({ detectorId: s.detectorId, modality: s.modality, corpusVersion: s.corpusVersion })),
@@ -183,33 +213,17 @@ export function listRules(args: ListRulesArgs = {}): RulesListing {
       ),
     },
     retrieval:
-      "Rules are listed compactly by default. For the full entry on a rule - the counter-evidence " +
-      "that would rebut it, and how to avoid producing it - call this tool again with " +
-      "ruleIds:[\"rule.id\", ...] for the ones you need, or verbose:true for all of them. " +
-      "verbose:true over the whole corpus is roughly 15,800 tokens; the compact form is about a " +
-      "tenth of that. Family caveats are returned with verbose:true.",
-    rules: sets
-      .flatMap((s) => s.rules.map((r) => ({ ...r, modality: s.modality })))
-      .filter((r) => !args.family || r.family === args.family)
-      .map((r) => {
-        const compact: CompactRule = {
-          id: r.id,
-          modality: r.modality,
-          family: r.family,
-          severity: r.severity,
-          baseWeight: r.baseWeight,
-          polarity: r.polarity,
-          rationale: r.title,
-        };
-        if (!verbose && !named.has(r.id)) return compact;
-        return {
-          ...compact,
-          since: r.since,
-          whyItReadsAsGenerated: r.explanation,
-          counterEvidenceThatWouldRebutIt: r.falsePositiveNote,
-          ...(r.prevention ? { prevention: r.prevention } : {}),
-        } satisfies FullRule;
-      }),
+      "`index` is the complete rule list, one line each, and is always present. `fullEntries` " +
+      "carries the rest of what the corpus holds about a rule - why it reads as machine-generated, " +
+      "the counter-evidence that would rebut it, and how to avoid producing it - for the rules you " +
+      "ask for: call again with ruleIds:[\"rule.id\", ...] for the ones a scan cited, or " +
+      "verbose:true for all of them plus the per-family caveats. verbose:true over the whole " +
+      "corpus is roughly 18k tokens; this default is roughly 2.8k.",
+    indexFormat: "id | family | polarity/severity | weight | one-line rationale",
+    index: selected.map(
+      (r) => `${r.id} | ${r.family} | ${r.polarity}/${r.severity} | ${r.baseWeight} | ${r.title}`,
+    ),
+    fullEntries: verbose ? selected.map(full) : selected.filter((r) => named.has(r.id)).map(full),
   };
 }
 
@@ -220,7 +234,7 @@ export function createServer(): McpServer {
     {
       instructions:
         "Deterministic, evidence-cited detection of template and machine-generated tells in code and rendered web pages, and the loop that closes on them: scan -> propose_fixes -> apply the edits yourself -> verify_fix. " +
-        "Call list_rules BEFORE generating code or UI to learn what not to produce; that is the primary use, and its default compact form is about 1.5k tokens so it is cheap to call speculatively. After a scan, call it again with ruleIds:[...] for the rules that fired, which returns their rebuttal and how to avoid producing them. " +
+        "Call list_rules BEFORE generating code or UI to learn what not to produce; that is the primary use, and its default compact form is about 2.8k tokens so it is cheap to call speculatively. After a scan, call it again with ruleIds:[...] for the rules that fired, which returns their rebuttal and how to avoid producing them. " +
         "After a scan, offer to act on it: propose_fixes returns precise, caveated edits and this server never writes anything, so apply them with your own editing tools under the user's normal approval flow, then call verify_fix to see which findings are no longer present. " +
         "Every finding carries a file and line or a CSS selector you can go and check. " +
         "Results are bounded at 99 and can be inconclusive or not_assessed; always branch on `status` before reading `score`. " +
@@ -276,7 +290,7 @@ export function createServer(): McpServer {
     {
       title: "List the rule corpus: compact by default, full detail on request",
       description:
-        "Returns every rule in both corpora. COMPACT BY DEFAULT - id, modality, family, severity, weight, polarity and a one-line rationale - which is roughly 1.5k tokens and is meant to be called speculatively BEFORE writing code or building a UI. For the full entry on a rule, including why it reads as machine-generated, the counter-evidence that would rebut it and how to avoid producing it, pass ruleIds:[...] for the ones you care about (the usual case after a scan) or verbose:true for all of them (roughly 15.8k tokens). Nothing is lost in the compact form; it is retrievable rather than resident, and every response says so in its `retrieval` field. This is the prevention half of the product and the reason the plugin exists: a corpus you can read is worth more than a score you cannot argue with.",
+        "Returns every rule in both corpora. COMPACT BY DEFAULT: `index` lists every rule on one line each - id, family, polarity/severity, weight and a one-line rationale - which is roughly 2.8k tokens and is meant to be called speculatively BEFORE writing code or building a UI. For the rest of what the corpus holds about a rule (why it reads as machine-generated, the counter-evidence that would rebut it, how to avoid producing it) pass ruleIds:[...] for the ones you care about, which is the usual case after a scan, or verbose:true for all of them at roughly 18k tokens. Nothing is lost in the compact form: it is retrievable rather than resident, and every response says how in its `retrieval` field. This is the prevention half of the product and the reason the plugin exists: a corpus you can read is worth more than a score you cannot argue with.",
       inputSchema: {
         modality: z.enum(["web", "code", "all"]).optional().describe("Restrict to one corpus. Default all."),
         family: z.string().optional().describe("Restrict to one rule family, e.g. 'agent-artifact'."),
@@ -284,7 +298,7 @@ export function createServer(): McpServer {
           .boolean()
           .optional()
           .describe(
-            "Full entry for every rule returned, including rebuttal and prevention. Roughly 15.8k tokens over the whole corpus, so prefer ruleIds unless you genuinely want all of it.",
+            "Full entry for every rule returned, including rebuttal and prevention. Roughly 18k tokens over the whole corpus, so prefer ruleIds unless you genuinely want all of it.",
           ),
         ruleIds: z
           .array(z.string())
