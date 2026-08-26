@@ -30,8 +30,10 @@ export {
   IJG_LUMA_REFERENCE_SUM,
   IJG_LUMA_TABLE,
   indexOfAscii,
+  inflateBounded,
   inspectContainer,
   latin1,
+  MAX_METADATA_INFLATE_BYTES,
   parseIsoBmff,
   parseJpeg,
   parseMpegAudio,
@@ -44,21 +46,32 @@ export {
   utf8,
 } from "./container/index.js";
 
-export type { C2paAction, C2paManifest, C2paRecord, C2paState, DigitalSourceType } from "./c2pa.js";
+export type { C2paAction, C2paManifest, C2paRecord, C2paState, DigitalSourceKind, DigitalSourceType } from "./c2pa.js";
 export {
   ABSENCE_IS_NOT_EVIDENCE,
   absenceIsNotEvidence,
   BROKEN_MANIFEST_IS_NOT_EVIDENCE,
+  CAPTURE_SOURCE_TYPES,
   declaredCapture,
   declaredTrainedAlgorithmic,
+  DIGITAL_SOURCE_KINDS,
   DIGITAL_SOURCE_TYPES,
   digitalSourceTypeOf,
+  kindOfDigitalSourceType,
   locatedManifest,
   mayContributeGenerationEvidence,
   NO_MANIFEST,
   rejectedManifest,
   verifiedManifest,
 } from "./c2pa.js";
+
+export type { IptcConcept } from "./iptc-vocabulary.js";
+export {
+  IPTC_DIGITAL_SOURCE_TYPE_CONCEPTS,
+  IPTC_SCHEME_MODIFIED,
+  IPTC_SCHEME_URI,
+  IPTC_SNAPSHOT_RETRIEVED,
+} from "./iptc-vocabulary.js";
 
 export type { MetadataField, MetadataRecord } from "./metadata.js";
 export { EMPTY_METADATA, readMetadata } from "./metadata.js";

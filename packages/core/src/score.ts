@@ -456,6 +456,22 @@ export function buildReport(
         .join(", ")}. Every rule below them failed to fire for a reason that has nothing to do with the artifact.`,
     });
   }
+  // A probe that ran, collected something, and could not read part of the artifact. This is
+  // the SAME failure as the one above wearing different clothes, and it is the one a
+  // denominator cannot express: the count came back non-zero, so nothing looked wrong, while
+  // a region of the artifact went unread and every "we found nothing there" below it was
+  // reached without looking. It must never be answered with a quietly lower coverage number
+  // and no other trace, because a confident negative over an unread region is a fabricated
+  // finding, and this product's entire value is that a finding can be trusted.
+  const partialProbes = coverage.probes.filter((p) => p.ran && p.complete === false);
+  if (partialProbes.length > 0) {
+    abstention.push({
+      code: "probe_failed",
+      detail: `${partialProbes.length} probe(s) ran and could not read part of what they were pointed at: ${partialProbes
+        .map((p) => p.id)
+        .join(", ")}. What was not read cannot be reported as absent, so the number is withheld rather than computed over the part that happened to parse.`,
+    });
+  }
   if (familiesFired < config.minFamiliesFired && computedScore >= config.minFamiliesAppliesAtOrAbove) {
     abstention.push({
       code: "single_family_only",

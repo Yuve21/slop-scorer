@@ -128,6 +128,18 @@ founder's idea addresses, and it is a licensing and logistics gap rather than a 
 
 These are findings, not proposals. Each was produced by running code.
 
+> **Status, 2026-08-26, added after the repair pass.** 2.1 and 2.2 are FIXED, in the commit "A
+> parser that cannot read a chunk now says so to somebody who is listening", with the measurements
+> re-run before and after. See LEARNINGS L-16, L-17, L-18 and L-19. Two corrections to what is
+> written below, both found by re-measuring rather than trusting the write-up. First, compressed
+> `iTXt` fails identically to `zTXt` and section 2.1 measured only `zTXt`; the same defect also had
+> two instances in `mpeg-audio.ts` and one more in the PNG XMP branch, four in total (L-18). Second,
+> `digitalArt` and `minorHumanEdits` are RETIRED IPTC concepts, not terms absent from the
+> vocabulary, so the "unresolved" line in 2.2 is answered: keeping them is correct, and the earlier
+> count had compared against the active half of a three-state list (L-17). Section 2.3 and every
+> candidate rule in section 5 remain untouched: candidates enter only through the reviewed
+> promotion path in section 6, never through a repair.
+
 ### 2.1 A compressed PNG text chunk is invisible, and the file reports full coverage
 
 **MEASURED.** Two PNGs, identical AUTOMATIC1111 parameter strings, differing only in whether the text

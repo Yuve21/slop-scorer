@@ -173,6 +173,13 @@ export function analyzeMedia<A extends MediaArtifact, P extends string>(
  *
  * A probe declared `expectsNonEmpty` that collected nothing counts as ZERO, which is what
  * stops an unrecognised container from reading as a file with no declarations in it.
+ *
+ * So does a probe that reports `complete: false`, and that is the second half of the same
+ * idea. A count of things collected cannot express "there was a region I could not read":
+ * a PNG whose compressed text chunk failed to decompress produced four container segments
+ * and zero metadata fields, and reported coverage 1.0, exactly like a PNG that genuinely
+ * carries no metadata (LEARNINGS L-16). Coverage has to mean what was READ, or it means
+ * nothing at all.
  */
 export function coverageOfMedia(
   artifact: MediaArtifact,
@@ -183,10 +190,12 @@ export function coverageOfMedia(
   const examined: string[] = [];
   for (const id of Object.keys(weights)) {
     const p = artifact.probes.find((x) => x.id === id);
-    const ok = !!p && p.ran && (!p.expectsNonEmpty || (p.denominator ?? 0) > 0);
+    const ok = !!p && p.ran && p.complete !== false && (!p.expectsNonEmpty || (p.denominator ?? 0) > 0);
     if (ok) {
       got += weights[id] ?? 0;
       examined.push(`${id}(${p?.denominator ?? 0})`);
+    } else if (p?.complete === false) {
+      examined.push(`${id}(partial)`);
     }
   }
   return {

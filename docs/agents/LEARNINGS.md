@@ -36,8 +36,10 @@ moment they were needed.
 - **L-13** Writing the privacy gate's own pattern reproduced the defect it exists to catch, three times, and the count went 7 to 18 to 21
 - **L-14** One try/catch covering two failure modes made the privacy guard's throw unreachable, inside the privacy mechanism, on the day it was written
 - **L-15** The publish gate printed "leak audit clean" over a mirror missing a whole file, because it was sound and not complete
-- **L-16** A compressed PNG text chunk is unread, uncounted and reported as full coverage, and the unread chunk then mints a false citation. **OPEN**
-- **L-17** The IPTC vocabulary enumeration can express 5 of 17 published terms, and the two it cannot express that matter point in opposite directions. **OPEN**
+- **L-16** A compressed PNG text chunk is unread, uncounted and reported as full coverage, and the unread chunk then mints a false citation. **FIXED**
+- **L-17** The IPTC vocabulary enumeration can express 5 of 17 published terms, and the two it cannot express that matter point in opposite directions. **FIXED**
+- **L-18** The unread-region defect had three more instances, and the loudest one manufactured a value rather than a silence
+- **L-19** A mutation aimed at a type is invisible to a runtime suite, so every mutation must name the gate that is supposed to catch it
 
 **Shipping, packaging and the public projection**
 
@@ -54,7 +56,7 @@ moment they were needed.
 - **L-08** Two probe tables for one detector state opposite policies, and nothing compares them. **OPEN**
 - **L-09** A claim guard handed attacker-controlled bytes throws on the honest path
 
-_17 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
+_19 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
 
 <!-- END GENERATED INDEX -->
 
@@ -253,8 +255,22 @@ Inventing one is worse than an empty line, because this file is read before acti
   variants in the wild. Three of the corpus's eleven generator signatures live in PNG text chunks.
 - **Confidence:** high on the defect (reproduced by execution, both branches). Medium on the
   prevalence, which is a search-summary claim and needs a real file.
-- **Status:** OPEN. Design written up in `docs/CORPUS-STUDY-GENERATOR-ARTIFACTS.md` section 2.1 as
-  repairs R1 and R2.
+- **Status:** FIXED, commit "A parser that cannot read a chunk now says so to somebody who is
+  listening". Verified by execution 2026-08-26, on the same four files that produced the table
+  above: `tEXt`, `zTXt`, uncompressed `iTXt` and compressed `iTXt` now all produce coverage 1,
+  metadata probe 1, `prov.sidecar-declares-generative-tool` fired, `parseErrors: []` and
+  laundering 0.3. Identical rows, four carriers.
+  Three parts, and all three were needed: `container/inflate.ts` inflates with zlib's own
+  `maxOutputLength` so the bound is enforced DURING inflation; `container/png.ts` reads `zTXt`
+  and compressed `iTXt` and returns a REASON rather than a null when it cannot; `artifact.ts`
+  sets `complete: false` on the container and metadata probes when `parseErrors` is non-empty,
+  which `analyze.ts` removes from the coverage ratio and `core/src/score.ts` turns into a
+  `probe_failed` abstention. Measured on a file whose chunk genuinely cannot be read: coverage
+  1 -> 0.5, status `inconclusive`, score withheld. And `reencode.ts` can no longer assert an
+  absence it merely failed to read: the `lossless_resave` gate now requires an empty
+  `parseErrors` AND zero metadata-bearing chunks, and its observed value is COUNTED off the
+  segments walked rather than being a fixed sentence (which did not even name `zTXt`).
+  Ten mutations, each run, each red, each reverted; the table is in the two test files.
 - **Next time:** this is the disqualifying class, shape 4, in a third subsystem, and L-05 and L-13 are
   its siblings. The general form: **a parser that can say "I could not read this" must have somebody
   listening.** Ask of every error list in the tree what consumes it, and if the answer is nothing, the
@@ -286,7 +302,27 @@ Inventing one is worse than an empty line, because this file is read before acti
 - **Confidence:** high on the enumeration gap (measured, both directions). **NOT VERIFIED:** whether
   anything actually writes `computationalCapture` or `screenCapture` in the field. That determines how
   often it bites and needs real files, not a vocabulary page. Do not quote a prevalence.
-- **Status:** OPEN. Repair R3 in `docs/CORPUS-STUDY-GENERATOR-ARTIFACTS.md`.
+- **Status:** FIXED, same commit. `packages/provenance/src/iptc-vocabulary.ts` vendors the
+  published scheme as DATA (20 concepts, 17 active and 3 retired, scheme last modified
+  2024-10-23, retrieved 2026-08-26 from the scheme's HTML and JSON views, which agreed), and
+  `c2pa.ts` now expresses all 20 plus the `unknown` sentinel, each classified by a total
+  `Record` so the compiler refuses a term nobody classified. `computationalCapture` reaches the
+  -2.2 capture counter and `screenCapture` reaches the laundering gate, which are the two gaps.
+- **The earlier measurement was wrong in one direction, and the correction matters.** The study
+  reported `digitalArt` and `minorHumanEdits` as terms we name that IPTC does not define, and
+  left it "unresolved". They are RETIRED concepts, not absent ones (with `softwareImage`, which
+  we never had). So keeping them is correct: a file written while they were current still says
+  them, and dropping them for tidiness would have gone blind on exactly those files. The
+  earlier measurement had counted only the ACTIVE list. **A vocabulary has three states, not
+  two, and comparing against the active half reads a retired term as an invention.**
+- **The check is two independent lists plus a third statement, on purpose.** Our list and the
+  vendored snapshot are written in different files for different purposes and neither derives
+  from the other, so comparing them is a real comparison rather than `arr.map(f).length ===
+  arr.length`. The test adds absolute counts and specific ids taken from the STANDARD, so
+  shrinking both lists together is still caught. Mutations M11 to M14 prove each direction
+  fails on its own. What it CANNOT do, and the file says so rather than letting a reader
+  assume: it cannot tell you the snapshot is current, because nothing here makes a network
+  request. Refreshing it is a manual step against the scheme URI.
 - **Next time:** L-13's rule applies to a hand-written ENUM and not only to a regex. **An enumeration
   is a hypothesis about your input.** When the input's vocabulary is published by somebody else, count
   theirs against yours and report the delta, in BOTH directions: the terms you cannot express, and the
@@ -294,6 +330,57 @@ Inventing one is worse than an empty line, because this file is read before acti
   copied from a draft. And when auditing a partial enumeration, sort the missing members by which
   POLARITY they would have fed, because a gap on the counter side and a gap on the signal side are
   opposite bugs wearing the same clothes.
+
+### L-18 · 2026-08-26 · The unread-region defect had three more instances, and the loudest one manufactured a value rather than a silence
+- **Claim:** fixing `zTXt` in isolation would have fixed one instance of a class that had four
+  members in this repository, and the worst of them did not go quiet, it INVENTED a value.
+- **Evidence:** found by asking the pattern question of every container that allows compressed
+  or version-dependent metadata, not by grepping for "zTXt".
+  1. **Compressed `iTXt` in PNG.** Same defect, same file, not named by the study, which
+     measured only `zTXt`. Reproduced before the fix: `parseErrors: ["text chunk \"iTXt\" ...
+     was compressed and was not decompressed"]`, nothing fired, coverage 1.
+  2. **ID3v2 compressed frames**, `container/mpeg-audio.ts`. The frame walk did `r.skip(2)`
+     over the flag bytes, so a frame carrying the compression bit was decoded as though its
+     zlib stream were text and the mojibake was STORED as the value of `TSSE`, which is the
+     field `gen.lavf-transcode` and `gen.elevenlabs-tsse` are anchored against, and which this
+     same file then compares against the frame-header encoder to detect a conflict. A silence
+     is a missing finding. A manufactured value is a finding about noise.
+  3. **ID3v2.4 frame sizes.** The same walk read the size as a plain 32-bit integer for every
+     version, and v2.4 sizes are SYNCSAFE, so every v2.4 frame of 128 bytes or more was
+     mis-sized and walked the cursor into the middle of the tag. Pinned by a test with a
+     200-character `TSSE`, which is red under the old read.
+  4. **XMP inside a compressed `iTXt`.** The XMP branch published `utf8(data)` of the raw
+     chunk, so a compressed XMP packet handed every metadata regex a payload of deflate noise.
+- **Confidence:** high (each reproduced by execution, each pinned by a test with a named
+  mutation: M2, M4, M5 and the XMP case in `compressed-metadata.test.ts`).
+- **Status:** FIXED in the same commit as L-16.
+- **Next time:** the pattern question that found all three was not "where else does the string
+  zTXt appear". It was **"which other parser in this tree reads a field whose meaning depends
+  on a flag or a version byte it currently skips?"** A skipped flag is an unexpressed branch,
+  and an unexpressed branch in a parser is L-05's dead rule wearing different clothes. And rank
+  the instances by what they produce: an instance that manufactures a value outranks one that
+  produces silence, because silence lowers a score and nobody complains, while a manufactured
+  value is cited on the face of a report.
+
+### L-19 · 2026-08-26 · A mutation aimed at a type is invisible to a runtime suite, so every mutation must name the gate that is supposed to catch it
+- **Claim:** one of fourteen mutations in this run stayed GREEN, and the reason was not a hole
+  in the test. The mutation had been aimed at an artifact the test suite cannot see.
+- **Evidence:** M11 deleted `| "computationalCapture"` from the `DigitalSourceType` UNION in
+  `packages/provenance/src/c2pa.ts` and left the runtime array intact. `npx vitest run` stayed
+  green over all 9 cases, because vitest runs no typechecker. `npm run typecheck` on the same
+  mutation produced **two** errors (`c2pa.ts(76,3)` and `c2pa.ts(137,3)`), so the mutation is
+  caught by the gate chain, one step earlier than the one being exercised. The runtime-visible
+  version of the same edit, deleting `"computationalCapture",` from the ARRAY, turned 5 of 9
+  cases red. The other thirteen mutations were red in the suite they targeted.
+- **Confidence:** high (all three runs measured: green under vitest, two errors under tsc, five
+  failures under vitest for the array form).
+- **Status:** FIXED as a practice, recorded here.
+- **Next time:** **name the gate before running the mutation.** "This edit should turn X red" is
+  half a claim; the other half is which gate X is. A mutation that survives is a finding only
+  after you have checked whether it was aimed at something the gate reads. Two lists in one
+  file that only the COMPILER reconciles is a legitimate arrangement and is stronger than a
+  test, and this run has three of them: the union against the array, and the total `Record`
+  against both.
 
 ---
 

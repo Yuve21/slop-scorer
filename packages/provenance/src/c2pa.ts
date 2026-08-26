@@ -49,25 +49,130 @@ export type C2paState =
  * That is a completely different object from a classifier's opinion.
  */
 export type DigitalSourceType =
-  | "trainedAlgorithmicMedia"
-  | "compositeWithTrainedAlgorithmicMedia"
-  | "algorithmicMedia"
   | "digitalCapture"
-  | "digitalArt"
-  | "composite"
+  | "computationalCapture"
+  | "negativeFilm"
+  | "positiveFilm"
+  | "print"
   | "minorHumanEdits"
+  | "humanEdits"
+  | "algorithmicallyEnhanced"
+  | "softwareImage"
+  | "digitalArt"
+  | "digitalCreation"
+  | "dataDrivenMedia"
+  | "trainedAlgorithmicMedia"
+  | "algorithmicMedia"
+  | "screenCapture"
+  | "virtualRecording"
+  | "composite"
+  | "compositeCapture"
+  | "compositeSynthetic"
+  | "compositeWithTrainedAlgorithmicMedia"
+  /** Sentinel. Not an IPTC term: it is what we say when the file said something we cannot name. */
   | "unknown";
 
 export const DIGITAL_SOURCE_TYPES: readonly DigitalSourceType[] = [
-  "trainedAlgorithmicMedia",
-  "compositeWithTrainedAlgorithmicMedia",
-  "algorithmicMedia",
   "digitalCapture",
-  "digitalArt",
-  "composite",
+  "computationalCapture",
+  "negativeFilm",
+  "positiveFilm",
+  "print",
   "minorHumanEdits",
+  "humanEdits",
+  "algorithmicallyEnhanced",
+  "softwareImage",
+  "digitalArt",
+  "digitalCreation",
+  "dataDrivenMedia",
+  "trainedAlgorithmicMedia",
+  "algorithmicMedia",
+  "screenCapture",
+  "virtualRecording",
+  "composite",
+  "compositeCapture",
+  "compositeSynthetic",
+  "compositeWithTrainedAlgorithmicMedia",
   "unknown",
 ];
+
+/**
+ * What a term argues ABOUT AN ARTIFACT, which is the only reason this package enumerates the
+ * vocabulary at all.
+ *
+ * Written as a total Record so the compiler refuses a term added to the union without a
+ * classification. A term nobody classified would decode successfully and then be handled by
+ * no branch, which is `unknown` again with extra steps.
+ *
+ * Nothing here automatically feeds a scoring rule. Each rule names the kinds it reads, in its
+ * own `detect`, so widening this vocabulary can never quietly widen what a signal rule fires
+ * on. That is deliberate: the enumeration is a reading of the file, and a rule is a judgement
+ * about the reading, and those two must not be the same list.
+ */
+export type DigitalSourceKind =
+  /** A device recorded the world. The strongest thing a file can say in its own defence. */
+  | "capture"
+  /** An analogue original was digitised: film, a print. A capture at one remove. */
+  | "analogue-original"
+  /** A person edited something that already existed. */
+  | "human-edit"
+  /** Machine-produced, without a trained model in the chain (procedural, data-driven). */
+  | "algorithmic"
+  /** Machine-produced BY a trained model. The declaration this product is built to read. */
+  | "trained-algorithmic"
+  /** Assembled from several sources, whose own origins the term does not settle. */
+  | "composite"
+  /** A recording of already-rendered pixels. Says nothing about what was rendered. */
+  | "screen-capture"
+  /** Recorded inside a synthetic environment: a game, a simulation, a virtual set. */
+  | "virtual"
+  /** The sentinel. */
+  | "unknown";
+
+export const DIGITAL_SOURCE_KINDS: Readonly<Record<DigitalSourceType, DigitalSourceKind>> = {
+  digitalCapture: "capture",
+  // The repair L-17 names. `computationalCapture` is a photograph a modern phone took: many
+  // frames, fused computationally, and still a recording of the world. It belongs with
+  // `digitalCapture` and it used to decode to `unknown`, which killed the -2.2 counter and so
+  // RAISED the score of an honest pipeline that declared itself.
+  computationalCapture: "capture",
+  negativeFilm: "analogue-original",
+  positiveFilm: "analogue-original",
+  print: "analogue-original",
+  minorHumanEdits: "human-edit",
+  humanEdits: "human-edit",
+  algorithmicallyEnhanced: "human-edit",
+  softwareImage: "algorithmic",
+  digitalArt: "human-edit",
+  digitalCreation: "algorithmic",
+  dataDrivenMedia: "algorithmic",
+  trainedAlgorithmicMedia: "trained-algorithmic",
+  algorithmicMedia: "algorithmic",
+  screenCapture: "screen-capture",
+  virtualRecording: "virtual",
+  composite: "composite",
+  compositeCapture: "composite",
+  compositeSynthetic: "composite",
+  compositeWithTrainedAlgorithmicMedia: "trained-algorithmic",
+  unknown: "unknown",
+};
+
+export const kindOfDigitalSourceType = (t: DigitalSourceType): DigitalSourceKind => DIGITAL_SOURCE_KINDS[t];
+
+/**
+ * The terms that mean "a device recorded the world", and therefore the terms the capture
+ * counter reads.
+ *
+ * `analogue-original` is deliberately NOT in here, and the omission is a decision rather than
+ * an oversight. A film scan is excellent counter-evidence on its face, but the counter rule's
+ * published explanation is about a signed chain of custody back to a CAPTURE DEVICE, and
+ * widening the set without rewriting the rule would make the rule's own published rationale
+ * false. Widening it is a corpus-steward question with a false-positive-hunter second read,
+ * not a parser question, so it is recorded here and left alone.
+ */
+export const CAPTURE_SOURCE_TYPES: readonly DigitalSourceType[] = DIGITAL_SOURCE_TYPES.filter(
+  (t) => DIGITAL_SOURCE_KINDS[t] === "capture",
+);
 
 /** Normalise the IPTC URI form to the bare term. Unknown values stay unknown, not guessed. */
 export function digitalSourceTypeOf(value: string | undefined): DigitalSourceType {
@@ -204,7 +309,14 @@ export function declaredTrainedAlgorithmic(manifest: C2paManifest): readonly C2p
   });
 }
 
-/** Does a verified manifest declare an ordinary camera capture? Counter-evidence, when so. */
+/**
+ * Does a verified manifest declare an ordinary camera capture? Counter-evidence, when so.
+ *
+ * Reads the capture KIND rather than the single term `digitalCapture`, which is the L-17
+ * repair: `computationalCapture` decoded to `unknown` and could not reach this counter at
+ * all, so a phone declaring honestly how it fused its frames lost -2.2 of exoneration and
+ * scored HIGHER for it.
+ */
 export function declaredCapture(manifest: C2paManifest): readonly C2paAction[] {
-  return manifest.actions.filter((a) => digitalSourceTypeOf(a.digitalSourceType) === "digitalCapture");
+  return manifest.actions.filter((a) => kindOfDigitalSourceType(digitalSourceTypeOf(a.digitalSourceType)) === "capture");
 }

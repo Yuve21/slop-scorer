@@ -54,6 +54,8 @@ export { sameWriter } from "./mpeg-audio.js";
 export { estimateQuality, IJG_LUMA_REFERENCE_SUM, IJG_LUMA_TABLE, readExifStrings } from "./jpeg.js";
 export { crc32, PNG_SIGNATURE } from "./png.js";
 export { at, clip, indexOfAscii, latin1, Reader, utf8 } from "./bytes.js";
+export { inflateBounded, MAX_METADATA_INFLATE_BYTES } from "./inflate.js";
+export type { Inflated } from "./inflate.js";
 export type {
   ContainerFormat,
   ContainerRecord,

@@ -13,6 +13,7 @@
  */
 
 import { at, clip, latin1, Reader, TruncatedError, utf8 } from "./bytes.js";
+import { inflateBounded } from "./inflate.js";
 import type { ContainerRecord, EncoderRecord, MetadataPayload, SegmentRecord } from "./types.js";
 
 const BITRATES_V1L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
@@ -34,7 +35,7 @@ export function parseMpegAudio(bytes: Uint8Array): ContainerRecord {
       const size = syncSafe(bytes, 6);
       const end = Math.min(bytes.length, 10 + size);
       segments.push({ name: "ID3v2", offset: 0, length: end, summary: `${size} bytes of tag` });
-      readId3Frames(bytes.subarray(10, end), id3Fields, parseErrors);
+      readId3Frames(bytes.subarray(10, end), id3Fields, parseErrors, bytes[3] ?? 0);
       payloads.push({ kind: "id3", offset: 0, length: end, text: "", fields: id3Fields });
       const tsse = id3Fields["TSSE"];
       if (tsse) encoder = { field: "ID3v2:TSSE", value: tsse, offset: 0 };
@@ -179,16 +180,74 @@ function indexOf(bytes: Uint8Array, needle: string, from: number, to: number): n
 const syncSafe = (bytes: Uint8Array, offset: number): number =>
   ((bytes[offset]! & 0x7f) << 21) | ((bytes[offset + 1]! & 0x7f) << 14) | ((bytes[offset + 2]! & 0x7f) << 7) | (bytes[offset + 3]! & 0x7f);
 
-function readId3Frames(body: Uint8Array, out: Record<string, string>, parseErrors: string[]): void {
+/**
+ * Walk the ID3v2 frames, INCLUDING the ones the specification allows to be compressed.
+ *
+ * This is PNG `zTXt`'s sibling and it was worse (LEARNINGS L-16 names the general form: a
+ * parser that can say "I could not read this" must have somebody listening). The first
+ * version skipped the two frame-flag bytes entirely, so a frame carrying the compression bit
+ * was decoded as though its zlib stream were text and the resulting mojibake was stored as
+ * the value of `TSSE`, the field `gen.lavf-transcode` and `gen.elevenlabs-tsse` are anchored
+ * against. Silence would have been bad; a manufactured value is worse, because the encoder
+ * comparison in this file then contrasts two strings of which one is noise.
+ *
+ * Frame header, from the ID3v2 informal standard: id(4) size(4) flags(2).
+ *   v2.3 (section 3.3): size is a plain 32-bit integer. Format flags byte %ijk00000, with
+ *        i = compression (a 4-byte decompressed size precedes the data), j = encryption,
+ *        k = grouping (a 1-byte group identifier precedes the data).
+ *   v2.4 (section 4.1): size is SYNCSAFE, seven bits per byte. Format flags byte %0h00kmnp,
+ *        with h = grouping, k = compression, m = encryption, n = unsynchronisation,
+ *        p = data length indicator (4 syncsafe bytes precede the data).
+ *
+ * Reading a v2.4 size as a plain integer is wrong for every frame of 128 bytes or more, which
+ * is why the major version is a parameter rather than an assumption.
+ */
+function readId3Frames(body: Uint8Array, out: Record<string, string>, parseErrors: string[], major: number): void {
   const r = new Reader(body);
   try {
     while (r.remaining >= 10) {
+      const idStart = r.pos;
       const id = r.ascii(4);
-      if (!/^[A-Z0-9]{4}$/.test(id)) break; // padding
-      const size = r.u32be();
-      r.skip(2); // flags
+      // A run of zero bytes is padding and is the ordinary way a tag ends. Anything else that
+      // is not a frame id is a tag we stopped being able to read, which is a different fact
+      // and gets said out loud rather than being folded into the same silent `break`.
+      if (id === "\0\0\0\0") break;
+      if (!/^[A-Z0-9]{4}$/.test(id)) {
+        parseErrors.push(`ID3 frame walk stopped at ${at(idStart)}: "${clip(id, 8)}" is not a frame identifier`);
+        break;
+      }
+      // Both reads are `>>> 0` bounded inside Reader, and both are range-checked against the
+      // buffer below before a single byte is taken. A length in a file is not a number.
+      const size = major >= 4 ? syncSafe(body, r.pos) : r.u32be();
+      if (major >= 4) r.skip(4);
+      const flags = r.u16be();
       if (!r.has(size) || size === 0) break;
-      const raw = r.take(size);
+      let raw = r.take(size);
+
+      const compressed = major >= 4 ? (flags & 0x0008) !== 0 : (flags & 0x0080) !== 0;
+      const encrypted = major >= 4 ? (flags & 0x0004) !== 0 : (flags & 0x0040) !== 0;
+      const grouped = major >= 4 ? (flags & 0x0040) !== 0 : (flags & 0x0020) !== 0;
+      const hasDataLength = major >= 4 ? (flags & 0x0001) !== 0 : false;
+
+      if (encrypted) {
+        parseErrors.push(`ID3 frame "${id}" at ${at(idStart)} was not read: it declares encryption and this parser holds no keys`);
+        continue;
+      }
+      // The optional prefixes come off in the order the specification lists them. Each is
+      // sliced with `subarray`, which cannot run past the end of the frame we already took.
+      if (grouped) raw = raw.subarray(1);
+      if (major < 4 && compressed) raw = raw.subarray(4); // v2.3 decompressed-size prefix
+      if (hasDataLength) raw = raw.subarray(4); // v2.4 data length indicator, syncsafe
+
+      if (compressed) {
+        const out2 = inflateBounded(raw);
+        if (!out2.ok) {
+          parseErrors.push(`ID3 frame "${id}" at ${at(idStart)} was not read: ${out2.reason}`);
+          continue;
+        }
+        raw = out2.bytes;
+      }
+
       const encoding = raw[0];
       const text = encoding === 0 ? latin1(raw.subarray(1)) : utf8(raw.subarray(1));
       out[id] = clip(text.replace(/\0+/g, " ").trim(), 200);

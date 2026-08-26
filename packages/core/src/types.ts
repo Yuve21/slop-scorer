@@ -180,6 +180,26 @@ export interface ProbeStatus {
    */
   readonly denominator?: number;
   readonly expectsNonEmpty?: boolean;
+  /**
+   * Did the probe read everything it set out to read? Absent means yes.
+   *
+   * A denominator answers "how many things came back". It cannot answer "was there a region
+   * of this artifact I could not read at all", and those are different facts that a single
+   * count collapses into one confident number. A PNG whose compressed text chunk failed to
+   * decompress returned four container segments and zero metadata fields, which is
+   * indistinguishable, in a denominator, from a PNG that genuinely carries no metadata. That
+   * was measured here: two PNGs carrying byte-identical generator metadata, differing only in
+   * whether the text chunk was compressed, both reported COVERAGE 1.0, and only one of them
+   * had been read. Coverage 1.0 over a region nobody read is the purest form of the one defect
+   * this product exists to catch: a guarantee that reports success without doing its job.
+   *
+   * So a probe that hit an unreadable region sets `complete: false`, which does two things
+   * and must always do both: it removes the probe's weight from the coverage ratio, and it
+   * raises a `probe_failed` abstention naming the probe. Never one without the other. A
+   * silent coverage drop is just a smaller confident number, and the caller is entitled to be
+   * told that the shortfall is an unread region rather than an empty one.
+   */
+  readonly complete?: boolean;
   /** Share of total coverage this probe is worth. Defaults to 1. */
   readonly weight?: number;
   readonly note?: string;

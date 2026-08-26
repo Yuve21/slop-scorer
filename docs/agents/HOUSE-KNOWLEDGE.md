@@ -66,7 +66,10 @@ it at the time:
 
 - **Every new check gets mutation-tested in the same commit.** Name the exact source change that
   should turn it red, make that change, watch it go red, revert. Write the mutation into the test's
-  comment so the next reader can redo it. A test you have not seen fail is a decoration.
+  comment so the next reader can redo it. A test you have not seen fail is a decoration. **Name the
+  GATE too, not just the expected colour:** a mutation aimed at a type is invisible to a runtime
+  suite and is caught one gate earlier by `tsc`, so a survivor is a finding only after you have
+  checked what the gate you ran can actually see (L-19).
 - **Every collection asserts its own denominator.** A probe, a scan, a corpus loader or a redaction
   pass that reports having examined ZERO things is a FAILURE regardless of exit code. `expectsNonEmpty`
   exists for exactly this; use it, and cross-check the two probe tables that already disagree
@@ -164,6 +167,15 @@ citation whose locator is fabricated (`GET /a-path-that-does-not-exist` when the
   time by `makeFinding`.
 - **Every signal rule has a remediation.** A rule that can fire and cannot say what to change is a
   report line the loop stops at.
+- **An enumeration is a hypothesis about your input, exactly as a regex is.** When the input's
+  vocabulary is published by somebody else, VENDOR their list as data, keep it in a different file
+  from yours, and compare the two in BOTH directions: the terms you cannot express, and the terms you
+  express that they never defined. Deriving one list from the other makes the check a mirror. Sort
+  the missing members by POLARITY before deciding what a gap costs: a gap on the counter side and a
+  gap on the signal side are opposite bugs wearing the same clothes, and **a dead counter RAISES the
+  score**, which is the direction that accuses honest work (L-05, L-17). Note also that a published
+  vocabulary has THREE states: active, retired, and absent. Comparing against the active half alone
+  reads a retired term as an invention.
 - **Fixtures are mandatory, and the mutated fixture differs in exactly ONE thing.** The meta-suite
   runs five checks per rule on every test run: the neutral artifact fires nothing, the rule fires on
   its positive, the mutant does not fire, every citation has a non-empty locator and observed value,
@@ -176,7 +188,11 @@ citation whose locator is fabricated (`GET /a-path-that-does-not-exist` when the
   the version its corpus declares. `node scripts/check-corpus-version.mjs` is the ratchet. A receipt
   citing a version that does not describe the rules that ran is a lie of exactly the kind this
   product sells the detection of. **Live drift as of 2026-08-26: 12 web rules declare
-  `since: "corpus-2026.10"` while `CORPUS_VERSION` is `"corpus-2026.09"` (L-11).**
+  `since: "corpus-2026.10"` while `CORPUS_VERSION` is `"corpus-2026.09"` (L-11).** Note what the
+  digest covers and what it does not: it hashes the SCORING FIELDS of every rule, so a repair to a
+  PARSER changes what the rules can see without changing the rule set. That is deliberate, it is the
+  same treatment the `>>> 0` hardening got (L-01), and a fix of that kind is reported with its
+  before-and-after digest rather than being waved through in silence.
 
 ---
 
@@ -221,6 +237,23 @@ contents, file names, EXIF fields, dependency names, commit messages. Treat all 
   scanner forever, synchronously, where a test timeout cannot interrupt it (L-01).
 - **Every decompression is bounded before it runs** (`maxOutputLength`), and every accumulator has a
   cap. A size sanity check that runs AFTER inflation is not a check.
+- **A parser that can say "I could not read this" must have somebody listening.** Ask of every error
+  list in the tree what CONSUMES it. If the answer is nothing, the guarantee above it is decorative.
+  `container.parseErrors` was read by no one, so a walk that explicitly failed was paid full coverage
+  and the report said 1.0 (L-16). The consumption is not optional and it has two halves that must
+  always travel together: the failed region loses its coverage weight, AND it raises a coded
+  abstention naming the probe. A silent coverage drop is just a smaller confident number.
+- **Coverage means what was READ, never what was attempted.** A denominator answers "how many things
+  came back" and cannot answer "was there a region I could not open at all". Those are different
+  facts and a count collapses them. `ProbeStatus.complete` carries the second one.
+- **When a check gates on a collection being EMPTY, ask whether empty can mean "not there" and "there
+  but unreadable" at once.** If it can, the message it prints is wrong half the time, and a citation
+  asserting the absence of something present is a FABRICATED locator, which is a correctness defect
+  in the product's core promise (L-16). Derive the observed value from what was actually walked.
+- **A skipped flag byte is an unexpressed branch.** Which other parser reads a field whose meaning
+  depends on a version or a flag it currently skips? That question, not a grep for the symptom,
+  found three more instances of the same defect in one pass (L-18). Rank the instances by what they
+  produce: one that MANUFACTURES a value outranks one that produces silence.
 - **Every parse loop must prove the cursor advances.** A zero or negative advance is an infinite loop.
 - **Every scan has a time budget as well as a byte budget.** Measured throughput is ~0.7 MB/s against
   a 256 MB byte budget, which is about six minutes of uninterruptible single-threaded work.
@@ -248,12 +281,12 @@ commit. `node scripts/check-no-egress.mjs` is the ratchet.
 |---|---|---|
 | Types | `npm run typecheck` | 0 errors |
 | Build | `npm run build` | green |
-| Tests | `npm test` | **68 files, 1275 passed, 1 skipped (1276)**, ~98s |
+| Tests | `npm test` | **71 files, 1312 passed, 1 skipped (1313)**, ~110s |
 | Backtest | `npm run backtest` | green against the committed baseline |
 | Everything | `npm run verify` | typecheck + build + test + backtest |
 | Agent roster | `node scripts/check-agent-roster.mjs --check` | 14 agents, 6 departments |
 | Corpus version | `node scripts/check-corpus-version.mjs` | 6 corpora, drift baseline 12 |
-| No egress | `node scripts/check-no-egress.mjs` | 271 files, 20 sites, 0 unapproved |
+| No egress | `node scripts/check-no-egress.mjs` | 273 files, 20 sites, 0 unapproved |
 | Public MCP | `node scripts/sync-public-mcp.mjs --check` | 25 scrubs match, leak audit clean, 121 generated files byte-identical |
 
 **The test count is a BASELINE, not a target. A move in EITHER direction is a finding.** A drop

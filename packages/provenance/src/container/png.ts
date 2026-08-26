@@ -13,6 +13,7 @@
  */
 
 import { at, clip, latin1, Reader, TruncatedError, utf8 } from "./bytes.js";
+import { inflateBounded } from "./inflate.js";
 import type { ContainerRecord, EncoderRecord, MetadataPayload, SegmentRecord } from "./types.js";
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -90,7 +91,14 @@ export function parsePng(bytes: Uint8Array): ContainerRecord {
 
       if (type === "tEXt" || type === "zTXt" || type === "iTXt") {
         const parsed = readTextChunk(type, data);
-        if (parsed) {
+        // XMP travels in an iTXt keyed "XML:com.adobe.xmp", and that iTXt may be compressed
+        // like any other. Publishing the raw deflate bytes as the XMP text would hand every
+        // metadata regex a payload of binary noise, which is the same defect one layer down:
+        // a read that reports success over bytes it did not decode.
+        if (type === "iTXt" && /xml:com\.adobe\.xmp/i.test(latin1(data.subarray(0, 32)))) {
+          if (parsed.ok) payloads.push({ kind: "xmp", offset, length, text: parsed.value, fields: {} });
+        }
+        if (parsed.ok) {
           fields[parsed.key] = parsed.value;
           payloads.push({
             kind: "png-text",
@@ -103,12 +111,8 @@ export function parsePng(bytes: Uint8Array): ContainerRecord {
             encoder = { field: `PNG:${parsed.key}`, value: parsed.value, offset };
           }
         } else {
-          parseErrors.push(`text chunk "${type}" at ${at(offset)} was compressed and was not decompressed`);
+          parseErrors.push(`text chunk "${type}" at ${at(offset)} was not read: ${parsed.reason}`);
         }
-      }
-
-      if (type === "iTXt" && /xml:com\.adobe\.xmp/i.test(latin1(data.subarray(0, 32)))) {
-        payloads.push({ kind: "xmp", offset, length, text: utf8(data), fields: {} });
       }
 
       // caBX is the C2PA box in PNG. Located, not decoded, here.
@@ -155,22 +159,58 @@ export function parsePng(bytes: Uint8Array): ContainerRecord {
   };
 }
 
-function readTextChunk(type: string, data: Uint8Array): { key: string; value: string } | null {
+type TextChunk = { readonly ok: true; readonly key: string; readonly value: string } | { readonly ok: false; readonly reason: string };
+
+/**
+ * Read one PNG text chunk, including the compressed forms.
+ *
+ * ALL THREE CHUNK TYPES CARRY THE SAME METADATA, so all three must produce the same finding.
+ * They did not: `zTXt` and compressed `iTXt` returned null here, the caller recorded a parse
+ * error nothing consumed, and two PNGs carrying byte-identical AUTOMATIC1111 parameter
+ * strings behaved differently while both reported coverage 1.0 (LEARNINGS L-16). `zTXt` is
+ * not exotic: Pillow writes it whenever a caller passes `zip=True`, and three of the eleven
+ * generator signatures in this package live in PNG text chunks.
+ *
+ * The failure result is not the same object as an absence. A chunk that is present and
+ * unreadable is a fact the laundering gate and the coverage calculation both need, because
+ * "no text chunk is present" printed over a file that has one is a fabricated citation.
+ *
+ * Layouts, from the PNG specification (ISO/IEC 15948, clause 11.3.4):
+ *   tEXt: keyword \0 text                                       (Latin-1, uncompressed)
+ *   zTXt: keyword \0 compressionMethod text                     (zlib, method 0 only)
+ *   iTXt: keyword \0 flag method languageTag \0 translated \0 text   (UTF-8, zlib when flag=1)
+ */
+function readTextChunk(type: string, data: Uint8Array): TextChunk {
   const nul = data.indexOf(0);
-  if (nul < 0) return null;
+  if (nul < 0) return { ok: false, reason: "the keyword is not null-terminated" };
   const key = latin1(data.subarray(0, nul));
-  if (type === "tEXt") return { key, value: latin1(data.subarray(nul + 1)) };
-  if (type === "zTXt") return null; // deflate payload; not decompressed, and said so
-  // iTXt: key \0 compressionFlag compressionMethod languageTag \0 translatedKey \0 text
+  if (type === "tEXt") return { ok: true, key, value: latin1(data.subarray(nul + 1)) };
+
+  if (type === "zTXt") {
+    const method = data[nul + 1];
+    if (method === undefined) return { ok: false, reason: "it ends before its compression method byte" };
+    // Method 0 (zlib/deflate) is the only method the specification defines. An unknown method
+    // is reported rather than guessed: decoding it as deflate anyway would be inventing.
+    if (method !== 0) return { ok: false, reason: `it declares compression method ${method}, and only method 0 (zlib) is defined` };
+    const out = inflateBounded(data.subarray(nul + 2));
+    return out.ok ? { ok: true, key, value: latin1(out.bytes) } : { ok: false, reason: out.reason };
+  }
+
   const flag = data[nul + 1];
-  if (flag !== 0) return null;
+  const method = data[nul + 2];
+  if (flag === undefined || method === undefined) return { ok: false, reason: "it ends before its compression flag" };
   let p = nul + 3;
   const lang = data.indexOf(0, p);
-  if (lang < 0) return null;
+  if (lang < 0) return { ok: false, reason: "the language tag is not null-terminated" };
   p = lang + 1;
   const translated = data.indexOf(0, p);
-  if (translated < 0) return null;
-  return { key, value: utf8(data.subarray(translated + 1)) };
+  if (translated < 0) return { ok: false, reason: "the translated keyword is not null-terminated" };
+  const body = data.subarray(translated + 1);
+  if (flag === 0) return { ok: true, key, value: utf8(body) };
+  if (flag !== 1) return { ok: false, reason: `it declares compression flag ${flag}, and only 0 and 1 are defined` };
+  if (method !== 0) return { ok: false, reason: `it declares compression method ${method}, and only method 0 (zlib) is defined` };
+  const out = inflateBounded(body);
+  return out.ok ? { ok: true, key, value: utf8(out.bytes) } : { ok: false, reason: out.reason };
 }
 
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {

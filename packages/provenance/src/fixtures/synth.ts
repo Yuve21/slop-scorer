@@ -18,10 +18,14 @@
  * that reads no pixels needs no pixels to test.
  */
 
+import { deflateSync } from "node:zlib";
 import { crc32 } from "../container/png.js";
 import { IJG_LUMA_TABLE, scaledIjgTable } from "../container/jpeg.js";
 
 const enc = (s: string): number[] => [...s].map((c) => c.charCodeAt(0));
+const encUtf8 = (s: string): number[] => [...Buffer.from(s, "utf8")];
+/** A real zlib stream, so the compressed fixtures are decompressed by the real decompressor. */
+const deflate = (s: string, encoding: "latin1" | "utf8"): number[] => [...deflateSync(Buffer.from(s, encoding))];
 const u16be = (n: number): number[] => [(n >> 8) & 0xff, n & 0xff];
 const u32be = (n: number): number[] => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
 const u16le = (n: number): number[] => [n & 0xff, (n >> 8) & 0xff];
@@ -186,10 +190,28 @@ export interface PngOptions {
   readonly height?: number;
   /** tEXt chunks, keyed. This is where local generation tools write their parameters. */
   readonly text?: Readonly<Record<string, string>>;
+  /**
+   * zTXt chunks, keyed: the same metadata, deflated. Pillow writes these whenever a caller
+   * passes `zip=True`, so a fixture that only ever writes `tEXt` is a fixture that agrees
+   * with a parser which cannot read half the population (LEARNINGS L-16).
+   */
+  readonly textZ?: Readonly<Record<string, string>>;
+  /** iTXt chunks, keyed, compression flag 0. */
+  readonly textI?: Readonly<Record<string, string>>;
+  /** iTXt chunks, keyed, compression flag 1 and method 0 (zlib). */
+  readonly textIZ?: Readonly<Record<string, string>>;
   readonly xmp?: string;
+  /** Write the XMP packet into a COMPRESSED iTXt rather than a plain one. */
+  readonly xmpCompressed?: boolean;
   readonly c2paBox?: boolean;
   /** Corrupt the CRC of the named chunk, to exercise the verification path. */
   readonly corruptCrcOf?: string;
+  /**
+   * Chunks written verbatim, for the hostile cases a well-formed builder cannot express: a
+   * deflate bomb, an undefined compression method, a truncated stream. A parser is pointed at
+   * bytes somebody else chose, so its tests have to be able to choose bytes.
+   */
+  readonly rawChunks?: readonly { readonly type: string; readonly data: readonly number[] }[];
 }
 
 function pngChunk(type: string, data: number[], corrupt: boolean): number[] {
@@ -208,10 +230,25 @@ export function synthPng(options: PngOptions = {}): Uint8Array {
   for (const [key, value] of Object.entries(options.text ?? {})) {
     out.push(...pngChunk("tEXt", [...enc(key), 0, ...enc(value)], corrupt("tEXt")));
   }
+  // zTXt: keyword \0 compressionMethod(0) zlibStream
+  for (const [key, value] of Object.entries(options.textZ ?? {})) {
+    out.push(...pngChunk("zTXt", [...enc(key), 0, 0, ...deflate(value, "latin1")], corrupt("zTXt")));
+  }
+  // iTXt: keyword \0 flag method languageTag \0 translatedKeyword \0 text
+  for (const [key, value] of Object.entries(options.textI ?? {})) {
+    out.push(...pngChunk("iTXt", [...enc(key), 0, 0, 0, 0, 0, ...encUtf8(value)], corrupt("iTXt")));
+  }
+  for (const [key, value] of Object.entries(options.textIZ ?? {})) {
+    out.push(...pngChunk("iTXt", [...enc(key), 0, 1, 0, 0, 0, ...deflate(value, "utf8")], corrupt("iTXt")));
+  }
   if (options.xmp) {
     const key = "XML:com.adobe.xmp";
-    out.push(...pngChunk("iTXt", [...enc(key), 0, 0, 0, 0, 0, ...enc(options.xmp)], corrupt("iTXt")));
+    const body = options.xmpCompressed
+      ? [...enc(key), 0, 1, 0, 0, 0, ...deflate(options.xmp, "utf8")]
+      : [...enc(key), 0, 0, 0, 0, 0, ...enc(options.xmp)];
+    out.push(...pngChunk("iTXt", body, corrupt("iTXt")));
   }
+  for (const raw of options.rawChunks ?? []) out.push(...pngChunk(raw.type, [...raw.data], corrupt(raw.type)));
   if (options.c2paBox) out.push(...pngChunk("caBX", [...enc("c2pa"), ...new Array(16).fill(0)], corrupt("caBX")));
   out.push(...pngChunk("IDAT", [0x78, 0x9c, 0x63, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01], corrupt("IDAT")));
   out.push(...pngChunk("IEND", [], corrupt("IEND")));
@@ -354,16 +391,37 @@ export interface Mp3Options {
   readonly id3?: Readonly<Record<string, string>>;
   /** The nine-byte LAME tag inside the Xing frame. */
   readonly lame?: string;
+  /** ID3v2 major version. 3 sizes frames as plain integers, 4 sizes them SYNCSAFE. */
+  readonly id3Major?: 3 | 4;
+  /**
+   * Set the frame compression flag and deflate each frame body, which both versions of the
+   * specification allow and which a parser that skipped the flag bytes read as text.
+   */
+  readonly id3CompressedFrames?: boolean;
+  /** Declare compression and then write bytes that are not a deflate stream. */
+  readonly corruptId3Compression?: boolean;
 }
 
 export function synthMp3(options: Mp3Options = {}): Uint8Array {
+  const major = options.id3Major ?? 3;
+  const syncSafe = (n: number): number[] => [(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f];
   const frames: number[] = [];
   for (const [id, value] of Object.entries(options.id3 ?? {})) {
-    const body = [0, ...enc(value)];
-    frames.push(...enc(id), ...u32be(body.length), 0, 0, ...body);
+    const raw = [0, ...enc(value)];
+    let body = raw;
+    let flags = [0, 0];
+    if (options.id3CompressedFrames) {
+      const payload = options.corruptId3Compression ? [0x78, 0x9c, 0xff, 0xff, 0xff] : [...deflateSync(Buffer.from(raw))];
+      // v2.3: compression bit 0x80 in the format-flags byte, with a plain 32-bit decompressed
+      // size ahead of the data. v2.4: compression bit 0x08, which REQUIRES the data length
+      // indicator bit 0x01, and that length is syncsafe.
+      body = major >= 4 ? [...syncSafe(raw.length), ...payload] : [...u32be(raw.length), ...payload];
+      flags = major >= 4 ? [0, 0x09] : [0, 0x80];
+    }
+    const size = major >= 4 ? syncSafe(body.length) : u32be(body.length);
+    frames.push(...enc(id), ...size, ...flags, ...body);
   }
-  const syncSafe = (n: number): number[] => [(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f];
-  const id3 = frames.length > 0 ? [...enc("ID3"), 3, 0, 0, ...syncSafe(frames.length), ...frames] : [];
+  const id3 = frames.length > 0 ? [...enc("ID3"), major, 0, 0, ...syncSafe(frames.length), ...frames] : [];
 
   // A single MPEG-1 layer III frame header: 128 kbps, 44100 Hz, joint stereo.
   const header = [0xff, 0xfb, 0x90, 0x44];

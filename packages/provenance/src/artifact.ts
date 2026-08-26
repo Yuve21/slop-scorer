@@ -135,6 +135,27 @@ export function ingestMedia(bytes: Uint8Array, options: IngestOptions): MediaArt
  * `container` and `watermark` do expect content, and that is where the vacuous-scan guard
  * actually earns its place: a container walk that produced zero segments means the parser
  * failed, and every "nothing declared here" conclusion below it was reached without looking.
+ *
+ * NOTHING USED TO CONSUME `container.parseErrors`, AND THAT IS THE DEFECT THIS FILE NOW
+ * FIXES. Every row below was built from segment and field COUNTS, so a walk that explicitly
+ * recorded "I could not read this chunk" was paid the container probe's full weight of 3 and
+ * the report said coverage 1.0. Measured: two PNGs carrying byte-identical AUTOMATIC1111
+ * parameter strings, one in `tEXt` and one in `zTXt`, BOTH reported coverage 1.0, and only
+ * one of them had actually been read (LEARNINGS L-16).
+ *
+ * That is the same defect class as the two others repaired alongside it, and it is the one
+ * this whole product exists to catch: a guarantee that reports success without doing its job.
+ * Coverage 1.0 over a region that was never read is its purest form, because the number is
+ * not merely wrong, it is confidently wrong in the direction nobody complains about. A
+ * parser that can say "I could not read this" must have somebody listening. This is that
+ * somebody.
+ *
+ * The container probe reports `complete: false` when the walk logged any parse error, and so
+ * does `metadata`, which is the conservative direction on purpose: a parse error anywhere in
+ * the container may be exactly the chunk the metadata lived in, and this package cannot tell
+ * from a count which one it was. Abstaining on a file we half read costs a score. Publishing
+ * "no metadata is present" over a chunk we could not open costs a fabricated citation, and
+ * those two are not the same size.
  */
 export function mediaProbes(
   container: ContainerRecord,
@@ -143,22 +164,30 @@ export function mediaProbes(
   watermarks: readonly WatermarkProbe[],
   laundering: LaunderingRecord,
 ): ProbeStatus[] {
+  const unread = container.parseErrors.length;
+  const partial = unread > 0 ? ` ${unread} region(s) of this container could not be read: ${container.parseErrors.join("; ")}` : "";
   return [
     {
       id: "container",
       ran: true,
       denominator: container.segments.length,
       expectsNonEmpty: true,
+      complete: unread === 0,
       weight: MEDIA_PROBE_WEIGHTS.container,
-      note: "container segments walked. Zero means the format was not recognised or the parse died at byte one, and every declaration we did not find was not found because we did not look.",
+      note:
+        "container segments walked. Zero means the format was not recognised or the parse died at byte one, and every declaration we did not find was not found because we did not look." +
+        partial,
     },
     {
       id: "metadata",
       ran: true,
       denominator: metadata.fields.length,
       expectsNonEmpty: false,
+      complete: unread === 0,
       weight: MEDIA_PROBE_WEIGHTS.metadata,
-      note: "metadata fields read. Zero is ordinary: most files carry none.",
+      note:
+        "metadata fields read. Zero is ordinary: most files carry none, and that is why this probe does not expect content. Zero over a container we could only partly read is a different statement and is NOT ordinary, which is what the completeness flag carries." +
+        partial,
     },
     {
       id: "content-credential",

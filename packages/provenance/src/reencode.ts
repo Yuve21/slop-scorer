@@ -169,6 +169,26 @@ export function assessLaundering(
   const loc = (offset: number): string => `${container.format}:${at(offset)}`;
 
   // ---- declared screen capture -----------------------------------------------------------
+  // The DigitalSourceType route, which is the L-17 repair. `screenCapture` is a published
+  // IPTC term this package could not name, so it decoded to `unknown` and a file that SAID
+  // in the standard field that it is a picture of a screen never reached this gate through
+  // the declaration it made. It reached it only if a tool in SCREEN_CAPTURE_TOOLS also
+  // happened to have named itself in a Software field, which is a regex list over writers and
+  // a completely different, weaker piece of evidence than the producer's own statement.
+  if (metadata.digitalSourceType === "screenCapture") {
+    indicators.push({
+      code: "declared_screen_capture",
+      title: "The file declares itself a screen capture",
+      weight: 1.2,
+      locator: metadata.digitalSourceLocator ?? "metadata:DigitalSourceType",
+      observed: `DigitalSourceType = ${metadata.digitalSourceType}`,
+      detail:
+        "A screen capture is a fresh render of already-rendered pixels. Whatever the original was, its encoding, " +
+        "its sampling grid and its sidecar metadata are gone. This one is the producer's own declaration in the " +
+        "IPTC field, which is a stronger reading than inferring it from the name of the writing tool.",
+    });
+  }
+
   for (const field of metadata.fields) {
     if (!/software|creatortool|originatingprogram|agent/i.test(field.name)) continue;
     if (!SCREEN_CAPTURE_TOOLS.some((re) => re.test(field.value.trim()))) continue;
@@ -279,13 +299,35 @@ export function assessLaundering(
     // Treating a PNG re-save as laundering would abstain on a huge class of artifacts we can
     // still honestly read, and abstention has a cost too.
     const idat = container.segments.find((s) => s.name === "IDAT");
-    if (idat && container.payloads.length === 0 && metadata.fields.length === 0) {
+    // THE OBSERVED VALUE IS DERIVED FROM WHAT WAS SEEN, AND THE GATE REQUIRES A COMPLETE READ.
+    //
+    // This line used to print the fixed string "no tEXt, iTXt, eXIf or XMP chunk present" on
+    // any PNG whose payload list was empty. A `zTXt` chunk was never decompressed, so it
+    // produced no payload, so this indicator fired and asserted the ABSENCE of a chunk the
+    // file demonstrably contained (LEARNINGS L-16). A receipt line asserting that something
+    // present is absent is a fabricated citation, which is the worst defect available in a
+    // product whose whole value is that a finding can be trusted, and it is the same class as
+    // the two repairs beside it: a check that reported success without doing its job.
+    //
+    // Two changes, and both are needed. The gate now requires `parseErrors` to be EMPTY, so a
+    // chunk we could not open can never be reported as a chunk that is not there. And the
+    // observed value is now counted off the segments actually walked, so it cannot assert
+    // more than the parse established. Note that the old string did not even name `zTXt`,
+    // which is the tell that it was prose rather than a reading.
+    const metadataChunks = container.segments.filter((s) => /^(tEXt|zTXt|iTXt|eXIf|caBX)$/.test(s.name));
+    if (
+      idat &&
+      container.parseErrors.length === 0 &&
+      metadataChunks.length === 0 &&
+      container.payloads.length === 0 &&
+      metadata.fields.length === 0
+    ) {
       indicators.push({
         code: "lossless_resave",
         title: "A PNG with no metadata of any kind",
         weight: 0.35,
         locator: loc(idat.offset),
-        observed: "no tEXt, iTXt, eXIf or XMP chunk present",
+        observed: `${container.segments.length} chunk(s) walked, none of them tEXt, zTXt, iTXt, eXIf or caBX`,
         detail:
           "Consistent with a re-save, an export, or a tool that simply writes no metadata. Weighted so it cannot " +
           "trip this gate alone: a lossless re-encode does not destroy the signal a lossy one does.",
