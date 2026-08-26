@@ -98,8 +98,38 @@ export function encodePng(raster: Raster): Uint8Array {
   return concat([SIGNATURE, chunk("IHDR", ihdr), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0))]);
 }
 
+/**
+ * Read a big-endian 32-bit field, UNSIGNED.
+ *
+ * The `>>> 0` is the whole point, and it is the same reasoning `provenance/src/container/bytes.ts`
+ * records for `u32be`: a length field with the top bit set is a length, not a negative. Without it
+ * a chunk length of `ff ff ff f4` decodes as -12, the chunk walk's `at += 12 + length` advances by
+ * nothing, and the bounds check `at + 8 + length + 4 > bytes.length` is SATISFIED by the negative
+ * value instead of firing. Twenty bytes of input then spin a synchronous loop forever, which no
+ * timeout upstream can interrupt. These bytes come off other people's pages, so that is a denial
+ * of service with a twenty-byte payload. See `test/png-hostile.test.ts`.
+ */
 const readU32 = (b: Uint8Array, at: number): number =>
-  ((b[at] as number) << 24) | ((b[at + 1] as number) << 16) | ((b[at + 2] as number) << 8) | (b[at + 3] as number);
+  (((b[at] as number) << 24) | ((b[at + 1] as number) << 16) | ((b[at + 2] as number) << 8) | (b[at + 3] as number)) >>>
+  0;
+
+/**
+ * The bounds a malformed file is held to.
+ *
+ * Every one of these is a refusal, not a clamp: the decoder's contract is that it either reads the
+ * file or throws, and a limit that silently truncated would hand the export gate a partial figure.
+ */
+/** Dimensions are 13 bytes of attacker input that decide an allocation. 16384^2 x 4 is already 1 GB. */
+const MAX_DIMENSION = 16_384;
+const MAX_PIXELS = 50_000_000;
+/**
+ * A legitimate PNG splits IDAT into at most a few thousand chunks. A file that is nothing but
+ * chunk headers is not a picture, and with the length fixed above each iteration costs 12 bytes,
+ * so this is defence in depth rather than the load-bearing bound.
+ */
+const MAX_CHUNKS = 8_192;
+/** Compressed pixel data. Anything past this is a bomb, and it is refused before inflation. */
+const MAX_IDAT_BYTES = 64 * 1024 * 1024;
 
 const paeth = (a: number, b: number, c: number): number => {
   const p = a + b - c;
@@ -115,6 +145,11 @@ const paeth = (a: number, b: number, c: number): number => {
  *
  * Strict on purpose. Every unsupported case throws rather than guessing, because a decoder that
  * guesses would let the export gate pass a file it did not actually read.
+ *
+ * It is also HOSTILE-INPUT code, which the export path alone would not have made it. `ocr-text`
+ * points this function at images fetched from the page under scan, so the bytes are chosen by the
+ * subject of the measurement. Everything a malformed file could spend - loop iterations, chunk
+ * count, decoded size, allocation - is bounded here and fails as a `PngFormatError`.
  */
 export function decodePng(bytes: Uint8Array): Raster {
   for (let i = 0; i < SIGNATURE.length; i += 1) {
@@ -125,16 +160,40 @@ export function decodePng(bytes: Uint8Array): Raster {
   let height = 0;
   let colorType = -1;
   const idat: Uint8Array[] = [];
+  let idatBytes = 0;
+  let sawHeader = false;
   let sawEnd = false;
+  let chunks = 0;
 
   while (at + 8 <= bytes.length) {
+    chunks += 1;
+    if (chunks > MAX_CHUNKS) throw new PngFormatError(`there are more than ${MAX_CHUNKS} chunks, which is not a picture`);
     const length = readU32(bytes, at);
     const type = String.fromCharCode(...bytes.subarray(at + 4, at + 8));
+    // Bounds BEFORE the body: `length` is attacker input and the subarray is what it addresses.
+    if (length > bytes.length || at + 8 + length + 4 > bytes.length) {
+      throw new PngFormatError(`chunk ${type} runs past the end of the file`);
+    }
     const body = bytes.subarray(at + 8, at + 8 + length);
-    if (at + 8 + length + 4 > bytes.length) throw new PngFormatError(`chunk ${type} runs past the end of the file`);
+    // The CRC is checked on the way IN, for the reason `provenance/src/container/png.ts` gives for
+    // checking it there: an unverified chunk is bytes an attacker chose. This decoder is pointed at
+    // third-party images, so it is the copy that needed it most.
+    const stored = readU32(bytes, at + 8 + length);
+    const actual = crc32(bytes.subarray(at + 4, at + 8 + length));
+    if (stored !== actual) {
+      throw new PngFormatError(
+        `chunk ${type} has CRC ${stored.toString(16)} where its bytes hash to ${actual.toString(16)}`,
+      );
+    }
     if (type === "IHDR") {
+      if (length < 13) throw new PngFormatError(`the IHDR chunk is ${length} bytes where 13 are needed`);
+      sawHeader = true;
       width = readU32(body, 0);
       height = readU32(body, 4);
+      if (width <= 0 || height <= 0) throw new PngFormatError(`the header says ${width}x${height}, which is not an image`);
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION || width * height > MAX_PIXELS) {
+        throw new PngFormatError(`the header says ${width}x${height}, which is past the ${MAX_PIXELS}-pixel ceiling`);
+      }
       const depth = body[8];
       colorType = body[9] as number;
       if (depth !== 8) throw new PngFormatError(`bit depth ${String(depth)} is not supported, only 8`);
@@ -143,6 +202,11 @@ export function decodePng(bytes: Uint8Array): Raster {
       }
       if (body[12] !== 0) throw new PngFormatError("interlaced files are not supported");
     } else if (type === "IDAT") {
+      // IHDR first is the format's own rule, and here it is also the safety property: the header
+      // is what bounds the inflate below, so pixel data that arrives before it is unbounded data.
+      if (!sawHeader) throw new PngFormatError("an IDAT chunk arrived before the IHDR that describes it");
+      idatBytes += length;
+      if (idatBytes > MAX_IDAT_BYTES) throw new PngFormatError(`the compressed pixel data is past ${MAX_IDAT_BYTES} bytes`);
       idat.push(body.slice());
     } else if (type === "IEND") {
       sawEnd = true;
@@ -150,13 +214,26 @@ export function decodePng(bytes: Uint8Array): Raster {
     at += 12 + length;
   }
   if (!sawEnd) throw new PngFormatError("there is no IEND chunk, so the file is truncated");
-  if (width <= 0 || height <= 0) throw new PngFormatError("there is no IHDR chunk, so the dimensions are unknown");
+  if (!sawHeader) throw new PngFormatError("there is no IHDR chunk, so the dimensions are unknown");
 
   const bpp = colorType === 6 ? 4 : 3;
   const stride = width * bpp;
-  const raw = new Uint8Array(inflateSync(concat(idat)));
-  if (raw.length < height * (stride + 1)) {
-    throw new PngFormatError(`the pixel data is ${raw.length} bytes where ${height * (stride + 1)} are needed`);
+  const needed = height * (stride + 1);
+  // The size check has to happen BEFORE the allocation, not after: a few KB of IDAT inflates to
+  // gigabytes, and a check on `raw.length` is a check performed on memory already committed. The
+  // header states exactly how many raw bytes a conforming file holds, so that is the ceiling.
+  let raw: Uint8Array;
+  try {
+    raw = new Uint8Array(inflateSync(concat(idat), { maxOutputLength: needed }));
+  } catch (error) {
+    throw new PngFormatError(
+      `the pixel data did not inflate into the ${needed} bytes the header describes: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  if (raw.length < needed) {
+    throw new PngFormatError(`the pixel data is ${raw.length} bytes where ${needed} are needed`);
   }
 
   const out = new Uint8ClampedArray(width * height * 4);
