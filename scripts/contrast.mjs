@@ -36,6 +36,7 @@ const PALETTES = {
     surface: "#f2f1ec",
     "surface-raised": "#ffffff",
     "surface-overlay": "#eae9e3",
+    "surface-paper": "#ece5d5",
     "accent-quiet": "#e4e9f0",
     ink: "#16150f",
     "ink-muted": "#585549",
@@ -49,6 +50,7 @@ const PALETTES = {
     surface: "#171613",
     "surface-raised": "#201e1a",
     "surface-overlay": "#2a2823",
+    "surface-paper": "#262119",
     "accent-quiet": "#1b2430",
     ink: "#f1eee7",
     "ink-muted": "#aba49a",
@@ -58,7 +60,20 @@ const PALETTES = {
   },
 };
 
-const SURFACES = ["surface-sunk", "surface", "surface-raised", "surface-overlay", "accent-quiet"];
+/**
+ * `surface-paper` joined this list on 2026-08-26 with the paper system, and it joined the list
+ * rather than being spot-checked for exactly the reason in the header: the one pair a hand-picked
+ * table omits is the one that is failing. Every text token is now measured on it in both modes,
+ * and the receipt tail sets `ink-muted` on it at 14px, so it is load-bearing text, not decoration.
+ */
+const SURFACES = [
+  "surface-sunk",
+  "surface",
+  "surface-raised",
+  "surface-overlay",
+  "surface-paper",
+  "accent-quiet",
+];
 const TEXT = ["ink", "ink-muted", "accent"];
 /** Load-bearing borders sit on these three. `accent-quiet` is a header band, never a control bed. */
 const CONTROL_BEDS = ["surface", "surface-raised", "surface-overlay"];

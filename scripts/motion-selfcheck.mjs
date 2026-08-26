@@ -43,8 +43,26 @@ const readMotion = () => {
   const kf=[]; for (const sheet of document.styleSheets) { try { for (const r of sheet.cssRules)
     if (r.type===7||r.constructor.name==="CSSKeyframesRule") { const props=new Set(); for(const k of r.cssRules) for(const p of k.style) props.add(p);
       kf.push({name:r.name,stops:r.cssRules.length,properties:[...props].join(", ")}); } } catch {} }
-  const sections=[...document.querySelectorAll("body > * > * > section, main > section, main > div > section")];
-  return {records,keyframes:kf,sampled:els.length,sectionsTotal:sections.length};
+  // SECTION REVEALS, with the probe's own selector and the probe's own predicate.
+  //
+  // This used to count sections with a selector of its own and then print "(check)", which is
+  // not a check: `motion.every-section-reveals` needs BOTH numbers - it fires only when every
+  // one of five-or-more sections carries an entrance - and a script that reports one of them
+  // cannot say whether the rule fires. Re-implemented rather than imported, like everything
+  // else in this file, but re-implemented against `packages/detectors-web/src/probe.ts` line
+  // for line: a different selector here would silently answer a different question.
+  const sections=[...document.querySelectorAll("body > * > section, body > section, main > section, main > div")];
+  let sectionsWithReveal=0; const revealing=[];
+  for (const section of sections) {
+    const cands=[section,...[...section.children].slice(0,6)];
+    const hit=cands.find((el)=>{ const cs=getComputedStyle(el);
+      const animated=cs.animationName&&cs.animationName!=="none"&&/opacity|transform|translate|fade/i.test(`${cs.animationName} ${cs.willChange}`);
+      const transitioned=/opacity|transform/i.test(cs.transitionProperty)&&parseFloat(cs.transitionDuration)>0;
+      const held=cs.opacity!==""&&parseFloat(cs.opacity)<1;
+      return !!(animated||transitioned||held); });
+    if (hit) { sectionsWithReveal+=1; revealing.push(sel(hit)); }
+  }
+  return {records,keyframes:kf,sampled:els.length,sectionsTotal:sections.length,sectionsWithReveal,revealing};
 };
 
 /**
@@ -84,7 +102,9 @@ for (const path of ["/", "/receipt/4F2A-9C", "/method", "/mcp"]) {
     if(d.length<4)continue; const delta=d[1]-d[0]; if(delta<20)continue;
     if(d.every((x,i)=>i===0||x-d[i-1]===delta)) ladder=true; }
   console.log(`  motion.stagger-ladder        : ${ladder?"FIRES":"clear"}`);
-  console.log(`  motion.every-section-reveals : ${m.sectionsTotal>=5?"(check)":"clear"} (sections=${m.sectionsTotal})`);
+  const everySection = m.sectionsTotal>=5 && m.sectionsWithReveal===m.sectionsTotal;
+  console.log(`  motion.every-section-reveals : ${everySection?"FIRES":"clear"}  (needs >=5 sections ALL revealing; have ${m.sectionsWithReveal} of ${m.sectionsTotal})`);
+  if (m.sectionsWithReveal) console.log(`     revealing:`, m.revealing.join(", "));
   console.log(`  counter.bespoke-keyframe     : ${m.keyframes.filter(k=>(k.stops>=4&&/clip-path|filter|stroke-dash|offset-|mask|letter-spacing|background-position|rotate|skew/i.test(k.properties))||k.stops>=6).map(k=>k.name).join(",")||"none earned"}`);
   console.log(`  our keyframes:`, m.keyframes.filter(k=>/grain|scan/.test(k.name)).map(k=>`${k.name}(${k.stops} stops: ${k.properties})`).join(" | "));
   await ctx.close();

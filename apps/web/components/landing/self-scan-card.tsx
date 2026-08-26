@@ -4,7 +4,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { ElapsedFigure, ReceiptReveal } from "@/components/receipt/reveal";
-import { ORDER_ATTR, ROW_ATTR } from "@/lib/reveal-attrs";
+import { ORDER_ATTR, READ_ATTR, ROW_ATTR } from "@/lib/reveal-attrs";
 import { ago, type ScanView } from "@/lib/view";
 
 /**
@@ -47,6 +47,7 @@ export function SelfScanCard({
   commit,
   capturedAt,
   staleReason,
+  initialAge,
 }: {
   readonly initial: ScanView;
   readonly ruleTitles: Readonly<Record<string, string>>;
@@ -55,11 +56,31 @@ export function SelfScanCard({
   readonly capturedAt: string;
   /** Set when the reading predates this deployment. Printed, never hidden. */
   readonly staleReason?: string;
+  /**
+   * The age of the reading AT THE MOMENT THE SERVER RENDERED THIS REQUEST, and the second half
+   * of the refresh-glitch fix.
+   *
+   * This used to be client-only, on the stated reasoning that "rendering it on the server would
+   * bake a timestamp into the HTML and the card would claim to be that old forever". That
+   * reasoning applied to a STATIC page and this page is `export const dynamic = "force-dynamic"`
+   * — it is re-rendered and re-scored on every request, so a server-computed age is accurate at
+   * the instant it is sent, not baked.
+   *
+   * The cost of getting it wrong was measured: the masthead went from "captured at build" to
+   * "captured 47 h ago at build" at hydration, the header's flex row wrapped, the card grew 35px
+   * and everything below it jumped. CLS 0.126, identical on three consecutive loads, which is a
+   * failing Core Web Vital and is the visible "jump" half of the glitch report.
+   *
+   * With the age in the server HTML the client's first render is byte-identical, the effect
+   * below only takes over the ticking, and the reading is now correct with JavaScript off too —
+   * which it never was.
+   */
+  readonly initialAge?: string | null;
 }) {
   const [view, setView] = React.useState<ScanView>(initial);
   const [live, setLive] = React.useState(false);
   const [phase, setPhase] = React.useState<Phase>("idle");
-  const [age, setAge] = React.useState<string | null>(null);
+  const [age, setAge] = React.useState<string | null>(initialAge ?? null);
 
   const run = React.useCallback(async () => {
     setPhase("running");
@@ -87,8 +108,9 @@ export function SelfScanCard({
     }
   }, []);
 
-  // The age is computed after mount and ticks. Rendering it on the server would bake a
-  // timestamp into the HTML and the card would claim to be that old forever.
+  // The age TICKS here. It is no longer FIRST computed here: see `initialAge`. The distinction
+  // is the whole fix — this effect used to introduce the string, and now it only keeps a string
+  // the server already sent current, so its first tick is a no-op and paints nothing.
   React.useEffect(() => {
     const tick = () => setAge(ago(view.ranAt));
     tick();
@@ -162,6 +184,7 @@ export function SelfScanCard({
                 variant="outline"
                 size="sm"
                 {...{ [ROW_ATTR]: "", [ORDER_ATTR]: String(orderOf(finding.ruleId)) }}
+                data-hover-row
                 className="flex-wrap items-start gap-x-5 gap-y-2 border-hairline bg-surface-raised px-5 py-[18px]"
               >
                 <a
@@ -186,6 +209,7 @@ export function SelfScanCard({
                 variant="outline"
                 size="sm"
                 {...{ [ROW_ATTR]: "", [ORDER_ATTR]: String(orderOf(id)) }}
+                data-hover-row
                 className="flex-wrap items-start gap-x-5 gap-y-2 border-hairline bg-surface-raised px-5 py-[18px]"
               >
                 <span className="w-full shrink-0 font-mono text-mono-sm font-medium text-ink-muted md:w-[13rem]">
@@ -269,30 +293,50 @@ function Frame({
   readonly children: React.ReactNode;
 }) {
   return (
-    <div data-doc data-level="2" className="border border-border-control bg-surface-raised">
+    // `READ_ATTR` puts the read sweep on the whole card. It is the fold's only moment and it is
+    // additive: the overlay is painted above this element by `[data-reading]::after`, so nothing
+    // inside is hidden, moved or re-timed at any point. See reveal.tsx BEAT 0.
+    <div
+      data-doc
+      data-level="2"
+      data-read-sweep
+      {...{ [READ_ATTR]: "" }}
+      className="border border-border-control bg-surface-raised"
+    >
       {/* The masthead sits on `--accent-quiet`, the one place a chromatic wash is allowed: a
           navy in dark, a cold paper-blue in light. It is the card's header band, so it carries
           hierarchy, which the palette permits; it is nowhere near a finding, so it cannot be
           read as carrying a verdict, which the palette forbids. Under the old two-surface dark
-          palette this strip was the same colour as the rows below it and the card had no head. */}
-      <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-border-control bg-accent-quiet px-5 py-4">
-        <p className="font-mono text-mono-sm text-ink">
-          {target} · scan_ui{checks ? ` · ${checks}` : ""}
-        </p>
-        <div className="flex flex-wrap items-baseline gap-3">
+          palette this strip was the same colour as the rows below it and the card had no head.
+
+          TWO EXPLICIT ROWS, not one wrapping row, and that is a layout-stability decision
+          rather than a visual one. The locator and the metadata used to share a single
+          `flex-wrap` line, so the metadata's STRING LENGTH decided whether the header was one
+          line or two — and the metadata contains a relative age that grows a word at hydration.
+          Measured: 35px of growth, CLS 0.126, on every single load. Separate rows cannot wrap
+          into each other, so no string this header can ever hold changes its height. */}
+      <div className="border-b border-border-control bg-accent-quiet">
+        <div className="flex items-baseline justify-between gap-4 px-5 pt-4 pb-2">
+          <p className="min-w-0 font-mono text-mono-sm break-all text-ink">
+            {target} · scan_ui{checks ? ` · ${checks}` : ""}
+          </p>
           <Badge
             variant="outline"
-            className="rounded-sm border-border-control font-mono text-mono-xs font-medium tracking-[0.06em] text-ink uppercase"
+            className="shrink-0 rounded-sm border-border-control font-mono text-mono-xs font-medium tracking-[0.06em] text-ink uppercase"
           >
             {status}
           </Badge>
-          <span className="font-mono text-mono-sm text-ink-muted">{meta}</span>
+        </div>
+        <div className="flex items-baseline justify-between gap-4 px-5 pb-4">
+          {/* `tabular-nums` so the counting figure does not breathe the line while it counts,
+              on the routes where the count-up is still allowed to run. */}
+          <span className="min-w-0 font-mono text-mono-sm text-ink-muted tabular-nums">{meta}</span>
           {onRerun ? (
             <button
               type="button"
               onClick={onRerun}
               disabled={busy}
-              className="rounded-sm font-mono text-mono-sm text-ink-accent underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-60"
+              className="shrink-0 rounded-sm font-mono text-mono-sm text-ink-accent underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-60"
             >
               {busy ? "running" : "run it live"}
             </button>

@@ -175,6 +175,9 @@
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-overlay: var(--surface-overlay);
+  /* A FIFTH surface, and the only one with a temperature: receipt stock. See §THE PAPER
+     SYSTEM below for why it exists and where it is allowed. */
+  --color-surface-paper: var(--surface-paper);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-hairline: var(--hairline);
@@ -250,6 +253,31 @@
   --text-display--line-height: 106%;
   --text-display--letter-spacing: -0.01em;
 
+  /* ---------------------------------------------------------------------------------------
+   * THE HERO STEP. An eleventh step, and the only fluid one in the scale.
+   *
+   * The landing H1 was a fixed 52px at every width, which at 1440 is a paragraph in a
+   * paragraph's clothing: nothing on the first screen was bigger than anything else, so the eye
+   * had nowhere to land. This tops out at 76px, which is a headline.
+   *
+   * IT IS CAPPED BELOW 54px AT MOBILE WIDTH ON PURPOSE, and that is our own rule talking.
+   * `css.hero-scale` fires on a headline of 54px or more inside a 480px viewport — "scale used
+   * as a substitute for having something to say". At 390px this computes to 42px (the floor),
+   * at 768px to 53px, and it only passes 54 once there is a screen wide enough to earn it.
+   * Verified in a browser at 390 and 1440, not asserted: see the note in design/DESIGN.md §3.
+   *
+   * Still Regular 400, still -0.01em. The rule that our largest type is our lightest weight is
+   * unchanged, and this makes it more visible rather than less.
+   * ------------------------------------------------------------------------------------- */
+  --text-display-xl: clamp(2.625rem, 1.7rem + 3.4vw, 4.75rem);
+  --text-display-xl--line-height: 100%;
+  /* -0.01em and not a hair tighter. DESIGN.md §3 rule 2: tracking never goes below -0.01em,
+     because "crushed letter-spacing" is a named tell in our own corpus and -0.01em at Regular is
+     optical correction where anything more is a look. This shipped at -0.012em for one revision
+     and was caught by measuring the computed value in a browser (-0.912px at 76px), not by
+     reading the token back. */
+  --text-display-xl--letter-spacing: -0.01em;
+
   /* Measures: 1056 on the receipt, 1248 on the landing, 72ch on prose. */
   --container-receipt: 1056px;
   --container-page: 1248px;
@@ -297,6 +325,10 @@
   --surface: #f2f1ec;
   --surface-raised: #ffffff;
   --surface-overlay: #eae9e3;
+  /* Receipt stock. The one warm surface: 44° against the page's 47° but a full 5 points more
+     chroma, which is the difference between "grey" and "paper" without adding a second hue to
+     the palette. Still well short of Lark's #F4EFE4 cream. */
+  --surface-paper: #ece5d5;
   --ink: #16150f;
   --ink-muted: #585549;
   --hairline: #c8c6bd;
@@ -356,6 +388,11 @@
     --surface: #171613;
     --surface-raised: #201e1a;
     --surface-overlay: #2a2823;
+    /* Paper in a dark room is not a bright rectangle: it is the warmest, not the lightest,
+       thing on the page. This sits between `raised` and `overlay` in luminance and carries
+       twice their chroma, so the receipt band reads as stock under a lamp rather than as a
+       white sheet punched into a black page. */
+    --surface-paper: #262119;
     --ink: #f1eee7;
     --ink-muted: #aba49a;
     --hairline: #332f29;
@@ -593,6 +630,372 @@
 }
 
 /* =======================================================================================
+ * THE PAPER SYSTEM.
+ *
+ * The founder's third verdict on this UI was that it looks "horrific": uniform grey mono
+ * blocks, no focal point, no imagery, 100% neutral. Every one of those is true and they have
+ * one shared cause — the site had a palette and a type scale but no VISUAL SYSTEM. Nothing on
+ * it was an object. So this is the object: the thing this product hands you is a printed
+ * receipt, and the page is now made of receipt.
+ *
+ * Four primitives, and they are all one pixel of geometry plus a background. None of them is
+ * an image, none of them costs a request, and none of them animates.
+ *
+ *   [data-paper]       receipt stock: --surface-paper plus a thermal fibre wash
+ *   [data-perf]        a punched perforation edge, top and/or bottom
+ *   [data-tear]        a torn edge: the same punch at a much finer pitch, one side only
+ *   [data-stamp]       a rotated, outlined mono stamp
+ *
+ * WHY THE PERFORATION IS DRAWN THE WAY IT IS. The holes are `radial-gradient` circles filled
+ * with the colour of whatever is BEHIND the band (`--perf-behind`, set per instance), not with
+ * a hardcoded page colour. That is what makes them read as holes rather than as dots: the eye
+ * is seeing through the stock to the page, and it stays true in both colour schemes and over
+ * both the page surface and the sunk surface. Get that wrong and it is a dotted border.
+ *
+ * A NOTE ON WHAT THIS IS NOT. It is not a texture overlay, a noise PNG, or a "paper" stock
+ * photo, and there is deliberately no drop shadow lifting the band off the page. The tells our
+ * own corpus encodes are all about borrowed decoration; a hole punched in a coloured band is a
+ * shape, and shapes are cheap and ours.
+ * ===================================================================================== */
+
+:root {
+  /* Pitch and radius of a punch. 13px holes on a 24px pitch is a real till-roll perforation;
+     the numbers are off the 4px spacing grid on purpose, because a perforation that lands on
+     the layout grid reads as a border. */
+  --perf-pitch: 24px;
+  --perf-r: 6.5px;
+  --perf-behind: var(--surface);
+  /* The fibre in the stock. Two very low-alpha ruled washes at prime-ish pitches so they never
+     resolve into a visible grid, which is what separates "paper" from "graph paper". */
+  --paper-fibre: rgb(22 21 15 / 0.028);
+  --stamp-ink: rgb(22 21 15 / 0.42);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper-fibre: rgb(241 238 231 / 0.035);
+    --stamp-ink: rgb(241 238 231 / 0.34);
+  }
+}
+
+[data-paper] {
+  background-color: var(--surface-paper);
+  background-image:
+    repeating-linear-gradient(91deg, var(--paper-fibre) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(178deg, var(--paper-fibre) 0 1px, transparent 1px 11px);
+}
+
+/* The punched edge. `top`, `bottom` or `both`, and the band needs enough padding to clear it. */
+[data-perf] {
+  position: relative;
+}
+
+[data-perf]::before,
+[data-perf]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: calc(var(--perf-r) * 2);
+  background-image: radial-gradient(
+    circle at var(--perf-pitch) center,
+    var(--perf-behind) 0 var(--perf-r),
+    transparent calc(var(--perf-r) + 0.5px)
+  );
+  background-size: calc(var(--perf-pitch) * 2) 100%;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
+
+[data-perf="top"]::after,
+[data-perf="bottom"]::before {
+  content: none;
+}
+
+[data-perf]::before {
+  top: calc(var(--perf-r) * -1);
+}
+
+[data-perf]::after {
+  bottom: calc(var(--perf-r) * -1);
+}
+
+/* A tear rather than a punch: the same idea at a tenth of the pitch and a shallower bite, so
+   the edge reads as fibre pulled apart instead of as machine holes. One side, because paper
+   tears on one side. */
+[data-tear] {
+  position: relative;
+}
+
+[data-tear]::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  background-image: radial-gradient(circle at 3px center, var(--perf-behind) 0 2.5px, transparent 3px),
+    radial-gradient(circle at 8px center, var(--perf-behind) 0 1.5px, transparent 2px);
+  background-size:
+    11px 100%,
+    17px 100%;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
+
+/* The stamp. Outlined mono, rotated off-axis, at 42% ink so it sits UNDER the reading rather
+   than competing with it — a stamp is a mark somebody put on a document, not a headline. The
+   angle is -8.5deg and the tracking +0.14em; both are outside every value used anywhere else on
+   the site, because a stamp that shares a rotation with the layout is a badge. */
+[data-stamp] {
+  font-family: var(--font-doc-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  color: var(--stamp-ink);
+  border: 2px solid var(--stamp-ink);
+  border-radius: 2px;
+  padding: 7px 11px;
+  transform: rotate(-8.5deg);
+  pointer-events: none;
+  user-select: none;
+}
+
+/**
+ * A stamp laid on a DARK PHOTOGRAPH rather than on the page.
+ *
+ * Not a theme variant, and this is the distinction that matters: `--stamp-ink` follows the
+ * colour scheme because the page does, but the receipt artifact is a PNG of paper on a black
+ * desk and that desk is black in light mode and dark mode alike. A stamp inheriting the page's
+ * ink is invisible on it in light mode — which is exactly what shipped for one revision and is
+ * why this exists. Ink is chosen against what is BEHIND the mark, not against the theme.
+ */
+[data-stamp="on-dark"] {
+  color: rgb(241 238 231 / 0.62);
+  border-color: rgb(241 238 231 / 0.62);
+}
+
+/* =======================================================================================
+ * THE READ SWEEP.
+ *
+ * The one moment in the fold, and the reason it exists is a bug rather than a wish.
+ *
+ * The fold's motion used to be the count-up and the row resolve, and both of them WIND
+ * BACKWARDS from the server-rendered finished state after hydration. Measured on localhost
+ * against this dev server: the card paints complete at ~170 ms, and at ~1000 ms the effect sets
+ * every row to `opacity: 0` and the elapsed figure back to `0.0`, then replays. So the reader
+ * watched the thing they were already reading disappear and come back. That is the "refreshing
+ * the page glitches" report, and the fix is in components/receipt/reveal.tsx: nothing that is
+ * already on screen is ever wound backwards again.
+ *
+ * That leaves the fold with no beat, so this is its beat, and it is ADDITIVE: an overlay passes
+ * down the card and nothing underneath it is ever hidden, moved or re-timed. There is no state
+ * to restore, so there is nothing to flash. It reports the same fact the print head reports —
+ * a machine passed over this document — and it moves at exactly the same constant rate
+ * (2.2 px/ms, `FEED_PX_PER_MS`), because it is the same machine.
+ *
+ * Driven off `--read`, written per frame by the timeline. It exists only while `data-reading`
+ * is set, so nothing here reaches a resting page or the server HTML.
+ * ===================================================================================== */
+
+[data-read-sweep] {
+  position: relative;
+}
+
+[data-read-sweep][data-reading]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* A soft leading glow with a hard 1px head at the cut, in the accent. The band is 9% of the
+     element's height, so a tall card gets a proportionally taller sweep. */
+  background:
+    linear-gradient(
+      to bottom,
+      transparent calc(var(--read, 0%) - 9%),
+      color-mix(in srgb, var(--accent) 9%, transparent) var(--read, 0%),
+      transparent calc(var(--read, 0%) + 1.5%)
+    ),
+    linear-gradient(to bottom, transparent calc(var(--read, 0%) - 0.35%), var(--accent) var(--read, 0%), transparent calc(var(--read, 0%) + 0.35%));
+  opacity: 0.85;
+}
+
+/* =======================================================================================
+ * THE HERO RULE.
+ *
+ * A thermal print rule under the headline, drawn as an SVG path and inked by
+ * `stroke-dashoffset` over 620 ms once, on load. Lark's equivalent is a hand-drawn coral swoosh;
+ * ours is the line a till printer draws, which is why the path wobbles and why it has a gap in
+ * it — an ink-starved head skips.
+ *
+ * CSS, NOT THE TIMELINE, and that is load-bearing: a CSS animation runs at first paint, so this
+ * is drawing while the JavaScript is still in flight. Nothing on the site's critical path
+ * depends on it and it is `aria-hidden` decoration, so if the stylesheet never arrives the
+ * headline is simply a headline. Four stops, on `stroke-dashoffset`.
+ *
+ * `both` fill mode is what makes the reduced-motion path correct: the blanket override below
+ * collapses the duration to 0.01 ms and `forwards` leaves the line fully drawn, immediately.
+ * ===================================================================================== */
+
+@keyframes rule-ink {
+  0% {
+    stroke-dashoffset: 640;
+  }
+  38% {
+    stroke-dashoffset: 386;
+  }
+  71% {
+    stroke-dashoffset: 138;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+[data-hero-rule] path {
+  stroke-dasharray: 640;
+  animation: rule-ink 620ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* =======================================================================================
+ * HOVER, AND THE FACT THAT THE PAGE ANSWERS THE CURSOR AT ALL.
+ *
+ * The founder's second complaint was "there are no transitions". Part of that is the timeline
+ * bug above; the rest is that the only thing on this site that responded to a pointer was link
+ * colour. A document does not need to bounce, but it does need to acknowledge that you are
+ * pointing at a row of it.
+ *
+ * So: a 2px accent edge slides in from the left of a finding row, and the row's surface steps
+ * up one level. Both are on our own 120 ms / hard-out pairing, both are `transform` and
+ * `background-color` only, and the edge is drawn on the row's own `::before` so it costs no
+ * element and cannot shift the text one pixel. `:focus-within` gets the same treatment, so a
+ * keyboard reader is not a second-class citizen of the effect.
+ * ===================================================================================== */
+
+[data-hover-row] {
+  position: relative;
+  transition:
+    background-color var(--default-transition-duration) var(--default-transition-timing-function);
+}
+
+[data-hover-row]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (hover: hover) {
+  [data-hover-row]:hover {
+    background-color: var(--surface-overlay);
+  }
+
+  [data-hover-row]:hover::before {
+    transform: scaleX(1);
+  }
+}
+
+[data-hover-row]:focus-within::before {
+  transform: scaleX(1);
+}
+
+/* The artifact answers the pointer too, and it answers as paper: it lifts a hair and squares up
+   from its resting quarter-degree tilt. 260 ms, which is slower than any UI transition on the
+   site, because a physical object has mass and a link does not. */
+[data-lift] {
+  transform: rotate(0.35deg);
+  transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (hover: hover) {
+  [data-lift]:hover {
+    transform: rotate(0deg) translateY(-3px);
+  }
+}
+
+/* =======================================================================================
+ * PAGE TO PAGE.
+ *
+ * Four routes that all look like the same document deserve to behave like one, and until now a
+ * click on `Method` was an instant, unannounced replacement with a scroll reset.
+ *
+ * WHAT DRIVES IT, and the two dead ends that were tried and measured first:
+ *
+ *   `@view-transition { navigation: auto }` is the obvious answer and it is DEAD on this site.
+ *   It covers CROSS-document navigation only, and every link here is a `next/link`, so every
+ *   real navigation is same-document. Measured by driving a click at Method with the at-rule in
+ *   place and sampling `document.getAnimations()`: zero view-transition animations, on both the
+ *   normal and the reduced-motion path. It is not in this file, because a rule that provably
+ *   never fires is dead CSS, and shipping dead CSS is one of the things this product exists to
+ *   point at.
+ *
+ *   React's `<ViewTransition default="page-swap">` in app/layout.tsx is what actually runs. It
+ *   wraps `main` and nothing else, so `main` is captured under its own name and everything left
+ *   over — nav, footer, backdrop — falls into `root`.
+ *
+ * ROOT IS THEN PINNED STILL, DELIBERATELY. Without the rule below both groups animate, which
+ * fades the nav and the footer along with the page and makes the whole viewport blink. The nav
+ * and the footer are identical on all four routes; they are the room, and the room does not
+ * change when the document on the desk does. Pinning root is also what turns this from "a page
+ * transition" into "a document being replaced", which is the whole point.
+ *
+ * The durations and curves are OURS, not the browser default, for the same reason
+ * `--default-transition-duration` is 120 ms: shipping a framework's default timing is the exact
+ * thing `motion.framework-default-timing` exists to catch. Left unstyled, these pseudos run the
+ * UA's own 250 ms linear cross-fade, which is that defect wearing a different hat. 180 ms out,
+ * 260 ms in, hard-out curve, and the incoming page rises 8px rather than sliding a full screen.
+ *
+ * None of this can reintroduce a blank flash on FIRST load: there is no outgoing page to
+ * transition from, so no transition is generated at all.
+ * ===================================================================================== */
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+::view-transition-old(.page-swap) {
+  animation: page-out 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+::view-transition-new(.page-swap) {
+  animation: page-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* The GROUP animation is the geometry morph between the old and new box, and the browser supplies
+   it with keyframes of its own. Only its timing is ours to set, and it has to be set: left alone
+   it runs the UA's 250 ms linear, which is a browser default shipped on our own site — the same
+   defect as `motion.framework-default-timing`, which we detect, wearing a different hat. 220 ms
+   so the box has settled before the incoming content has finished fading up. */
+::view-transition-group(.page-swap) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The room holds still. See above: without this the chrome cross-fades at the UA default. */
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-group(root) {
+  animation: none;
+}
+
+/* =======================================================================================
  * REDUCED MOTION.
  *
  * Every animation added in this pass is authored to have its end state already on screen, so
@@ -617,6 +1020,32 @@
      is ambience; with motion off there is nothing for it to be. */
   [data-backdrop]::after {
     display: none;
+  }
+
+  /* The read sweep never starts (reveal.tsx returns first), so `data-reading` is never set and
+     this overlay is never painted. Belt: if a future edit sets the attribute anyway, the sweep
+     is a band frozen across a card, which is the scan-band failure again. */
+  [data-read-sweep]::after {
+    display: none;
+  }
+
+  /* View transitions are cancelled rather than shortened, on BOTH paths. `animation: none` on a
+     view-transition pseudo makes the browser swap the snapshots instantly, which is the
+     behaviour a reader asking for no motion is asking for; the blanket 0.01 ms override below
+     would still run a frame of a full-page cross-fade. */
+  /* The group goes too, not just the old and new snapshots. A cancelled cross-fade with a live
+     250 ms geometry morph underneath it is still a page sliding around, which is the thing being
+     asked for less of. */
+  ::view-transition-old(.page-swap),
+  ::view-transition-new(.page-swap),
+  ::view-transition-group(.page-swap) {
+    animation: none !important;
+  }
+
+  /* The hero rule lands fully inked. `both` fill mode plus the collapsed duration means the
+     path is drawn on the first frame; without the fill mode this would leave a blank line. */
+  [data-hero-rule] path {
+    stroke-dashoffset: 0 !important;
   }
 
   *,

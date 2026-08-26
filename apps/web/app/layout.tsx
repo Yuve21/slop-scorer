@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ViewTransition } from "react";
 import "./globals.css";
 import { Backdrop } from "@/components/site/backdrop";
 import { SiteFooter } from "@/components/site/site-footer";
@@ -73,7 +74,31 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Backdrop />
         <div className="relative z-10 flex min-h-full flex-1 flex-col">
           <SiteNav />
-          <main className="flex-1">{children}</main>
+          {/* PAGE TO PAGE. The nav, the backdrop and the footer sit OUTSIDE this deliberately:
+              they are the room, and the room does not change when the document on the desk does.
+              Only `main` is swapped, so the chrome stays put across a navigation instead of the
+              whole viewport cross-fading, which is what makes it read as one application rather
+              than as four separate pages.
+
+              `default="page-swap"` names the class the animation is styled by; the timing and
+              curve live in globals.css §PAGE TO PAGE and are ours (180 ms out, 260 ms in, on the
+              hard-out curve) rather than the browser's defaults, for the same reason
+              `--default-transition-duration` is 120 ms and not Tailwind's 150.
+
+              WHY THIS AND NOT THE `@view-transition` AT-RULE. That at-rule only covers
+              CROSS-document navigation, and every link on this site is a `next/link`, so every
+              real navigation here is same-document and the at-rule never fired once. Measured by
+              clicking Method and sampling `document.getAnimations()`: zero view-transition
+              animations with the at-rule alone, six with this. The at-rule was removed rather
+              than left in as a hopeful no-op.
+
+              `ViewTransition` is imported from "react", which in the App Router resolves to the
+              canary Next vendors (19.3.0-canary here) rather than to the workspace's stable
+              19.2.8 — the stable build does not export it at all. Verified against
+              `next/dist/compiled/react` before this was written, not assumed. */}
+          <ViewTransition default="page-swap">
+            <main className="flex-1">{children}</main>
+          </ViewTransition>
           <SiteFooter />
         </div>
       </body>

@@ -51,3 +51,18 @@ export const ORDER_ATTR = "data-reveal-order";
  * take the same time and none of it is a number anybody chose.
  */
 export const WRITE_ATTR = "data-reveal-write";
+
+/**
+ * A document a read head passes over once. The ONLY beat allowed to run on something already on
+ * screen, because it is the only one that is purely additive: it paints an overlay above the
+ * element and never touches the element's own opacity, position or text.
+ *
+ * Every other attribute in this file names a beat that HIDES its target first and then restores
+ * it. That is safe below the fold and it is a visible glitch above it — see the viewport rule at
+ * the top of components/receipt/reveal.tsx, which is what this attribute exists to work around
+ * rather than to violate.
+ *
+ * The sweep's duration is the element's own rendered height at the print head's constant rate,
+ * so it is the same machine moving at the same speed over a different document.
+ */
+export const READ_ATTR = "data-reveal-read";
