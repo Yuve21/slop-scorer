@@ -47,10 +47,19 @@ const readMotion = () => {
   return {records,keyframes:kf,sampled:els.length,sectionsTotal:sections.length};
 };
 
-for (const path of ["/", "/receipt/4F2A-9C", "/method"]) {
+/**
+ * The base URL was documented as an argument in the header of this file and then ignored by the
+ * code, which meant the one machine that could run this check was a machine with a spare 3877.
+ * It reads the argument now. `/mcp` is in the list because it is the page that carries the
+ * install commands, and a page nobody can reach without tripping our own motion rules is not a
+ * page we get to ship.
+ */
+const BASE = (process.argv[2] || "http://localhost:3877").replace(/\/+$/, "");
+
+for (const path of ["/", "/receipt/4F2A-9C", "/method", "/mcp"]) {
   const ctx = await b.newContext({ viewport:{width:1440,height:1000} });
   const p = await ctx.newPage();
-  await p.goto("http://localhost:3877"+path,{waitUntil:"load"});
+  await p.goto(BASE+path,{waitUntil:"load"});
   await p.waitForTimeout(2500);
   const m = await p.evaluate(readMotion);
   const anim = m.records.filter(r=>r.source==="animation"&&r.durationMs>0);

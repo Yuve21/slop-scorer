@@ -231,3 +231,40 @@ verification, name (`slop-scorer-mcp`) checked unclaimed on the registry. Publis
 (`npm publish --access public`) has not been run: that is the founder's npm account and call.
 See `packages/mcp-server/README.md#publishing-this-package` for the exact command and the
 before-publish local-dev fallback (`npm run install:local`).
+
+## The public MCP repository
+
+The MCP server is open source at **github.com/Yuve21/slop-scorer-mcp**. Everything else in this
+repository, including every strategy document at the root, `apps/web`, and the reproduction,
+notary, gauntlet, provenance, database and media-detector packages, stays private.
+
+**This repository is authoritative. The public one is a projection of it, regenerated, never
+edited.** Four packages travel: `core`, `detectors-code`, `detectors-web`, `mcp-server`.
+
+```sh
+node scripts/sync-public-mcp.mjs            # sync, scrub, leak-audit
+node scripts/sync-public-mcp.mjs --check    # audit the public checkout, write nothing
+```
+
+Then, in the public checkout: `npm install && npm run build && npm test && npm run backtest`,
+and commit. The whole workflow is:
+
+1. Make the change **here**, as normal.
+2. `node scripts/sync-public-mcp.mjs`. It copies the four packages, applies an exact list of
+   comment scrubs (every comment that cited a private strategy document by name), and runs a
+   leak audit over the whole public tree. Any scrub that no longer matches is a hard failure,
+   not a warning, so a reworded comment cannot silently ship its original text.
+3. Verify and commit in the public checkout.
+
+Three things the script deliberately does not own, because they have no private original:
+the public repository's own README, LICENSE and CONTRIBUTING, its root build config, and
+`packages/ocr-text`.
+
+That last one is the thing to remember. `@slop/detectors-web` calls `recoverText` from
+`@slop/ocr-text`, which reads the PNG decoder and the bitmap-font OCR out of `@slop/reproduce`,
+so the private reproduction pipeline is in the MCP server's real runtime closure and esbuild
+inlines all of it into `dist/bin.js`. **Check that before running `npm publish` from this
+repository.** The public repository carries its own `@slop/ocr-text` instead: same module
+contract, every call an honest abstention with a stated reason, no private code behind it. Its
+calibration baseline is identical to this one, entry for entry, which is the evidence that the
+substitution changes no score.

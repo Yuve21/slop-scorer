@@ -12,29 +12,51 @@ can be acted on comes with the exact edit for your agent to apply.
 
 ## Install
 
-The one line, for Claude Code:
+**Read this before you copy anything.** `slop-scorer-mcp` is **not on the npm registry yet** and
+this repository is **private**. `npm view slop-scorer-mcp` returns 404, github.com/Yuve21/slop-scorer
+returns 404 to anybody not on the repository, and both `curl | sh` installers therefore 404 too.
+Exactly one path works today, and it is the first one below. The rest are printed with what they
+are waiting on, because a command that fails for the reader is the species of confident, unearned
+claim this package exists to detect.
+
+### Works today, from a checkout
+
+```sh
+npm run install:local --workspace=packages/mcp-server
+```
+
+Builds the package and registers the built binary with `claude mcp add` by absolute path, in one
+command. Node 20+ and the `claude` CLI on PATH. If the CLI is missing it prints the JSON block to
+paste by hand rather than failing silently. Cross-platform: it shells out with `execFileSync` and
+computes the path from its own location, so the caller's cwd and shell do not matter.
+
+Then, in any client, point at the printed path:
+
+```json
+{ "mcpServers": { "slop-scorer": { "command": "node", "args": ["/absolute/path/to/slop-scorer/packages/mcp-server/dist/bin.js"] } } }
+```
+
+### One line, once the package is published
 
 ```sh
 claude mcp add slop-scorer -- npx -y slop-scorer-mcp
 ```
 
-That is the whole install. It needs Node 20+ and nothing else: `npx` fetches the package,
-`claude mcp add` registers it, and there is no separate build or update step because npx always
-runs the version on the registry.
+That becomes the whole install: Node 20+ and nothing else, no build step and no update step,
+because npx always runs the version on the registry. It 404s until `npm publish` has been run
+once. See "Publishing this package" at the bottom of this file.
 
-### Claude Desktop
+### Client configuration, by hand
 
-Add this to `claude_desktop_config.json`
-(macOS `~/Library/Application Support/Claude/claude_desktop_config.json`,
-Windows `%APPDATA%\Claude\claude_desktop_config.json`) and restart the app:
+Every client takes the identical block; only the file it goes in differs. Use the `node` form
+above today and the `npx` form below once the package is published. Restart the client after
+editing its config, then ask it to call `list_rules`.
 
-```json
-{ "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] } } }
-```
-
-### Cursor
-
-Add the same block to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per project):
+| Client | File |
+| --- | --- |
+| Claude Code | `.mcp.json` in the project root, or `~/.claude.json` for every project. `claude mcp add` writes this for you. |
+| Claude Desktop | macOS `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows `%APPDATA%\Claude\claude_desktop_config.json`. Quit and reopen the app. |
+| Cursor | `~/.cursor/mcp.json` globally, or `.cursor/mcp.json` per project. Reload the window. |
 
 ```json
 { "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] } } }
@@ -42,7 +64,7 @@ Add the same block to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per p
 
 ### Just tell your agent to install it
 
-Paste this into any coding agent with shell access, in any client:
+Once published, paste this into any coding agent with shell access, in any client:
 
 ```
 Install the slop-scorer MCP server for yourself. Run:
@@ -51,10 +73,10 @@ If that CLI isn't available, add {"command":"npx","args":["-y","slop-scorer-mcp"
 mcpServers in whatever MCP config file you use, then restart. Verify by calling list_rules.
 ```
 
-### Or run the installer script
+### Or run the installer script, once the repository is public
 
 Finds every MCP client on the machine, registers the server, backs up any file it edits, and is
-idempotent.
+idempotent. Both URLs 404 while the repository is private.
 
 macOS and Linux:
 
@@ -70,19 +92,8 @@ powershell -c "irm https://raw.githubusercontent.com/Yuve21/slop-scorer/main/pac
 
 Both scripts check, before touching any config, that `slop-scorer-mcp` actually exists on the
 npm registry, and refuse with a clear message instead of silently registering a command that
-would 404 the first time a client tried to launch it.
-
-### Before this package is published
-
-The two commands above fetch from the npm registry, which is empty until `npm publish` has been
-run once (see the repository root README for that step). Until then, install from a checkout:
-
-```sh
-npm run install:local --workspace=packages/mcp-server
-```
-
-This builds the package and registers the built binary with `claude mcp add` by absolute path,
-in one command.
+would 404 the first time a client tried to launch it. That check is why they are safe to publish
+before the package is: they fail loudly and change nothing.
 
 ### Rendering pages needs a browser
 
@@ -96,17 +107,6 @@ Without it, `scan_ui` returns `status: "not_assessed"` and says so. It will not 
 reading the server HTML: a fetch-only read produces confident findings about a document nobody
 sees, which is how a heading check in the source corpus reported "this route has 0 H1s" for a
 route whose heading does not exist until hydration.
-
----
-
-## Client configuration, by hand
-
-Every client above uses the identical `{ "command": "npx", "args": ["-y", "slop-scorer-mcp"] }`
-block; only the file it goes in differs. For Claude Code specifically, that file is `.mcp.json`
-in the project root (or `~/.claude.json` for every project), if you would rather edit it than
-run `claude mcp add`.
-
-Restart the client after editing its config, then ask it to call `list_rules`.
 
 ---
 
@@ -147,8 +147,21 @@ Three things follow from that, and they are the design rather than the caveats:
 
 ### `list_rules` — read this before you write anything
 
-Returns every rule in both corpora: id, family, weight, severity, why it reads as
-machine-generated, the counter-evidence that would rebut it, and how to avoid producing it.
+Returns every rule in both corpora. **Compact by default**, because this tool asks to be called
+BEFORE you generate anything and the full listing measured ~15,800 tokens, which is a fifth of a
+small context window spent speculatively. Nobody pays that, so the tool that is the point of the
+plugin was the one tool nobody would call.
+
+- `index` — every rule, one line each: `id | family | polarity/severity | weight | rationale`.
+  Always present, whatever the other arguments. Roughly **2,800 tokens** for both corpora.
+- `fullEntries` — the rest of what the corpus holds about a rule: why it reads as
+  machine-generated, the counter-evidence that would rebut it, and how to avoid producing it.
+  Empty by default; `ruleIds` fills it for the rules you name, `verbose` for all of them.
+- `retrieval` — a sentence on every response saying how to get what was left out. Nothing is
+  lost in the compact form; it is retrievable rather than resident.
+
+The usual pattern after a scan is `ruleIds: [...the ids that fired]`, which costs a few hundred
+tokens and returns exactly the rebuttal and prevention note you need to act on them.
 
 This is the point of the plugin, not a debugging aid. Detection is a race that eventually gets
 lost: generators improve and tells decay. Prevention does not decay, because an agent that reads
@@ -158,7 +171,12 @@ stronger the more it is used.
 ```
 modality: "web" | "code" | "all"   (optional)
 family:   e.g. "agent-artifact"    (optional)
+ruleIds:  ["craft.no-og-image", ...] full entries for these only   (optional)
+verbose:  true -> full entries for every rule, ~18,000 tokens      (optional)
 ```
+
+Measured with `node scripts/measure-list-rules.mjs`, which prints every shape and its estimated
+token cost at four characters per token. The estimate is labelled as one everywhere it appears.
 
 ### `scan_codebase` — point it at a repo
 
@@ -341,6 +359,26 @@ npm publish --access public      # runs the build automatically via prepublishOn
 This has deliberately not been run: the founder owns the npm account and the decision of when a
 public package first appears under it. Everything up to that command is done; that command is
 the one thing left.
+
+### The moment it is published, edit these two lines and nothing else
+
+The website labels every install command with whether it can actually work, and both labels come
+from two booleans in `apps/web/lib/mcp.ts`:
+
+```ts
+export const PUBLISHED_ON_NPM = false;   // -> true after `npm publish` succeeds
+export const REPO_IS_PUBLIC = false;     // -> true when the GitHub repository goes public
+```
+
+Flipping the first relabels the npx command and its config block on `/mcp`, rewrites the
+availability paragraph on the landing page and on `/mcp`, and changes the warning at the top of
+`/llms.txt`. Flipping the second un-warns the two `curl | sh` installers. Then update the two
+sentences at the top of this file's Install section, which `apps/web/test/mcp-commands.test.ts`
+checks are still in agreement with those booleans.
+
+They are asserted by a person rather than probed at build time on purpose: a build that phoned
+the npm registry to decide what to render would fail closed on a bad network and quietly relabel
+a working command as unavailable.
 
 To prove the artifact works before publishing, without touching the registry:
 
