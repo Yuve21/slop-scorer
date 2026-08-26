@@ -10,6 +10,7 @@ import {
   NPM_PACKAGE,
   PUBLISHED_ON_NPM,
   REPO_IS_PUBLIC,
+  REPO_URL,
   TOOLS,
 } from "@/lib/mcp";
 import { absolute } from "@/lib/site";
@@ -29,11 +30,16 @@ import { absolute } from "@/lib/site";
  * findings about us. That is deliberate: the same posture as the `builder.bare-platform-domain`
  * finding we publish about ourselves in the fold.
  *
- * THE INSTALL SECTION MAY NOT PRINT A COMMAND THAT FAILS. As of writing, `slop-scorer-mcp` is
- * not on npm and this repository is private, so exactly one path works: build it from a
- * checkout. That one is first, labelled as the one that works, and the two that do not are
- * printed with what they are waiting on. `lib/mcp.ts` holds both flags; flipping them is the
- * whole edit when the package ships.
+ * THE INSTALL SECTION MAY NOT PRINT A COMMAND THAT FAILS. The server now has its own public
+ * repository, so the npx-from-GitHub line genuinely works and is offered first. It was run from
+ * a clean npm cache before it was printed here, and the measured cold start is printed with it,
+ * because a client that gives up at 30 seconds will make a working install look broken. The
+ * package is still unpublished, so the registry line is still labelled with what it waits on.
+ * `lib/mcp.ts` holds the flag and every command string; flipping the flag is the whole edit.
+ *
+ * Note that no command is spelled out in this comment, and that is not squeamishness:
+ * `test/mcp-commands.test.ts` greps this file for install strings, because a command typed into
+ * JSX is a copy no flag can relabel. A prose mention reads the same to a grep.
  */
 
 export const metadata: Metadata = {
@@ -185,22 +191,29 @@ export default function McpPage() {
           Install it
         </h2>
         <p className="max-w-[72ch] text-body text-ink">
-          Read this paragraph before you copy anything. {NPM_PACKAGE} is{" "}
-          {PUBLISHED_ON_NPM ? "on the npm registry" : "not on the npm registry yet"}, and this
-          repository is {REPO_IS_PUBLIC ? "public" : "private"}, so today the one path that
-          actually works is a build from a checkout by somebody who has one. The published one is
-          printed below so you can see what it becomes, labelled with what it is waiting on. We
-          are not going to put a copy button next to a command that 404s on the person who
-          presses it.
+          Read this paragraph before you copy anything. The server lives in its own{" "}
+          {REPO_IS_PUBLIC ? "public" : "private"} repository at{" "}
+          <Link
+            href={REPO_URL}
+            className="text-ink-accent underline-offset-4 hover:underline"
+            rel="noreferrer"
+          >
+            {REPO_URL.replace("https://", "")}
+          </Link>
+          , MIT, with its own tests, so the first command below works for anybody with Node 20 and
+          npx. {NPM_PACKAGE} is{" "}
+          {PUBLISHED_ON_NPM ? "on the npm registry" : "still not on the npm registry"}, so the last
+          one does not, and it is labelled with what it is waiting on rather than left to fail on
+          the person who presses copy.
         </p>
-        {COMMANDS.map((entry, index) => (
+        {COMMANDS.map((entry) => (
           <CommandBlock
             key={entry.command}
             label={entry.label}
             command={entry.command}
             availability={entry.availability}
             note={entry.note}
-            tone={index === 0 ? "primary" : "quiet"}
+            tone={entry.availability === "works-today" ? "primary" : "quiet"}
           />
         ))}
         <p className="max-w-[72ch] text-sm text-ink-muted">
@@ -220,16 +233,16 @@ export default function McpPage() {
         </h2>
         <p className="max-w-[72ch] text-body text-ink">
           Every client takes the identical block. Only the file it goes in differs. Use the first
-          form today, with the path the local install prints; use the second once the package is
-          published.
+          form if you want it to look after itself, the second if you have a checkout and want it
+          to run the code you are editing, and the third once the package is published.
         </p>
-        {CONFIG_BLOCKS.map((block, index) => (
+        {CONFIG_BLOCKS.map((block) => (
           <CommandBlock
             key={block.label}
             label={block.label}
             command={block.json}
             availability={block.availability}
-            tone={index === 0 ? "primary" : "quiet"}
+            tone={block.availability === "works-today" ? "primary" : "quiet"}
           />
         ))}
         <dl className="flex flex-col gap-5">

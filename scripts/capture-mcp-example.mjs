@@ -107,6 +107,41 @@ if (!proposal) {
   );
 }
 
+/**
+ * A second proposal, chosen because its evidence carries a LINE and not just a file.
+ *
+ * The landing page has room for one finding and it has to be the convincing shape: a path, a
+ * colon, a number, and the string that was read at it. "This file has no assertions" is true
+ * and checkable but it reads like a lint summary; a source line quoted back at you is the thing
+ * a reader can go and open. Picked here rather than in JSX so the page cannot quietly become a
+ * hand-typed excerpt of a real capture, which is a fabrication wearing a receipt's clothes.
+ *
+ * This comment deliberately does not spell out the marker strings the rule looks for. An
+ * earlier draft did, and the very next capture cited THIS FILE, at the line of the comment
+ * explaining the citation. The scan is honest; the page would have been circular.
+ */
+const LINE_CITED_RULE = "scaffold.placeholder-markers";
+const lineCited = proposals.groups
+  .flatMap((group) => group.fixes)
+  .find(
+    (fix) =>
+      fix.ruleId === LINE_CITED_RULE && fix.evidence?.some((e) => /:\d+$/.test(e.locator ?? "")),
+  );
+if (!lineCited) {
+  throw new Error(
+    `No ${LINE_CITED_RULE} proposal with a line-numbered locator in this capture. The landing ` +
+      `section prints one to show what a citation looks like; it cannot fall back to prose.`,
+  );
+}
+
+/**
+ * The headline numbers, read back off the receipt this capture just produced rather than typed.
+ * Asserted to parse, because a silent null here would render as an empty score on the fold.
+ */
+const header = scan.match(/SLOP RECEIPT\s+(\d+)\s*\/\s*(\d+)\s+band:\s*(.+)/);
+if (!header) throw new Error("Could not read the score off the receipt header of this capture.");
+const [, score, ceiling, band] = header;
+
 const commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
 
 writeFileSync(
@@ -116,8 +151,12 @@ writeFileSync(
       capturedAt: new Date().toISOString(),
       commit,
       tool: "scan_codebase",
+      score: Number(score),
+      ceiling: Number(ceiling),
+      band: band.trim(),
       scanText: scan,
       proposal,
+      lineCited,
       proposalSummary: proposals.summary,
     },
     null,

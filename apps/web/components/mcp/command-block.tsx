@@ -8,11 +8,11 @@ import type { Availability } from "@/lib/mcp";
  * A command, its copy button, and the label that says whether it will work for you.
  *
  * The availability label is not decoration and it is not a badge component. It is the reason
- * this block exists in the shape it does: two of the commands on `/mcp` cannot succeed today,
- * because the package is unpublished and the repository is private, and a copy button next to a
- * command that 404s is the exact species of confident, unearned claim this product sells the
- * detection of. So the label sits in the same row as the button, at the same size, and it is
- * derived from a constant in `lib/mcp.ts` rather than typed per block.
+ * this block exists in the shape it does: one of the commands on `/mcp` cannot succeed today,
+ * because the package is still unpublished, and a copy button next to a command that 404s is the
+ * exact species of confident, unearned claim this product sells the detection of. So the label
+ * sits in the same row as the button, at the same size, and it is derived from a constant in
+ * `lib/mcp.ts` rather than typed per block.
  *
  * There is no colour in the label. The palette has no severity ramp by design (design/DESIGN.md
  * §2), and "you cannot run this yet" is not an error state.
@@ -25,7 +25,6 @@ import type { Availability } from "@/lib/mcp";
 const AVAILABILITY_LABEL: Record<Availability, string> = {
   "works-today": "Works today",
   "needs-publish": "Not on npm yet",
-  "needs-public-repo": "Needs a checkout",
 };
 
 export function CommandBlock({

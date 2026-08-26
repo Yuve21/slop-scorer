@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { CODE_RULE_DESCRIPTORS } from "@slop/detectors-code";
 import { RULE_DESCRIPTORS } from "@slop/detectors-web";
 import { GET, TOOLS } from "@/app/llms.txt/route";
+import { COLD_START_SECONDS } from "@/lib/mcp";
 
 /**
  * `/llms.txt` HAS TO BE SERVED, AND IT HAS TO BE TRUE.
@@ -61,6 +62,10 @@ describe("/llms.txt is served", () => {
 describe("/llms.txt says what an agent needs", () => {
   it("carries the install command, the loop and every tool with what it does", async () => {
     const text = await body();
+    // The one that works today, first. It was run from an empty npm cache before it was
+    // written down, and it is a git spec rather than the bare package name because the bare
+    // name still 404s on the registry.
+    expect(text).toContain("claude mcp add slop-scorer -- npx -y github:Yuve21/slop-scorer-mcp");
     expect(text).toContain("claude mcp add slop-scorer -- npx -y slop-scorer-mcp");
     for (const tool of TOOLS) {
       expect(text, `${tool.name} is not documented`).toContain(`### ${tool.name}`);
@@ -80,6 +85,16 @@ describe("/llms.txt says what an agent needs", () => {
     expect(text).toContain("WE NEVER ASSERT THAT A PERSON USED AI");
     expect(text).toContain("SCORES ARE BOUNDED AT 99");
     expect(text).toContain("COUNTER-EVIDENCE SUBTRACTS");
+  });
+
+  it("tells the reading agent that the first cold start looks like a failure", async () => {
+    // This file's audience is an agent that will run what it finds and then report a result to
+    // somebody. The measured first launch is longer than the 30 second startup timeout most MCP
+    // clients use, so an agent told nothing will report a working install as a broken one.
+    const text = await body();
+    expect(text).toContain(String(COLD_START_SECONDS));
+    expect(text).toContain("30 second");
+    expect(text).toContain("is not a failed install");
   });
 
   it("states rule counts read from the corpora rather than typed in", async () => {

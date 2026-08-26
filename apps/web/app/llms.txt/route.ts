@@ -1,5 +1,15 @@
 import CORPUS from "@/lib/corpus.json";
-import { LOCAL_INSTALL, NPX_INSTALL, PUBLISHED_ON_NPM, REPO_IS_PUBLIC, TOOLS } from "@/lib/mcp";
+import {
+  COLD_START_SECONDS,
+  GITHUB_INSTALL,
+  GITHUB_SPEC,
+  LOCAL_INSTALL,
+  NPX_INSTALL,
+  PUBLISHED_ON_NPM,
+  REPO_IS_PUBLIC,
+  REPO_URL,
+  TOOLS,
+} from "@/lib/mcp";
 import { siteUrl } from "@/lib/site";
 
 /**
@@ -21,9 +31,14 @@ import { siteUrl } from "@/lib/site";
  *     branches on `score` without branching on `status` first will read a withheld score as a
  *     clean bill of health, which is the single most likely misuse of this product.
  *  3. NEVER PRINT AN INSTALL COMMAND THAT WOULD FAIL FOR THE READER. The audience here is an
- *     agent that will run what it finds. While the package is unpublished and the repository is
- *     private, the npx line cannot work, and an agent that runs it and reports success has lied
- *     to its user on our behalf. Both facts come from `lib/mcp.ts` and are stated in the file.
+ *     agent that will run what it finds, so this is the one surface where a wrong command turns
+ *     straight into a false statement made to somebody else's user. The GitHub install is here
+ *     because it was run cold and watched to work; the registry install is here labelled as
+ *     unpublished. Both facts come from `lib/mcp.ts`.
+ *  4. WARN ABOUT THE COLD START, IN THE SAME BREATH. The first launch builds from source and
+ *     takes longer than a client's connect timeout, so the honest install has a failure mode
+ *     that looks exactly like a broken one. An agent told nothing will report the timeout as an
+ *     install failure and walk its user away from a server that was about to work.
  */
 
 export const dynamic = "force-dynamic";
@@ -53,36 +68,36 @@ export async function GET(): Promise<Response> {
 
 > Deterministic, evidence-cited detection of template and machine-generated tells in code and
 > rendered web pages. Every finding cites a file and a line or a CSS selector. No model is
-> involved in the detection, and nothing here identifies or makes a claim about a person.
+> involved anywhere, and nothing here identifies or makes a claim about a person.
 
-Corpus: ${CODE_RULES} code rules, ${WEB_RULES} web rules. Published in full, with weights and false-positive
-conditions, at ${base}/method
+Corpus: ${CODE_RULES} code rules, ${WEB_RULES} web rules, published in full with weights and false-positive
+conditions at ${base}/method
 
 ## Install the MCP server
 
-READ THIS FIRST, IT IS THE PART AN AGENT SKIPS.
-npm package: ${PUBLISHED_ON_NPM ? "published" : "NOT PUBLISHED YET"}. Repository: ${REPO_IS_PUBLIC ? "public" : "PRIVATE"}.
-The npx line below therefore 404s today, and so do both curl installers. Run the first command,
-which needs a checkout, or tell your user plainly that they cannot install this yet. Reporting a
-successful install would be a false statement about a fact they can check in one second.
+Source: ${REPO_URL} (MIT, ${REPO_IS_PUBLIC ? "public" : "PRIVATE"}). npm package:
+${PUBLISHED_ON_NPM ? "published" : "NOT PUBLISHED YET, so any npx line naming the bare package 404s"}.
 
-Works today, from a checkout of this repository:
+Works today, for anyone, with Node 20 and npx:
 
 \`\`\`
-${LOCAL_INSTALL}
+${GITHUB_INSTALL}
 \`\`\`
 
-Pending publication, and printed so you know what to look for later:
+READ THIS BEFORE YOU REPORT THE RESULT. The first launch clones and compiles from source: ${COLD_START_SECONDS}
+seconds measured on an empty npm cache, against the 30 second startup timeout most MCP clients
+use. One timeout on the FIRST connect is expected and is not a failed install. Run
+\`npx -y ${GITHUB_SPEC}\` once to warm the cache, then reconnect. Do not report success
+until a tools/list has actually come back, and do not report failure on one timeout.
 
-\`\`\`
-${NPX_INSTALL}
-\`\`\`
+By hand, put this in .mcp.json (Claude Code), claude_desktop_config.json (Claude Desktop) or
+.cursor/mcp.json (Cursor):
+{ "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "${GITHUB_SPEC}"] } } }
 
-By hand, in any client, once published: put
-{ "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] } } }
-in .mcp.json (Claude Code), claude_desktop_config.json (Claude Desktop) or .cursor/mcp.json
-(Cursor). Before publication, the same block with "command": "node" and the absolute path to
-packages/mcp-server/dist/bin.js that the local install prints.
+From a checkout instead: \`${LOCAL_INSTALL}\`.
+Once published to npm, and not before: \`${NPX_INSTALL}\`.
+\`scan_ui\` needs \`npx playwright install chromium\`; without it that one tool returns
+not_assessed with a reason. The other four need no browser.
 
 ## Tools
 
@@ -91,8 +106,8 @@ ${TOOLS.map((t) => `### ${t.name}\n${t.does}`).join("\n\n")}
 ## The loop
 
 scan_codebase or scan_ui -> propose_fixes -> you apply the edits -> verify_fix.
-This server proposes and you dispose. It writes no file, spawns no process and asks for no
-write access, so the edits go through the approval flow the user already trusts.
+This server writes no file and asks for no write access, so edits go through the approval flow
+the user already trusts.
 
 ## Honesty constraints an integrator must know
 
@@ -104,17 +119,17 @@ write access, so the edits go through the approval flow the user already trusts.
   sentence describes what this server did; it has no grammatical slot for a person and cannot be
   quoted as an allegation about one.
 - LOW COVERAGE WITHHOLDS THE SCORE rather than reporting a low one.
-- EVERY RULE SHIPS WITH ITS REBUTTAL. \`list_rules\` returns, for each rule, the counter-evidence
-  that would argue against it. A finding you disagree with is a finding you can argue with.
+- EVERY RULE SHIPS WITH ITS REBUTTAL. \`list_rules\` returns the counter-evidence that argues
+  against each rule. A finding you disagree with is a finding you can argue with.
 - COUNTER-EVIDENCE SUBTRACTS. Some rules argue FOR the artifact and lower the score.
 
 ## Pages
 
-${base}/mcp        the plugin: the five tools, a real run, and how to install it
-${base}/method     every rule, its weight, and the conditions under which it is wrong
-${base}/gauntlet   five artifacts, one made by a person: find it, then read all five receipts
-${base}/notary     record the steps of a file's history; the credential never claims a person
-${base}/receipt    worked examples of the four honest report shapes
+${base}/mcp        the five tools, a real run, and how to install it
+${base}/method     every rule, its weight, and when it is wrong
+${base}/gauntlet   five artifacts, one made by a person: find it
+${base}/notary     record a file's history; it never claims a person
+${base}/receipt    the four honest report shapes, worked
 `;
 
   return new Response(body, {

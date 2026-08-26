@@ -12,45 +12,60 @@ can be acted on comes with the exact edit for your agent to apply.
 
 ## Install
 
-**Read this before you copy anything.** `slop-scorer-mcp` is **not on the npm registry yet** and
-this repository is **private**. `npm view slop-scorer-mcp` returns 404, github.com/Yuve21/slop-scorer
-returns 404 to anybody not on the repository, and both `curl | sh` installers therefore 404 too.
-Exactly one path works today, and it is the first one below. The rest are printed with what they
-are waiting on, because a command that fails for the reader is the species of confident, unearned
-claim this package exists to detect.
+**Read this before you copy anything.** The server is published as source, not yet as a package.
+It lives in its own public repository at **<https://github.com/Yuve21/slop-scorer-mcp>** (MIT, its
+own tests, generated from this one by `scripts/sync-public-mcp.mjs`). `slop-scorer-mcp` is **not
+on the npm registry yet**: `npm view slop-scorer-mcp` returns 404. So the GitHub install below
+works for anybody today and the registry install does not, and each is labelled with which, because
+a command that fails for the reader is the species of confident, unearned claim this package
+exists to detect.
 
-### Works today, from a checkout
+### One line, works today
 
 ```sh
+claude mcp add slop-scorer -- npx -y github:Yuve21/slop-scorer-mcp
+```
+
+Node 20 or newer and the `claude` CLI, and nothing else. npx clones the public repository,
+installs it, runs the build through the root `prepare` script and launches `dist/bin.js` on
+stdio.
+
+**The first launch is slow and that is the one gotcha.** It compiles from source: measured at
+**69 seconds** from an empty npm cache, against the 30 second startup timeout most MCP clients
+allow. Expect exactly one `connection timed out`, then run `claude mcp list` again. To avoid it
+entirely, warm the cache first:
+
+```sh
+npx -y github:Yuve21/slop-scorer-mcp   # wait for "slop-scorer 0.1.0 listening on stdio", then Ctrl-C
+```
+
+### From a checkout
+
+```sh
+git clone https://github.com/Yuve21/slop-scorer-mcp && cd slop-scorer-mcp && npm install
 npm run install:local --workspace=packages/mcp-server
 ```
 
 Builds the package and registers the built binary with `claude mcp add` by absolute path, in one
-command. Node 20+ and the `claude` CLI on PATH. If the CLI is missing it prints the JSON block to
-paste by hand rather than failing silently. Cross-platform: it shells out with `execFileSync` and
-computes the path from its own location, so the caller's cwd and shell do not matter.
+command. This is the one you want if you are going to change a rule and watch it fire. If the
+`claude` CLI is missing it prints the JSON block to paste by hand rather than failing silently.
+Cross-platform: it shells out with `execFileSync` and computes the path from its own location, so
+the caller's cwd and shell do not matter.
 
-Then, in any client, point at the printed path:
-
-```json
-{ "mcpServers": { "slop-scorer": { "command": "node", "args": ["/absolute/path/to/slop-scorer/packages/mcp-server/dist/bin.js"] } } }
-```
-
-### One line, once the package is published
+### Once the package is on npm
 
 ```sh
 claude mcp add slop-scorer -- npx -y slop-scorer-mcp
 ```
 
-That becomes the whole install: Node 20+ and nothing else, no build step and no update step,
-because npx always runs the version on the registry. It 404s until `npm publish` has been run
-once. See "Publishing this package" at the bottom of this file.
+The same thing without the build step, because a registry tarball ships compiled: no cold start,
+no `prepare`, and npx always runs the version on the registry. It 404s until `npm publish` has
+been run once. See "Publishing this package" at the bottom of this file.
 
 ### Client configuration, by hand
 
-Every client takes the identical block; only the file it goes in differs. Use the `node` form
-above today and the `npx` form below once the package is published. Restart the client after
-editing its config, then ask it to call `list_rules`.
+Every client takes the identical block; only the file it goes in differs. Restart the client
+after editing its config, then ask it to call `list_rules`.
 
 | Client | File |
 | --- | --- |
@@ -58,25 +73,42 @@ editing its config, then ask it to call `list_rules`.
 | Claude Desktop | macOS `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows `%APPDATA%\Claude\claude_desktop_config.json`. Quit and reopen the app. |
 | Cursor | `~/.cursor/mcp.json` globally, or `.cursor/mcp.json` per project. Reload the window. |
 
+From the public repository, which works today:
+
+```json
+{ "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "github:Yuve21/slop-scorer-mcp"] } } }
+```
+
+Pointing at your own build, with the path `install:local` printed:
+
+```json
+{ "mcpServers": { "slop-scorer": { "command": "node", "args": ["/absolute/path/to/slop-scorer-mcp/packages/mcp-server/dist/bin.js"] } } }
+```
+
+Pointing at the published package, once there is one:
+
 ```json
 { "mcpServers": { "slop-scorer": { "command": "npx", "args": ["-y", "slop-scorer-mcp"] } } }
 ```
 
 ### Just tell your agent to install it
 
-Once published, paste this into any coding agent with shell access, in any client:
+Paste this into any coding agent with shell access, in any client:
 
 ```
 Install the slop-scorer MCP server for yourself. Run:
-  claude mcp add slop-scorer -- npx -y slop-scorer-mcp
-If that CLI isn't available, add {"command":"npx","args":["-y","slop-scorer-mcp"]} under
-mcpServers in whatever MCP config file you use, then restart. Verify by calling list_rules.
+  claude mcp add slop-scorer -- npx -y github:Yuve21/slop-scorer-mcp
+If that CLI isn't available, add
+{"command":"npx","args":["-y","github:Yuve21/slop-scorer-mcp"]} under mcpServers in whatever
+MCP config file you use, then restart. The first launch builds from source and can take over a
+minute, so one startup timeout is expected: reconnect rather than reporting a failure. Verify by
+calling list_rules.
 ```
 
-### Or run the installer script, once the repository is public
+### Or run the installer script, once the package is on npm
 
 Finds every MCP client on the machine, registers the server, backs up any file it edits, and is
-idempotent. Both URLs 404 while the repository is private.
+idempotent. Both URLs serve 200 now that the repository is public.
 
 macOS and Linux:
 
@@ -90,10 +122,14 @@ Windows:
 powershell -c "irm https://raw.githubusercontent.com/Yuve21/slop-scorer/main/packages/mcp-server/install.ps1 | iex"
 ```
 
-Both scripts check, before touching any config, that `slop-scorer-mcp` actually exists on the
-npm registry, and refuse with a clear message instead of silently registering a command that
-would 404 the first time a client tried to launch it. That check is why they are safe to publish
-before the package is: they fail loudly and change nothing.
+(In the public repository those URLs read `slop-scorer-mcp`; `scripts/sync-public-mcp.mjs`
+rewrites them, and the private paths above 404 for anyone not on this repository.)
+
+Both scripts check, before touching any config, that `slop-scorer-mcp` actually exists on the npm
+registry, and refuse with a clear message instead of silently registering a command that would
+404 the first time a client tried to launch it. **That check has not been relaxed for the GitHub
+spec, so today they still refuse and change nothing.** Use `claude mcp add` above instead. The
+scripts fail loudly, which is why they were safe to publish before the package was.
 
 ### Rendering pages needs a browser
 
@@ -360,25 +396,34 @@ This has deliberately not been run: the founder owns the npm account and the dec
 public package first appears under it. Everything up to that command is done; that command is
 the one thing left.
 
-### The moment it is published, edit these two lines and nothing else
+### The moment it is published, edit one line and nothing else
 
-The website labels every install command with whether it can actually work, and both labels come
-from two booleans in `apps/web/lib/mcp.ts`:
+The website labels every install command with whether it can actually work, and the labels come
+from two booleans in `apps/web/lib/mcp.ts`. One has already been flipped:
 
 ```ts
 export const PUBLISHED_ON_NPM = false;   // -> true after `npm publish` succeeds
-export const REPO_IS_PUBLIC = false;     // -> true when the GitHub repository goes public
+export const REPO_IS_PUBLIC = true;      // flipped 2026-08-26, when the extraction went public
 ```
 
-Flipping the first relabels the npx command and its config block on `/mcp`, rewrites the
-availability paragraph on the landing page and on `/mcp`, and changes the warning at the top of
-`/llms.txt`. Flipping the second un-warns the two `curl | sh` installers. Then update the two
-sentences at the top of this file's Install section, which `apps/web/test/mcp-commands.test.ts`
-checks are still in agreement with those booleans.
+Exactly what flips when `PUBLISHED_ON_NPM` becomes true, so nobody has to go looking:
 
-They are asserted by a person rather than probed at build time on purpose: a build that phoned
-the npm registry to decide what to render would fail closed on a bad network and quietly relabel
-a working command as unavailable.
+| Surface | Today | After the flip |
+| --- | --- | --- |
+| `/mcp`, third install block | labelled "Not on npm yet", rendered in the quiet tone, note says the registry 404s | labelled "Works today", rendered in the control-bordered tone, note drops the 404 sentence |
+| `/mcp`, third config block | same relabel | same relabel |
+| `/mcp`, install paragraph | "still not on the npm registry" | "on the npm registry" |
+| `/llms.txt`, install header | "NOT PUBLISHED YET, so any npx line naming the bare package 404s" | "published" |
+| landing section | the sentence naming `slop-scorer-mcp` as unpublished stays true because it reads the same constant | the sentence goes false and must be deleted, which `apps/web/test/mcp-commands.test.ts` does not catch |
+| this README | the "not on the npm registry yet" sentence at the top of Install, which the test asserts matches the boolean | must be rewritten in the same commit or the test fails |
+| `install.sh` / `install.ps1` | refuse, because their registry precondition is unmet | start succeeding, with no change to either script |
+
+The last three rows are the ones worth reading twice. The test enforces the README sentence and
+nothing enforces the landing sentence, so that one is a manual step in the same commit.
+
+The booleans are asserted by a person rather than probed at build time on purpose: a build that
+phoned the npm registry to decide what to render would fail closed on a bad network and quietly
+relabel a working command as unavailable.
 
 To prove the artifact works before publishing, without touching the registry:
 
@@ -393,6 +438,31 @@ node node_modules/slop-scorer-mcp/dist/bin.js   # speaks MCP on stdio; Ctrl-C to
 ```
 
 A clean `npm install` of that tarball pulls in only `@modelcontextprotocol/sdk` and `zod`; there
-is no `node_modules/@slop` and nothing 404s. This is exactly what happened in the verification
-for this change: the tarball installed and the binary answered `initialize` and `tools/list`
-correctly (all three tools present) from a directory with no relationship to this monorepo.
+is no `node_modules/@slop` and nothing 404s. That was verified by running it: the tarball
+installed and the binary answered `initialize` and `tools/list` correctly from a directory with
+no relationship to this monorepo.
+
+### How the GitHub install is wired, and why the root package.json carries a bin
+
+`npx -y github:Yuve21/slop-scorer-mcp` resolves the repository ROOT, not `packages/mcp-server`,
+and npm has no way to point a git spec at a subdirectory. So the public repository's root
+`package.json` carries four things this monorepo's root does not, and all four are load-bearing:
+
+- **`bin`**, a single entry pointing at `packages/mcp-server/dist/bin.js`. Without it npx exits
+  with `could not determine executable to run`, which is exactly what the first attempt did.
+- **`prepare`**, running the build. npm runs `prepare` after installing a git dependency, and it
+  is the only lifecycle hook that fires there. `prepack` does not, which is why the server
+  package's own `prepack` was not enough.
+- **`files`**, listing `packages/mcp-server/dist`, because `dist/` is gitignored and npm falls
+  back to `.gitignore` when packing. Without it the tarball ships with the binary removed.
+- **`dependencies`**, `@modelcontextprotocol/sdk` and `zod`, which the esbuild bundle leaves
+  external and which the consumer therefore has to be given.
+
+A root `.npmignore` sits next to them so `.gitignore` is never consulted as a pack fallback at
+all. None of this is regenerated by the sync script: root `package.json` is in its `PUBLIC_OWNED`
+list, so it is hand-maintained in the public repository and a sync will not clobber it.
+
+Verified end to end, from an empty directory with an empty npm cache: npx cloned, installed,
+built, launched the binary on stdio, answered `initialize` and returned all five tools from
+`tools/list`; `claude mcp add slop-scorer -- npx -y github:Yuve21/slop-scorer-mcp` followed by
+`claude mcp list` then reported the server connected.
