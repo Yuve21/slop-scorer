@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@slop/core": "*",
+    "@slop/db": "*",
+    "@slop/detectors-code": "*",
     "@slop/detectors-web": "*",
+    "@slop/gauntlet": "*",
+    "@slop/notary": "*",
     "@slop/reproduce": "*",
     "animejs": "4.5.0",
     "class-variance-authority": "^0.7.1",
