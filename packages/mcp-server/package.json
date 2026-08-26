@@ -38,7 +38,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "esbuild": "^0.21.5"
+    "esbuild": "^0.25.0"
   },
   "peerDependencies": {
     "playwright": ">=1.40.0"

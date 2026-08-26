@@ -310,7 +310,7 @@ npm run verify                                   # typecheck + build + test + ba
 node scripts/check-agent-roster.mjs --check      # 14 agents, 6 departments
 node scripts/check-corpus-version.mjs            # 6 corpora, drift baseline 12
 node scripts/check-no-egress.mjs                 # 271 files, 20 sites, 0 unapproved
-node scripts/sync-public-mcp.mjs --check         # leak audit on the public projection
+node scripts/sync-public-mcp.mjs --check         # 25 scrubs, leak audit, 121 files byte-identical
 ```
 
 Baselines as of 2026-08-26: typecheck 0 errors, build green, **68 test files, 1275 passed, 1 skipped

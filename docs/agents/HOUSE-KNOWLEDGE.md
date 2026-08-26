@@ -254,7 +254,7 @@ commit. `node scripts/check-no-egress.mjs` is the ratchet.
 | Agent roster | `node scripts/check-agent-roster.mjs --check` | 14 agents, 6 departments |
 | Corpus version | `node scripts/check-corpus-version.mjs` | 6 corpora, drift baseline 12 |
 | No egress | `node scripts/check-no-egress.mjs` | 271 files, 20 sites, 0 unapproved |
-| Public MCP | `node scripts/sync-public-mcp.mjs --check` | leak audit clean |
+| Public MCP | `node scripts/sync-public-mcp.mjs --check` | 25 scrubs match, leak audit clean, 121 generated files byte-identical |
 
 **The test count is a BASELINE, not a target. A move in EITHER direction is a finding.** A drop
 usually means files stopped being collected, which is worse than a failure. Report which of the two
@@ -279,6 +279,17 @@ in the open and say you did.
   here, run `node scripts/sync-public-mcp.mjs`, verify and commit there. A scrub that no longer
   matches is a hard failure, not a warning, so a reworded comment cannot silently ship its original
   text.
+- **`--check` passes only if re-running the sync would be a NO-OP.** It generates the projection
+  into a temp directory and diffs it, so a STALE mirror fails as loudly as a leaking one, and it
+  audits BOTH trees. It reported "leak audit clean" over a mirror missing four whole files for as
+  long as it only knew how to look for leaks (L-15). Do not replace the diff with an enumerated
+  list of what the mirror should contain: that list is a second copy of the truth and it rots.
+- **A comment that cites anything the public reader cannot open is a scrub, not a shrug,** and a
+  comment that cites a GATE the public repository does not ship publishes a guarantee nothing there
+  backs. `scripts/check-no-egress.mjs` was cited in published source for one sync (L-15).
+- **A change to what the server writes, reads or records changes the public README in the same
+  commit.** The observation sink shipped in the same push as a README bullet reading "It never
+  writes a file. No filesystem write ... anywhere in the package" (L-15).
 - **`server-only` throws inside Next's params worker.** A module imported through a `server-only`
   barrel from `generateStaticParams` 500s every route it generates (L-08 sibling, see L-12).
 

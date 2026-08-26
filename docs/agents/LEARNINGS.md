@@ -35,6 +35,7 @@ moment they were needed.
 - **L-11** Twelve rules declare a corpus version the corpus never bumped to, so the receipt cites a version that does not describe it. **OPEN**
 - **L-13** Writing the privacy gate's own pattern reproduced the defect it exists to catch, three times, and the count went 7 to 18 to 21
 - **L-14** One try/catch covering two failure modes made the privacy guard's throw unreachable, inside the privacy mechanism, on the day it was written
+- **L-15** The publish gate printed "leak audit clean" over a mirror missing a whole file, because it was sound and not complete
 
 **Shipping, packaging and the public projection**
 
@@ -51,7 +52,7 @@ moment they were needed.
 - **L-08** Two probe tables for one detector state opposite policies, and nothing compares them. **OPEN**
 - **L-09** A claim guard handed attacker-controlled bytes throws on the honest path
 
-_14 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
+_15 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
 
 <!-- END GENERATED INDEX -->
 
@@ -250,6 +251,65 @@ Inventing one is worse than an empty line, because this file is read before acti
   private/public boundary that is only expressed in a dependency list is not enforced; the boundary
   has to be a separate module with a different implementation, which is what the public
   `@slop/ocr-text` is.
+
+### L-15 · 2026-08-26 · The publish gate printed "leak audit clean" over a mirror missing a whole file, because it was sound and not complete
+- **Claim:** `scripts/sync-public-mcp.mjs --check` audited the public mirror for leaked private
+  content and had no notion of the private repository having moved AHEAD, so a stale mirror passed
+  as clean. Every hit it reported was real, which made it sound; it could not report the hits it had
+  no way to look for, which made it incomplete. That is the disqualifying defect class, sitting in
+  the publish gate of the product that exists to detect the disqualifying defect class.
+- **Evidence, measured before any change:** `node scripts/sync-public-mcp.mjs --check` printed
+  `leak audit clean over 135 file(s)` and exited **0** while `packages/core/src/observation.ts`,
+  18 197 bytes of it, did not exist in the public tree at all. A projection diff then found **seven**
+  stale files, not one: `core/src/observation.ts`, `core/test/observation.test.ts`,
+  `mcp-server/src/observations.ts`, `mcp-server/test/observations.test.ts` all missing, and
+  `core/src/index.ts`, `mcp-server/src/targets.ts`, `mcp-server/package.json` differing.
+  **The old script was then re-run against three mutations and was GREEN on all three**, which is
+  the measurement rather than the argument: deleting `observation.ts` (exit 0,
+  `clean over 138 file(s)`), adding an ungenerated `smuggled.ts` to the mirror (exit 0,
+  `clean over 140 file(s)`), and rewording an upstream comment so a SCRUB no longer matched
+  (exit 0). The third is the sharpest: `--check` never called `scrub()` at all, so the hard-fail
+  protecting eleven private-document citations was never exercised by the mode whose whole job was
+  to check the projection. And the denominator moved, 138 then 139 then 140, while the word "clean"
+  did not, which is **L-13's confident denominator over an incomplete check**, in a second script.
+- **The property, now stated in the file:** *`--check` passes only if re-running the sync would be
+  a no-op.* It is implemented by generating the whole projection into a temp directory and DIFFING
+  it, deliberately NOT by enumerating what the mirror ought to contain, because an enumerated list
+  is a second copy of the truth and rots exactly the way this check did (**L-08**). Both trees are
+  audited now, not one: the mirror is what is published today, the projection is what the next sync
+  would publish, and a leak edited into one is invisible in the other.
+- **Seven mutations, each run, each red, each reverted:** delete a generated file; flip ONE byte in
+  a mirrored file (caught with both sides at 21 874 bytes, so it is a content comparison and not a
+  length one); a credential-shaped string in a PUBLIC_OWNED file; a private package name introduced
+  upstream only (reported `[projected]`, which the old check could never have seen); a scrub that
+  no longer matches upstream; an extra file in the mirror the sync does not generate; a
+  `docs/agents/` citation reintroduced upstream.
+- **What the completeness fix immediately found, and this is the part that matters:** the very first
+  honest run surfaced **thirteen citations of private governance paths across five files that were
+  already synced into the public mirror** (`docs/agents/HQ.md`, `HOUSE-KNOWLEDGE`, `LEARNINGS L-02`
+  / `L-05` / `L-06`, `scripts/check-corpus-version.mjs`, and one bare prose mention of a private
+  package). Two of them were worse than dangling: `scripts/check-no-egress.mjs` **does not exist in
+  the public repository**, so a published comment claimed a build gate backed the no-egress property
+  there when nothing did. That is **L-10's shape**, a guarantee published beyond the surface that
+  enforces it. Thirteen scrubs and one new BANNED pattern closed it. Separately, the same sync made
+  the public README's front-page bullet **false**: "It never writes a file. No filesystem write, no
+  `exec`, no request for write access anywhere in the package" shipped in the same push as an
+  `appendFileSync` observation sink. Both READMEs were corrected and the off-by-default local log
+  was disclosed in the same commit.
+- **Confidence:** high (the before-state, the three green mutations under the old script and the
+  seven red mutations under the new one were all reproduced by command).
+- **Status:** FIXED, commit "A publish gate that only reports the failures it can see is a publish
+  gate that reports success". Private baselines unmoved across the change: 68 test files,
+  1275 passed, 1 skipped, backtest PASS, roster 14/6, corpus drift 12, egress 271 files / 20 sites
+  / 0 unapproved.
+- **Next time:** for every gate, write the property it asserts in ONE sentence and then ask the
+  second question, which is the one nobody asks: is it COMPLETE, or only sound? A gate that can only
+  report the failures it thought to look for will report success for every other kind. The cheap
+  general answer for any projection, mirror or generated artifact is to regenerate it and diff,
+  because the generator is the only complete description of what it produces. And note the
+  compounding: fixing the completeness of the gate is what surfaced the thirteen citations and the
+  false README bullet. **An incomplete gate does not just miss its own failure, it hides the
+  findings of every check downstream of it.**
 
 ### L-12 · 2026-08-26 · `server-only` throws inside Next's params worker, so a barrel import 500s every route it generates
 - **Claim:** the receipt routes returned 500 because `generateStaticParams` reached a `server-only`

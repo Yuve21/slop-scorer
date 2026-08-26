@@ -1,5 +1,5 @@
 /**
- * `node scripts/sync-public-mcp.mjs` — regenerate the PUBLIC MCP repository from this one.
+ * `node scripts/sync-public-mcp.mjs`: regenerate the PUBLIC MCP repository from this one.
  *
  * This repository is authoritative. The public repository at github.com/Yuve21/slop-scorer-mcp
  * is a projection of it: four packages, copied verbatim except for a short, exact list of
@@ -17,8 +17,27 @@
  * is the same shape: it runs over the generated tree and aborts before the tree is usable.
  *
  *   node scripts/sync-public-mcp.mjs              # sync, audit, report
- *   node scripts/sync-public-mcp.mjs --check      # audit only, write nothing (exit 1 on drift)
+ *   node scripts/sync-public-mcp.mjs --check      # verify only, write nothing (exit 1 on drift)
  *   node scripts/sync-public-mcp.mjs --out DIR    # target a different checkout
+ *
+ * THE PROPERTY `--check` ASSERTS, and it is the whole point of the mode:
+ *
+ *     --check passes only if re-running the sync would be a NO-OP.
+ *
+ * That is COMPLETENESS as well as soundness. The first version of this check audited the
+ * public tree for leaked private content and printed "leak audit clean", which made it sound:
+ * every hit it reported was real. It was not COMPLETE, because it had no notion of the private
+ * repository having moved ahead, so a mirror missing a whole file passed as clean. Measured
+ * 2026-08-26: `--check` exited 0 while `packages/core/src/observation.ts`, 18 197 bytes of it,
+ * did not exist in the public tree at all. A gate that reports success without doing its job is
+ * the disqualifying defect this product exists to detect, and it was sitting in this product's
+ * own publish gate.
+ *
+ * HOW IT IS IMPLEMENTED, and why this way. `--check` generates the whole projection into a
+ * temporary directory and DIFFS it against the mirror. It deliberately does NOT enumerate rules
+ * about what the mirror ought to contain: an enumerated list is a second copy of the truth, and
+ * it rots exactly the way the first version of this check did. The generator is the only
+ * description of the projection, so the check runs the generator.
  *
  * After a sync, in the public checkout: `npm install && npm run build && npm test`, then commit.
  */
@@ -27,12 +46,14 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -141,6 +162,92 @@ const SCRUBS = [
     from: " * `image-detection-reality.md` documents four people publicly accused of being machines, and",
     to: " * The public record documents four people publicly accused of being machines, and",
   },
+  // The private repository's GOVERNANCE surface, which is a different thing from its strategy
+  // documents and was not covered by anything until the observation loop shipped through here.
+  // Four kinds turned up in one sync: a runbook citation, a ratchet script, a build gate that does
+  // NOT exist in the public repository (so citing it published a guarantee nothing backs), and
+  // LEARNINGS entry ids. The rewrites state the fact instead of the filename, which is what the
+  // rest of this list does, and the BANNED entry below keeps the class from coming back quietly.
+  {
+    file: "packages/core/src/observation.ts",
+    from:
+      ' * The runbook this implements is `docs/agents/HQ.md`, "Training the corpus". Five stages:\n' +
+      " * observation (here), candidate (here), review by corpus-steward AND false-positive-hunter,\n" +
+      " * promotion with a version bump, and the ratchet in `scripts/check-corpus-version.mjs`.",
+    to:
+      " * The runbook this implements is held privately, so its five stages are stated here rather\n" +
+      " * than cited: observation (here), candidate (here), review by two independent reviewers,\n" +
+      " * promotion with a version bump, and a ratchet that refuses a rule set changed without one.",
+  },
+  {
+    file: "packages/core/src/observation.ts",
+    from: " *     no network API, and `scripts/check-no-egress.mjs` fails the build if that changes.",
+    to: " *     no network API, which a reader of this package can confirm with a grep of its imports.",
+  },
+  {
+    file: "packages/core/src/observation.ts",
+    from: "   * valuable of the two (see LEARNINGS L-05).",
+    to: "   * valuable of the two: a rule that fires nowhere is dead, and a dead rule fails in silence.",
+  },
+  {
+    file: "packages/core/test/observation.test.ts",
+    from: " * whose author never watched it fail is a decoration (HOUSE-KNOWLEDGE, the disqualifying class).",
+    to: " * whose author never watched it fail is a decoration, and that is the disqualifying defect class.",
+  },
+  {
+    file: "packages/core/test/observation.test.ts",
+    from: ' * stays clean is the shape of LEARNINGS L-06: the gauntlet redaction suite asserted "contains no',
+    to: ' * stays clean is a known failure shape here: a redaction suite once asserted "contains no',
+  },
+  {
+    file: "packages/core/test/observation.test.ts",
+    from: "    // That set is what tells a steward a rule is DEAD (LEARNINGS L-05), which is the whole reason",
+    to: "    // That set is what tells a steward a rule is DEAD, which is the whole reason",
+  },
+  {
+    file: "packages/core/test/observation.test.ts",
+    from: "  // of L-06 and it is why these are not four copies of `expect(fn).toThrow()`.",
+    to: "  // that keeps an absence test honest, and it is why these are not four copies of `expect(fn).toThrow()`.",
+  },
+  {
+    file: "packages/core/test/observation.test.ts",
+    from: "    // A count that only agrees with itself is not a verification (HOUSE-KNOWLEDGE). Here the count",
+    to: "    // A count that only agrees with itself is not a verification. Here the count",
+  },
+  {
+    file: "packages/mcp-server/src/observations.ts",
+    from:
+      " * this module, no client, and no transport to inject one into. `scripts/check-no-egress.mjs` fails\n" +
+      " * the build if that ever stops being true, and it scans this file.",
+    to:
+      " * this module, no client, and no transport to inject one into, which a reader can confirm with\n" +
+      " * a grep of this file for a URL, a client or an import that could carry one.",
+  },
+  {
+    file: "packages/mcp-server/src/observations.ts",
+    from: " * its job: the disqualifying defect class in HOUSE-KNOWLEDGE, written into the privacy mechanism",
+    to: " * its job: the defect class this project is built to catch, written into the privacy mechanism",
+  },
+  {
+    file: "packages/mcp-server/src/targets.ts",
+    from: ' * The corpus training loop, stage 1. See `docs/agents/HQ.md`, "Training the corpus".',
+    to: " * The corpus training loop, stage 1.",
+  },
+  {
+    file: "packages/mcp-server/test/observations.test.ts",
+    from: " * double behaves, which is the shape of LEARNINGS L-02: a verification whose reference value comes",
+    to: " * double behaves, which is a known failure shape: a verification whose reference value comes",
+  },
+  {
+    file: "packages/mcp-server/test/observations.test.ts",
+    from: " * over an input that had no path is LEARNINGS L-06, and it is the exact test this file must not be.",
+    to: " * over an input that had no path is a test that certifies silence, and it is the exact test this\n * file must not be.",
+  },
+  {
+    file: "packages/mcp-server/test/observations.test.ts",
+    from: "    // below would pass over an input that never contained them, which is L-06 exactly.",
+    to: "    // below would pass over an input that never contained them, certifying silence.",
+  },
   {
     file: "packages/mcp-server/install.sh",
     from: "raw.githubusercontent.com/Yuve21/slop-scorer/main/packages/mcp-server/install.sh",
@@ -186,6 +293,21 @@ const BANNED = [
     re: /@slop\/(reproduce|notary|gauntlet|db|provenance|detectors-image|detectors-video|detectors-audio)|packages\/(reproduce|notary|gauntlet|db|provenance|detectors-image|detectors-video|detectors-audio)/,
     what: "a private package",
   },
+  {
+    // The private repository's GOVERNANCE surface, which the strategy-document pattern above does
+    // not reach and nothing else covered. Every one of these is a path a public reader cannot
+    // open, and `scripts/check-no-egress.mjs` is worse than dangling: it does not exist in the
+    // public repository, so a comment citing it publishes a guarantee nothing there backs, which
+    // is the same shape as a README claiming a guard covers "all shipped source" when it does not.
+    // Found 2026-08-26, thirteen citations across five files, on the first sync that carried the
+    // observation loop. Package NAMES are handled by the entry above; this one also catches the
+    // one bare prose mention ("the gauntlet redaction suite") that the `@slop/`-anchored pattern
+    // could not express. `provenance` is deliberately absent from both: it is an ordinary word
+    // here (C2PA provenance) with 95 legitimate uses, and a pattern that cannot tell those from a
+    // package reference is a pattern somebody eventually deletes.
+    re: /docs\/agents\/|HOUSE-KNOWLEDGE|LEARNINGS\.md|LEARNINGS L-|\bL-\d{2}\b|\.claude\/agents|scripts\/check-(?:no-egress|corpus-version|agent-roster)\.mjs|corpus\/candidates|\bgauntlet\b|\bnotary\b/i,
+    what: "a private repository governance path",
+  },
   // `.env.local` is deliberately NOT here. It is a generic filename, and the core security
   // suite has to name it to assert the scanner refuses to read it.
   { re: /apps\/web|supabase\/migrations|supabase\/functions/, what: "the private web application or its config" },
@@ -227,11 +349,11 @@ function copyEntry(from, to) {
   });
 }
 
-function sync() {
+function sync(root) {
   const written = [];
   for (const pkg of PACKAGES) {
     const srcDir = path.join(PRIVATE_ROOT, "packages", pkg);
-    const destDir = path.join(PUBLIC_ROOT, "packages", pkg);
+    const destDir = path.join(root, "packages", pkg);
     for (const entry of PACKAGE_ENTRIES[pkg]) {
       const rel = `packages/${pkg}/${entry}`;
       if (PUBLIC_OWNED.some((owned) => rel === owned || rel.startsWith(`${owned}/`))) continue;
@@ -251,10 +373,10 @@ function sync() {
   return written;
 }
 
-function scrub() {
+function scrub(root) {
   const applied = [];
   for (const { file, from, to, all } of SCRUBS) {
-    const target = path.join(PUBLIC_ROOT, file);
+    const target = path.join(root, file);
     if (!existsSync(target)) throw new Error(`scrub target ${file} does not exist in the public tree.`);
     const text = readFileSync(target, "utf8");
     if (!text.includes(from)) {
@@ -270,11 +392,11 @@ function scrub() {
   return applied;
 }
 
-function audit() {
+function audit(root) {
   const hits = [];
-  for (const rel of walk(PUBLIC_ROOT)) {
+  for (const rel of walk(root)) {
     if (!TEXT_EXT.has(path.extname(rel))) continue;
-    const text = readFileSync(path.join(PUBLIC_ROOT, rel), "utf8");
+    const text = readFileSync(path.join(root, rel), "utf8");
     const foreign = isForeignCorpus(rel);
     for (const { re, what } of BANNED) {
       if (foreign && CORPUS_EXEMPT.has(what)) continue;
@@ -285,24 +407,114 @@ function audit() {
   return hits;
 }
 
+/**
+ * Build the projection the sync WOULD write, in a throwaway directory, without touching the
+ * mirror. The temp tree starts as a copy of the mirror so the PUBLIC_OWNED files (the READMEs,
+ * the licence, the abstaining `packages/ocr-text`) are present and the scrubs and the audit see
+ * a complete tree, then `sync` overwrites everything the generator owns.
+ */
+function project() {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), "slop-public-"));
+  copyEntry(PUBLIC_ROOT, tmp);
+  const written = sync(tmp);
+  const applied = scrub(tmp);
+  return { tmp, written, applied };
+}
+
+/**
+ * Every relative path the generator owns, in whichever tree it is asked about. Derived from
+ * PACKAGE_ENTRIES by walking, never enumerated, so a file added to `packages/core/src` upstream
+ * is in scope on the run that adds it.
+ */
+function generatedPaths(root) {
+  const out = new Set();
+  for (const pkg of PACKAGES) {
+    for (const entry of PACKAGE_ENTRIES[pkg]) {
+      const rel = `packages/${pkg}/${entry}`;
+      if (PUBLIC_OWNED.some((owned) => rel === owned || rel.startsWith(`${owned}/`))) continue;
+      const full = path.join(root, ...rel.split("/"));
+      if (!existsSync(full)) continue;
+      if (statSync(full).isDirectory()) for (const inner of walk(full)) out.add(`${rel}/${inner}`);
+      else out.add(rel);
+    }
+  }
+  return out;
+}
+
+/**
+ * The staleness half of the check. Compares the generated projection against the mirror and
+ * returns one entry per file that would change, so `--check` is red for a MISSING file and for
+ * a file whose bytes differ, not only for a leak.
+ */
+function drift(projectedRoot) {
+  const expected = generatedPaths(projectedRoot);
+  const actual = generatedPaths(PUBLIC_ROOT);
+  const problems = [];
+  for (const rel of expected) {
+    if (!actual.has(rel)) {
+      problems.push({ rel, kind: "missing from the public mirror" });
+      continue;
+    }
+    const a = readFileSync(path.join(projectedRoot, ...rel.split("/")));
+    const b = readFileSync(path.join(PUBLIC_ROOT, ...rel.split("/")));
+    if (!a.equals(b)) problems.push({ rel, kind: `content differs (${a.length} bytes generated, ${b.length} in the mirror)` });
+  }
+  for (const rel of actual) {
+    if (!expected.has(rel)) problems.push({ rel, kind: "present in the public mirror and NOT generated by the sync" });
+  }
+  return problems;
+}
+
+function reportLeaks(hits) {
+  if (hits.length === 0) return false;
+  console.error(`\nLEAK AUDIT FAILED: ${hits.length} hit(s). Nothing may be pushed.`);
+  for (const h of hits) console.error(`  ${h.where} ${h.rel}: ${h.what} (${h.sample})`);
+  process.exitCode = 1;
+  return true;
+}
+
 function main() {
   if (!existsSync(PUBLIC_ROOT)) throw new Error(`public checkout not found at ${PUBLIC_ROOT}. Clone it first.`);
 
-  if (!checkOnly) {
-    const written = sync();
-    const applied = scrub();
-    console.log(`synced ${written.length} entr(ies) from ${PRIVATE_ROOT}`);
-    for (const w of written) console.log(`  + ${w}`);
-    console.log(`applied ${applied.length} comment scrub(s)`);
-  }
+  if (checkOnly) {
+    // Generate the projection and diff it. `project()` also runs the scrubs, so `--check` now
+    // hard-fails on a scrub that no longer matches, which the audit-only version never did.
+    const { tmp, applied } = project();
+    try {
+      const problems = drift(tmp);
+      // Both trees are audited, and the two are not the same question. The mirror is what is
+      // published RIGHT NOW; the projection is what the next sync would publish. A leak edited
+      // into the mirror only exists in the first, a leak introduced upstream only in the second.
+      const hits = [
+        ...audit(PUBLIC_ROOT).map((h) => ({ ...h, where: "[mirror]" })),
+        ...audit(tmp).map((h) => ({ ...h, where: "[projected]" })),
+      ];
+      const leaked = reportLeaks(hits);
 
-  const hits = audit();
-  if (hits.length > 0) {
-    console.error(`\nLEAK AUDIT FAILED: ${hits.length} hit(s). Nothing may be pushed.`);
-    for (const h of hits) console.error(`  ${h.rel}: ${h.what} (${h.sample})`);
-    process.exitCode = 1;
+      if (problems.length > 0) {
+        console.error(`\nPUBLIC MIRROR IS STALE: ${problems.length} file(s) would change if the sync ran.`);
+        for (const p of problems) console.error(`  ${p.rel}: ${p.kind}`);
+        console.error(`\nRun: node scripts/sync-public-mcp.mjs`);
+        process.exitCode = 1;
+      }
+      if (leaked || problems.length > 0) return;
+
+      console.log(`${applied.length} comment scrub(s) still match upstream`);
+      console.log(`leak audit clean over ${walk(PUBLIC_ROOT).length} file(s) in ${PUBLIC_ROOT}`);
+      console.log(`mirror up to date: ${generatedPaths(PUBLIC_ROOT).size} generated file(s) byte-identical to a fresh sync`);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
     return;
   }
+
+  const written = sync(PUBLIC_ROOT);
+  const applied = scrub(PUBLIC_ROOT);
+  console.log(`synced ${written.length} entr(ies) from ${PRIVATE_ROOT}`);
+  for (const w of written) console.log(`  + ${w}`);
+  console.log(`applied ${applied.length} comment scrub(s)`);
+
+  if (reportLeaks(audit(PUBLIC_ROOT).map((h) => ({ ...h, where: "[mirror]" })))) return;
   console.log(`leak audit clean over ${walk(PUBLIC_ROOT).length} file(s) in ${PUBLIC_ROOT}`);
   console.log(`\nnext: cd ${PUBLIC_ROOT} && npm install && npm run build && npm test`);
 }

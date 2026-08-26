@@ -13,7 +13,7 @@
     "Product surface",
     "Release"
   ],
-  "learningsEntryCount": 14,
+  "learningsEntryCount": 15,
   "agents": [
     {
       "name": "evasion-red-team",
