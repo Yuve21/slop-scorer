@@ -36,6 +36,8 @@ moment they were needed.
 - **L-13** Writing the privacy gate's own pattern reproduced the defect it exists to catch, three times, and the count went 7 to 18 to 21
 - **L-14** One try/catch covering two failure modes made the privacy guard's throw unreachable, inside the privacy mechanism, on the day it was written
 - **L-15** The publish gate printed "leak audit clean" over a mirror missing a whole file, because it was sound and not complete
+- **L-16** A compressed PNG text chunk is unread, uncounted and reported as full coverage, and the unread chunk then mints a false citation. **OPEN**
+- **L-17** The IPTC vocabulary enumeration can express 5 of 17 published terms, and the two it cannot express that matter point in opposite directions. **OPEN**
 
 **Shipping, packaging and the public projection**
 
@@ -52,7 +54,7 @@ moment they were needed.
 - **L-08** Two probe tables for one detector state opposite policies, and nothing compares them. **OPEN**
 - **L-09** A claim guard handed attacker-controlled bytes throws on the honest path
 
-_15 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
+_17 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
 
 <!-- END GENERATED INDEX -->
 
@@ -224,6 +226,74 @@ Inventing one is worse than an empty line, because this file is read before acti
 - **Next time:** a test asserting an ABSENCE must first prove the presence it is removing. Assert the
   denominator (pixels of ink, emails found pre-redaction), then assert the absence after. And never
   assert on a string the test itself authored: that is a mirror, not a measurement.
+
+### L-16 · 2026-08-26 · A compressed PNG text chunk is unread, uncounted and reported as full coverage, and the unread chunk then mints a false citation · **OPEN**
+- **Claim:** `zTXt`, and `iTXt` with its compression flag set, are not decompressed. The parser records
+  a parse error that NOTHING consumes, so the report says coverage 1.0 over a walk that explicitly
+  failed, fires nothing, and additionally emits a laundering indicator whose observed value is FALSE.
+- **Evidence:** measured with two PNGs carrying byte-identical AUTOMATIC1111 parameter strings,
+  differing only in the chunk type:
+  | | coverage | metadata probe | fired | parseErrors | laundering |
+  |---|---|---|---|---|---|
+  | `tEXt` | **1** | 1 | `prov.sidecar-declares-generative-tool` | `[]` | 0.3 |
+  | `zTXt` | **1** | 0 | **(none)** | 1 error | 0.65 |
+  `packages/provenance/src/container/png.ts:163` returns `null` for `zTXt` and `:166` returns `null`
+  for a compressed `iTXt`; `:106` pushes the parse error. `mediaProbes`
+  (`packages/provenance/src/artifact.ts:138-186`) builds all five probe rows from segment and field
+  COUNTS and never reads `container.parseErrors`, so the container probe is paid its full weight of 3
+  for a failed walk.
+- **The part that matters most, and it is worse than a missed rule.** `payloads.length === 0` is the
+  gate on the `lossless_resave` indicator, whose observed string reads
+  `"no tEXt, iTXt, eXIf or XMP chunk present"` on a file that demonstrably HAS a text chunk. So the
+  unread chunk does not merely produce silence, it produces a confident citation that is false, in the
+  product whose core promise is that every finding carries a locator a stranger can go and re-read.
+  And the direction is the dangerous one: the score goes DOWN, so nobody complains.
+- **Reach, REPORTED not measured:** Pillow writes `zTXt` whenever a caller passes `zip=True`, ComfyUI
+  is reported to fall back to it for large workflow graphs, and NovelAI has both `tEXt` and `iTXt`
+  variants in the wild. Three of the corpus's eleven generator signatures live in PNG text chunks.
+- **Confidence:** high on the defect (reproduced by execution, both branches). Medium on the
+  prevalence, which is a search-summary claim and needs a real file.
+- **Status:** OPEN. Design written up in `docs/CORPUS-STUDY-GENERATOR-ARTIFACTS.md` section 2.1 as
+  repairs R1 and R2.
+- **Next time:** this is the disqualifying class, shape 4, in a third subsystem, and L-05 and L-13 are
+  its siblings. The general form: **a parser that can say "I could not read this" must have somebody
+  listening.** Ask of every error list in the tree what consumes it, and if the answer is nothing, the
+  guarantee above it is decorative. Second, cheaper rule: when a check gates on a collection being
+  EMPTY, ask whether empty can mean "not there" and "there but unreadable" at once, because if it can,
+  the message it prints is wrong half the time.
+
+### L-17 · 2026-08-26 · The IPTC vocabulary enumeration can express 5 of 17 published terms, and the two it cannot express that matter point in opposite directions · **OPEN**
+- **Claim:** `DIGITAL_SOURCE_TYPES` in `packages/provenance/src/c2pa.ts:61-70` carries 8 values, one of
+  which is the `unknown` sentinel. The IPTC vocabulary publishes 17. Every unrecognised term decodes
+  to `unknown`, silently.
+- **Evidence:** measured against the concept list at `https://cv.iptc.org/newscodes/digitalsourcetype/`
+  (fetched 2026-08-26). Twelve published terms we cannot name: `computationalCapture`, `negativeFilm`,
+  `positiveFilm`, `print`, `humanEdits`, `algorithmicallyEnhanced`, `digitalCreation`,
+  `dataDrivenMedia`, `screenCapture`, `virtualRecording`, `compositeCapture`, `compositeSynthetic`.
+  And two we DO name that the published list does not contain: `digitalArt`, `minorHumanEdits`.
+  `digitalSourceTypeOf` splits on `/` and takes the tail, so `c2pa.org/digitalsourcetype/*` URIs parse
+  but `trainedAlgorithmicData` still decodes to `unknown`.
+- **Why it is two findings and not one, which is the whole reason to write it down.** The gaps do not
+  all fail in the same direction:
+  - `screenCapture` -> `unknown` means a file DECLARING it is a screen capture never reaches the
+    laundering gate through the DigitalSourceType path. The gate catches screenshots only through
+    `SCREEN_CAPTURE_TOOLS`, a regex list over Software fields. A missed abstention.
+  - `computationalCapture` -> `unknown` means `prov.c2pa-declares-capture` (weight **-2.2**, the
+    strongest counter in the product) cannot fire on it. **A dead counter RAISES the score**, so an
+    honestly self-declaring computational-photography pipeline would lose its exoneration. That is
+    L-05's asymmetry exactly, and it is the more dangerous of the two because it moves toward
+    accusation.
+- **Confidence:** high on the enumeration gap (measured, both directions). **NOT VERIFIED:** whether
+  anything actually writes `computationalCapture` or `screenCapture` in the field. That determines how
+  often it bites and needs real files, not a vocabulary page. Do not quote a prevalence.
+- **Status:** OPEN. Repair R3 in `docs/CORPUS-STUDY-GENERATOR-ARTIFACTS.md`.
+- **Next time:** L-13's rule applies to a hand-written ENUM and not only to a regex. **An enumeration
+  is a hypothesis about your input.** When the input's vocabulary is published by somebody else, count
+  theirs against yours and report the delta, in BOTH directions: the terms you cannot express, and the
+  terms you express that they never defined, because the second kind is how you find out the list was
+  copied from a draft. And when auditing a partial enumeration, sort the missing members by which
+  POLARITY they would have fed, because a gap on the counter side and a gap on the signal side are
+  opposite bugs wearing the same clothes.
 
 ---
 
