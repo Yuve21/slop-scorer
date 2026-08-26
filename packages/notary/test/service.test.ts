@@ -21,6 +21,7 @@ import {
   MockOpenTimestamps,
   MockTsaTransport,
   NotaryService,
+  checkChain,
   checkRecording,
   clipStudioParser,
   formatVerification,
@@ -173,8 +174,88 @@ describe("verification catches what a stored badge would not", () => {
     expect(report.rootMatches).toBe(false);
     expect(report.problems.join(" ")).toContain("leaf_mismatch");
     // And every token now fails too, because they stamp a root these events do not produce.
-    expect(report.authoritiesReverified).toBe(4);
+    expect(report.authoritiesReverified).toBe(0);
+    expect(report.tokens.every((t) => !t.reverified)).toBe(true);
+    expect(report.problems.join(" ")).toContain("different digest than the root these events re-derive to");
+    expect(formatVerification(report)).toContain("timestamps that re-verify: 0 of 4");
     expect(report.chain.intact).toBe(false);
+  });
+
+  it("still fails when the asserted root is moved to match the tampered chain", async () => {
+    // The full attack, not half of it. Editing an event alone is caught by `rootMatches`, so the
+    // interesting attacker also rewrites the root the credential asserts, which is a column in the
+    // same table they just edited. Now the credential is internally consistent: the events derive
+    // to the root it claims. What they cannot forge is the TOKENS - four authorities stamped the
+    // old root, and no rewriting of our rows changes what those tokens say.
+    const { h, chain, credential } = await setup();
+    const events = await h.db.listEvents(chain.chainId);
+    const tampered: NotaryEventRow[] = events.map((e, i) =>
+      i === 1 ? { ...e, contentSha256: sha256Hex("a draft that was never made") } : e,
+    );
+    const forgedRoot = checkChain(tampered).root as string;
+    expect(forgedRoot).not.toBe(credential.rootSha256);
+
+    const report = verifyCredential({
+      credential: { ...credential, rootSha256: forgedRoot },
+      chain: { ...(await h.db.getChain(chain.chainId))!, rootSha256: forgedRoot },
+      events: tampered,
+      timestamps: await h.db.listTimestamps(chain.chainId, credential.rootSha256),
+    });
+    // The self-consistent part of the forgery succeeds, which is exactly why it must not be what
+    // the tokens are checked against.
+    expect(report.rootMatches).toBe(true);
+    expect(report.authoritiesReverified).toBe(0);
+    expect(report.recordIntact).toBe(false);
+    expect(report.problems.join(" ")).toContain("different digest than the root these events re-derive to");
+    // The leaf hashes still give the edit away on their own.
+    expect(report.chain.intact).toBe(false);
+  });
+
+  it("does not call a credential intact when its statement no longer follows from the facts", async () => {
+    // `recordIntact` is the one boolean a caller will read. Every tamper signal this function
+    // computes has to reach it, or it prints a green light next to a red one.
+    const { h, chain, credential } = await setup();
+    const report = verifyCredential({
+      credential: { ...credential, statement: `${credential.statement} The artist drew this unaided.` },
+      chain: (await h.db.getChain(chain.chainId))!,
+      events: await h.db.listEvents(chain.chainId),
+      timestamps: await h.db.listTimestamps(chain.chainId, credential.rootSha256),
+    });
+    expect(report.statementReproduced).toBe(false);
+    expect(report.recordIntact).toBe(false);
+  });
+
+  it("does not call a credential intact when it claims more authorities than re-verify", async () => {
+    const { h, chain, credential } = await setup();
+    const timestamps = await h.db.listTimestamps(chain.chainId, credential.rootSha256);
+    const report = verifyCredential({
+      credential,
+      chain: (await h.db.getChain(chain.chainId))!,
+      events: await h.db.listEvents(chain.chainId),
+      timestamps: timestamps.map((t, i) => (i === 0 ? { ...t, token: null, status: "unreachable" as const } : t)),
+    });
+    expect(report.authoritiesReverified).toBe(3);
+    expect(report.recordIntact).toBe(false);
+  });
+
+  it("rebuilds the statement's root from the events, not from the credential's copy of it", async () => {
+    // The subtler version of the same class: the statement QUOTES the root, so rebuilding it from
+    // the credential's own `rootSha256` would reproduce a rewritten root verbatim and call the
+    // statement untouched.
+    const { h, chain, credential } = await setup();
+    const forged = "ab".repeat(32);
+    const report = verifyCredential({
+      credential: {
+        ...credential,
+        rootSha256: forged,
+        statement: credential.statement.replace(credential.rootSha256, forged),
+      },
+      chain: (await h.db.getChain(chain.chainId))!,
+      events: await h.db.listEvents(chain.chainId),
+      timestamps: await h.db.listTimestamps(chain.chainId, credential.rootSha256),
+    });
+    expect(report.statementReproduced).toBe(false);
+    expect(report.recordIntact).toBe(false);
   });
 
   it("catches a statement rewritten in the database", async () => {
@@ -336,7 +417,7 @@ describe("process recordings", () => {
     await h.service.stamp(chain.chainId);
     const credential = await h.service.issue(chain.chainId, { recordingSummary: summary });
     expect(credential.statement).toContain("process recording from generic-frames");
-    const report = await h.service.verify(credential.credentialId, { recordingSummary: summary });
+    const report = await h.service.verify(credential.credentialId);
     expect(report?.statementReproduced).toBe(true);
   });
 });

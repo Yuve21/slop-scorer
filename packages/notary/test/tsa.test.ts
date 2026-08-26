@@ -126,7 +126,9 @@ describe("the response", () => {
 });
 
 describe("the fan-out", () => {
-  const transportWith = (behaviour: Record<string, "grant" | "reject" | "unreachable" | "wrong-imprint" | "replay-nonce">) =>
+  const transportWith = (
+    behaviour: Record<string, "grant" | "reject" | "unreachable" | "wrong-imprint" | "replay-nonce" | "drop-nonce">,
+  ) =>
     new MockTsaTransport({ behaviour });
 
   it("stamps at every authority and reports each one", async () => {
@@ -169,6 +171,21 @@ describe("the fan-out", () => {
     const bad = results.find((r) => r.authorityId === "sigstore");
     expect(bad?.status).toBe("rejected");
     expect(bad?.failureReason).toContain("replay");
+  });
+
+  it("rejects a token that echoes no nonce at all", async () => {
+    // The cheaper replay: rather than returning a nonce that does not match, return none. The
+    // check used to read `parsed.nonce !== null && parsed.nonce !== nonce`, which let exactly this
+    // through - while TOKEN_VERIFICATION_SCOPE, quoted on every credential, said the nonce was
+    // checked. Since the CMS signature is deliberately NOT verified, this is the only thing tying
+    // a token to our request.
+    const results = await stampEverywhere(ROOT, { transport: transportWith({ sigstore: "drop-nonce" }) });
+    const bad = results.find((r) => r.authorityId === "sigstore");
+    expect(bad?.status).toBe("rejected");
+    expect(bad?.failureReason).toContain("echoed no nonce");
+    expect(bad?.token).toBeNull();
+    // And it is the only one affected: a real failure must not take the fan-out down with it.
+    expect(results.filter((r) => r.status === "granted").length).toBe(3);
   });
 
   it("returns results in the order the authorities were listed, not the order they answered", async () => {

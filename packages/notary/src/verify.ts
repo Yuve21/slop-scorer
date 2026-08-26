@@ -17,8 +17,15 @@
  * stored in full rather than as a boolean.
  */
 
-import type { NotaryChainRow, NotaryCredentialRow, NotaryEventRow, NotaryTimestampRow } from "@slop/db";
+import type {
+  NotaryChainRow,
+  NotaryCredentialRow,
+  NotaryEventRow,
+  NotaryRecordingRow,
+  NotaryTimestampRow,
+} from "@slop/db";
 import { checkChain, type ChainCheck } from "./chain.js";
+import { summariseStoredRecording } from "./recording.js";
 import { parseResponse } from "./tsa.js";
 import { STATEMENT_VERSION, buildStatement, type CredentialFacts } from "./credential.js";
 
@@ -57,7 +64,25 @@ export interface VerifyInput {
   readonly chain: NotaryChainRow;
   readonly events: readonly NotaryEventRow[];
   readonly timestamps: readonly NotaryTimestampRow[];
-  readonly recordingSummary?: string | null;
+  /**
+   * The stored recording rows, from which the summary sentence in the statement is REBUILT.
+   *
+   * Deliberately rows rather than the sentence itself: a caller who could hand in the summary
+   * could hand in the one that makes a rewritten statement reproduce.
+   */
+  readonly recordings?: readonly NotaryRecordingRow[];
+}
+
+/**
+ * The recording sentence the statement should contain, rebuilt from the stored rows.
+ *
+ * The last ingested recording is the one `issue()` was given, so it is the one reconstructed. A
+ * chain with no recording contributes no sentence, which is the same `null` the issue path used.
+ */
+function recordingSummary(input: VerifyInput): string | null {
+  const rows = input.recordings ?? [];
+  const last = rows[rows.length - 1];
+  return last === undefined ? null : summariseStoredRecording(last, input.events);
 }
 
 export function verifyCredential(input: VerifyInput): VerificationReport {
@@ -79,12 +104,22 @@ export function verifyCredential(input: VerifyInput): VerificationReport {
     try {
       const parsed = parseResponse(Buffer.from(t.token, "base64"));
       if (!parsed.granted) return { ...base, reverified: false, genTime: null, problem: `PKIStatus ${parsed.pkiStatus}` };
-      if (parsed.imprintHex !== input.credential.rootSha256) {
+      // Against the RECOMPUTED root, never against the credential's own assertion of it.
+      //
+      // This is the line the whole package rests on. Comparing the imprint to
+      // `credential.rootSha256` compares a hash against the value it is meant to verify: an
+      // attacker who edits an event and writes the new root onto the credential gets four tokens
+      // that all still "re-verify", and the report prints "4 of 4" over a broken record. The only
+      // input a verifier may trust here is one it derived itself from the event fields.
+      if (chain.root === null) {
+        return { ...base, reverified: false, genTime: parsed.genTime, problem: "the events re-derive to no root at all" };
+      }
+      if (parsed.imprintHex !== chain.root) {
         return {
           ...base,
           reverified: false,
           genTime: parsed.genTime,
-          problem: "the token stamps a different digest than the credential's root",
+          problem: "the token stamps a different digest than the root these events re-derive to",
         };
       }
       if (parsed.genTime !== t.genTime) {
@@ -128,11 +163,13 @@ export function verifyCredential(input: VerifyInput): VerificationReport {
       eventCount: input.events.length,
       firstDeclaredAt: declared[0] ?? null,
       lastDeclaredAt: declared[declared.length - 1] ?? null,
-      rootSha256: input.credential.rootSha256,
+      // Recomputed, for the same reason the token imprint is: the statement QUOTES the root, so
+      // rebuilding it from the credential's own copy would reproduce a rewritten root verbatim.
+      rootSha256: chain.root ?? "",
       grantedTimestamps: input.timestamps.filter((t) => t.status === "granted"),
       failedAuthorities: input.timestamps.filter((t) => t.status !== "granted").length,
       chainDefects: chain.defects.map((d) => `${d.kind} at ${d.at}`),
-      recordingSummary: input.recordingSummary ?? null,
+      recordingSummary: recordingSummary(input),
     };
     statementReproduced = buildStatement(facts) === input.credential.statement;
     if (!statementReproduced) {
@@ -151,7 +188,21 @@ export function verifyCredential(input: VerifyInput): VerificationReport {
     jurisdictionsReverified: jurisdictions.size,
     statementReproduced,
     problems,
-    recordIntact: chain.intact && rootMatches && good.length > 0 && input.credential.revokedAt === null,
+    /**
+     * Every tamper signal this function computed is a conjunct here.
+     *
+     * A bottom line that ignores two of the checks above is worse than no bottom line: it is a
+     * green light printed next to a red one. `statementReproduced === false` means the text was
+     * edited after issue, and a token count below the credential's own claim means a stamp it
+     * asserts does not re-verify. Both were computed and both were dropped on the floor.
+     */
+    recordIntact:
+      chain.intact &&
+      rootMatches &&
+      good.length > 0 &&
+      good.length === input.credential.authorityCount &&
+      statementReproduced !== false &&
+      input.credential.revokedAt === null,
   };
 }
 

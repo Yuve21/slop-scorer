@@ -223,8 +223,14 @@ export class NotaryService {
     );
   }
 
-  /** Re-verify from the stored rows. No network, so a holder can run the same check offline. */
-  async verify(credentialId: string, options: { readonly recordingSummary?: string | null } = {}): Promise<VerificationReport | null> {
+  /**
+   * Re-verify from the stored rows. No network, so a holder can run the same check offline.
+   *
+   * Every input is READ HERE, from storage. There is deliberately no parameter: a verification
+   * that accepts part of the thing it is verifying is a verification the holder can pass by
+   * choosing the right argument, and the recording summary used to arrive that way.
+   */
+  async verify(credentialId: string): Promise<VerificationReport | null> {
     const { db } = this.options;
     const credential = await db.getCredential(credentialId);
     if (credential === null) return null;
@@ -235,7 +241,7 @@ export class NotaryService {
       chain,
       events: await db.listEvents(credential.chainId),
       timestamps: await db.listTimestamps(credential.chainId, credential.rootSha256),
-      recordingSummary: options.recordingSummary ?? null,
+      recordings: await db.listRecordings(credential.chainId),
     });
   }
 }

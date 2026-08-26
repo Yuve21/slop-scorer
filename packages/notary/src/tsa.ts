@@ -265,13 +265,22 @@ export async function stampEverywhere(digestHex: string, options: FanOutOptions)
             failureReason: "the token's message imprint is not the digest we submitted",
           };
         }
-        if (parsed.nonce !== null && parsed.nonce !== nonce) {
+        if (parsed.nonce !== nonce) {
+          // A MISSING nonce fails here too, and that is the point. `parsed.nonce !== null && ...`
+          // let any token that simply omitted the nonce through, which is the cheapest thing for a
+          // replayed token to do - and since this package deliberately does not verify the CMS
+          // signature, the nonce is the only anti-replay control there is. It is also listed as
+          // CHECKED in `TOKEN_VERIFICATION_SCOPE`, which every credential quotes, so a skippable
+          // version of it made the published statement false.
           return {
             ...base,
             status: "rejected",
             genTime: null,
             token: null,
-            failureReason: "the nonce came back changed, so this token is a replay of another exchange",
+            failureReason:
+              parsed.nonce === null
+                ? "the token echoed no nonce, so nothing ties it to the request we sent"
+                : "the nonce came back changed, so this token is a replay of another exchange",
           };
         }
         return { ...base, status: "granted", genTime: parsed.genTime, token: der.toString("base64"), failureReason: null };
@@ -319,7 +328,9 @@ export function httpTransport(fetchImpl: FetchLike): TsaTransport {
 
 export interface MockTsaOptions {
   /** Per-authority behaviour, keyed by id. Anything unlisted grants. */
-  readonly behaviour?: Readonly<Record<string, "grant" | "reject" | "unreachable" | "wrong-imprint" | "replay-nonce">>;
+  readonly behaviour?: Readonly<
+    Record<string, "grant" | "reject" | "unreachable" | "wrong-imprint" | "replay-nonce" | "drop-nonce">
+  >;
   readonly genTime?: string;
 }
 
@@ -342,6 +353,8 @@ export class MockTsaTransport implements TsaTransport {
     const imprint = request.children[1]?.children[1];
     if (imprint === undefined) throw new DerError("the mock could not read the request imprint");
     const requestNonce = request.children[2];
+    // `drop-nonce` is a token that echoes nothing back, which is what a replayed token from another
+    // exchange looks like when the replayer strips the field.
     const echoedNonce =
       behaviour === "replay-nonce" ? integer(1n) : encode(TAG.INTEGER, Buffer.from((requestNonce as DerNode).content));
     // The wrong imprint is the REAL one with its first byte flipped, rather than a fixed filler:
@@ -356,14 +369,23 @@ export class MockTsaTransport implements TsaTransport {
       .replace(/[-:T]/g, "")
       .replace(/\.\d+Z$/, "Z");
 
-    const tstInfo = sequence(
-      integer(1),
-      oid("1.2.3.4.1"),
-      sequence(sequence(oid(OID_SHA256), nullValue()), returnedImprint),
-      integer(42),
-      encode(TAG.GENERALIZED_TIME, Buffer.from(genTime, "ascii")),
-      echoedNonce,
-    );
+    const tstInfo =
+      behaviour === "drop-nonce"
+        ? sequence(
+            integer(1),
+            oid("1.2.3.4.1"),
+            sequence(sequence(oid(OID_SHA256), nullValue()), returnedImprint),
+            integer(42),
+            encode(TAG.GENERALIZED_TIME, Buffer.from(genTime, "ascii")),
+          )
+        : sequence(
+            integer(1),
+            oid("1.2.3.4.1"),
+            sequence(sequence(oid(OID_SHA256), nullValue()), returnedImprint),
+            integer(42),
+            encode(TAG.GENERALIZED_TIME, Buffer.from(genTime, "ascii")),
+            echoedNonce,
+          );
 
     const contentInfo = sequence(
       oid(OID_SIGNED_DATA),

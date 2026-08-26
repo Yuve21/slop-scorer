@@ -24,7 +24,7 @@
  * is the difference between a limitation and a lie.
  */
 
-import type { RecordingTool } from "@slop/db";
+import type { NotaryEventRow, NotaryRecordingRow, RecordingTool } from "@slop/db";
 import { sha256Hex, type ProcessEvent } from "./chain.js";
 
 export interface RecordingFrame {
@@ -262,4 +262,37 @@ export function summariseRecording(recording: ProcessRecording, defects: readonl
     parts.push(`This parser could not establish: ${recording.unparsedFields.join("; ")}.`);
   }
   return parts.join(" ");
+}
+
+/**
+ * Rebuild the summary sentence from what was STORED, so verification never has to be handed it.
+ *
+ * The summary goes into the credential's statement at issue, which means a verifier that cannot
+ * reconstruct it has two bad options: take the caller's word for it (a value supplied by whoever
+ * is asking for the check, used as an input to that check), or report every untouched
+ * recording-backed credential as rewritten. Both were live: `verify()` did the second, and its
+ * test hid it by passing the summary back in by hand.
+ *
+ * The frame digests come from the EVENTS, not from the recording row, so a deleted or edited frame
+ * changes the repeated-frame count and the statement stops reproducing. What only the recording row
+ * carries - the tool, the parser, the duration, what the parser could not read - is read from that
+ * row, which is a separate record from the credential and not a self-assertion by it.
+ */
+export function summariseStoredRecording(
+  row: NotaryRecordingRow,
+  events: readonly NotaryEventRow[],
+): string {
+  const frames: RecordingFrame[] = events
+    .filter((e) => e.kind === "recording-frame")
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((e, index) => ({ index, atMsFromStart: 0, sha256: e.contentSha256, byteLength: e.byteLength }));
+  const recording: ProcessRecording = {
+    sourceTool: row.sourceTool,
+    parserId: row.parserId,
+    frames,
+    durationMs: row.durationMs,
+    finalFileSha256: row.finalFileSha256,
+    unparsedFields: row.unparsedFields,
+  };
+  return summariseRecording(recording, checkRecording(recording));
 }
