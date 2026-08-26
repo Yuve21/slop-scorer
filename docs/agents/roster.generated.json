@@ -1,0 +1,215 @@
+{
+  "_generated": "node scripts/check-agent-roster.mjs   (--check fails if this file is stale). Do not edit by hand.",
+  "_sources": [
+    ".claude/agents/*.md",
+    "docs/agents/HQ.md (org chart + standing passes)"
+  ],
+  "agentCount": 14,
+  "departments": [
+    "Adversarial",
+    "Corpus",
+    "Governance",
+    "Integrity",
+    "Product surface",
+    "Release"
+  ],
+  "learningsEntryCount": 14,
+  "agents": [
+    {
+      "name": "evasion-red-team",
+      "dept": "Adversarial",
+      "beat": "tries to defeat the published corpus, and prices every successful evasion in lines changed and skill required. Exists because publishing the rules teaches evasion and that trade was made deliberately, so somebody has to keep measuring what it costs",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash, Write",
+      "cadence": [
+        {
+          "cadence": "Quarterly",
+          "trigger": "and before any public release"
+        }
+      ],
+      "file": ".claude/agents/evasion-red-team.md"
+    },
+    {
+      "name": "false-positive-hunter",
+      "dept": "Adversarial",
+      "beat": "tries to make the corpus fire on legitimate human work. Mandatory second reviewer on every corpus promotion, because a rule's author is the worst judge of its false-positive surface. Exists because at consumer prevalence a 5% false-positive rate is roughly coin-flip precision, which is structural and not a tuning problem",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "Every corpus change",
+          "trigger": "mandatory second reviewer on promotion"
+        }
+      ],
+      "file": ".claude/agents/false-positive-hunter.md"
+    },
+    {
+      "name": "mcp-surface-auditor",
+      "dept": "Adversarial",
+      "beat": "the public attack surface: path containment, prompt injection through scanned artifacts, SSRF, secret leakage, resource exhaustion, and the patch-proposal gate. Exists because `packages/mcp-server` is the only published artifact, it runs on a stranger's machine inside an agent that has file-write and shell tools, and its arguments are attacker-influenced",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "Every publish",
+          "trigger": "before `npm publish`"
+        }
+      ],
+      "file": ".claude/agents/mcp-surface-auditor.md"
+    },
+    {
+      "name": "untrusted-bytes-auditor",
+      "dept": "Adversarial",
+      "beat": "every parser and decoder pointed at bytes somebody else chose: PNG, JPEG, RIFF, ISOBMFF, MPEG audio, SVG, DER, the repository scanner. Exists because a detector is a parser farm aimed at hostile input, and a missing `>>> 0` already made a 20-byte file hang the scanner forever, unrecoverably (L-01)",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash, Write",
+      "cadence": [
+        {
+          "cadence": "On change",
+          "trigger": "any decoder, parser or probe change"
+        }
+      ],
+      "file": ".claude/agents/untrusted-bytes-auditor.md"
+    },
+    {
+      "name": "abstention-auditor",
+      "dept": "Corpus",
+      "beat": "proves \"inconclusive\" and \"not assessed\" are used honestly, that a withheld score is never published one screen over, and that an empty read is never sold as a clean result. Exists because abstention is a first-class status here and is the thing that makes the product defensible",
+      "model": "sonnet",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "On change",
+          "trigger": "scoring engine, probes, coverage or a report surface"
+        }
+      ],
+      "file": ".claude/agents/abstention-auditor.md"
+    },
+    {
+      "name": "corpus-steward",
+      "dept": "Corpus",
+      "beat": "owns rule quality, weights, false-positive notes and corpus versioning, and runs the observation-to-rule promotion path. Exists because rules are DATA here: the thing that decides what a score means is a set of fields, not a model, so somebody has to be accountable for that set line by line to a reader who disagrees with it",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash, Edit, Write",
+      "cadence": [
+        {
+          "cadence": "Every corpus change",
+          "trigger": "any rule, weight or version change"
+        }
+      ],
+      "file": ".claude/agents/corpus-steward.md"
+    },
+    {
+      "name": "detector-coverage",
+      "dept": "Corpus",
+      "beat": "finds what the corpus structurally cannot express or reach: dead rules, fixtures whose values no probe produces, hand-enumerated lists gone narrow, populations nobody has scored. Exists because a dead rule does not crash, it silently lowers every score it would have raised, and the meta-suite cannot catch a rule and its fixture sharing one wrong assumption (L-05)",
+      "model": "sonnet",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "Every corpus change",
+          "trigger": "after any rule or probe change"
+        }
+      ],
+      "file": ".claude/agents/detector-coverage.md"
+    },
+    {
+      "name": "claims-officer",
+      "dept": "Governance",
+      "beat": "every claim the product makes about itself: accuracy figures, verdict phrasing, disclaimer scope, published verification scopes, README and marketing copy. Exists because *In re Workado* was lost on what was published rather than on what was built, and because a published scope that overstates is the same class of defect as an overstated accuracy number",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "Every release",
+          "trigger": "before any publish or public write-up"
+        }
+      ],
+      "file": ".claude/agents/claims-officer.md"
+    },
+    {
+      "name": "privacy-steward",
+      "dept": "Governance",
+      "beat": "the no-egress guarantee, the local observation sink, and redaction and deanonymisation in what we publish. Exists because the tool is pointed at private repositories on developers' laptops, and because a redaction test over an input that never contained the thing is a guarantee that reports success without doing its job (L-06)",
+      "model": "sonnet",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "On change",
+          "trigger": "networking, the sink, redaction or the gauntlet"
+        }
+      ],
+      "file": ".claude/agents/privacy-steward.md"
+    },
+    {
+      "name": "notary-verifier",
+      "dept": "Integrity",
+      "beat": "the hash chain, RFC 3161 multi-authority timestamps, inclusion proofs, the DER parser, credential verification and the persistence layer's atomicity. Exists because the credential's whole value is that a stranger can check it without trusting us, and the verification has already been a tautology once (L-02)",
+      "model": "sonnet",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "On change",
+          "trigger": "`packages/notary` or `packages/db`"
+        }
+      ],
+      "file": ".claude/agents/notary-verifier.md"
+    },
+    {
+      "name": "receipt-integrity",
+      "dept": "Integrity",
+      "beat": "proves the receipt reconciles to the number in integers, cites a corpus version that describes the corpus that ran, carries its disclaimer where a reader sees it without clicking, and never publishes a withheld score. Exists because the receipt IS the product: a score without one is an accusation",
+      "model": "sonnet",
+      "tools": "Read, Grep, Glob, Bash",
+      "cadence": [
+        {
+          "cadence": "On change",
+          "trigger": "scoring, receipt, export or a report surface"
+        }
+      ],
+      "file": ".claude/agents/receipt-integrity.md"
+    },
+    {
+      "name": "vacuous-test-hunter",
+      "dept": "Integrity",
+      "beat": "hunts guarantees that report success without doing their job: checks never called, verifications comparing a value to itself, tests certifying silence, denominators drawn from their own subject. The house's most important seat, because that is the exact failure class this product exists to catch, so shipping one is disqualifying",
+      "model": "opus",
+      "tools": "Read, Grep, Glob, Bash, Edit",
+      "cadence": [
+        {
+          "cadence": "Every release",
+          "trigger": "before any publish"
+        }
+      ],
+      "file": ".claude/agents/vacuous-test-hunter.md"
+    },
+    {
+      "name": "ui-craft",
+      "dept": "Product surface",
+      "beat": "hands-on craft audit of `apps/web` in a real browser: motion, first paint, hydration, type, colour, dark mode. Exists because the site sells the detection of template-shaped websites and is scored by its own product in public on its own landing fold, so every tell of ours that appears on it has unusual leverage",
+      "model": "sonnet",
+      "tools": "Read, Grep, Glob, Bash, Edit",
+      "cadence": [
+        {
+          "cadence": "On change",
+          "trigger": "`apps/web`"
+        }
+      ],
+      "file": ".claude/agents/ui-craft.md"
+    },
+    {
+      "name": "release-verifier",
+      "dept": "Release",
+      "beat": "runs every gate against the recorded baselines and reports pass, fail or skipped with a **denominator** for each. Exists because this project has repeatedly shipped gates that scanned zero things and printed PASS",
+      "model": "sonnet",
+      "tools": "Bash, Read, Grep",
+      "cadence": [
+        {
+          "cadence": "Every release",
+          "trigger": "before any publish or deploy"
+        }
+      ],
+      "file": ".claude/agents/release-verifier.md"
+    }
+  ]
+}

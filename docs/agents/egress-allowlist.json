@@ -1,0 +1,194 @@
+{
+  "_generated": "node scripts/check-no-egress.mjs --write. Every entry needs a REASON written by a person; --write preserves existing reasons and leaves new ones as TODO.",
+  "_invariant": "No package may make an outbound network request except the browser probe navigating to the URL the user explicitly asked to scan. The observation sink is local-only and off by default.",
+  "siteCount": 20,
+  "filesScanned": 269,
+  "sites": [
+    {
+      "file": "apps/web/components/landing/self-scan-card.tsx",
+      "construct": "fetch(",
+      "count": 1,
+      "lines": [
+        90
+      ],
+      "reason": "SAME-ORIGIN. POSTs to our own /api/scan so the landing fold can score this site live. No third-party host, and it is apps/web only, which never travels to the published MCP package."
+    },
+    {
+      "file": "apps/web/components/receipt/receipt-actions.tsx",
+      "construct": "fetch(",
+      "count": 1,
+      "lines": [
+        69
+      ],
+      "reason": "SAME-ORIGIN. GETs our own /api/receipt/[id]/export to download the receipt PNG. apps/web only."
+    },
+    {
+      "file": "packages/db/src/postgrest.ts",
+      "construct": "fetch(",
+      "count": 1,
+      "lines": [
+        96
+      ],
+      "reason": "INJECTED, not global. The transport arrives as `readonly fetch: FetchLike` in options (:76, destructured :83), so a caller decides what it talks to. Supabase persistence for the gauntlet and the notary. This package does NOT travel to the published MCP server."
+    },
+    {
+      "file": "packages/detectors-image/src/detector.ts",
+      "construct": "decideFetch(",
+      "count": 1,
+      "lines": [
+        42
+      ],
+      "reason": "NOT EGRESS. A policy predicate that decides whether a fetch would be permitted. Sends nothing."
+    },
+    {
+      "file": "packages/detectors-video/src/detector.ts",
+      "construct": "decideFetch(",
+      "count": 1,
+      "lines": [
+        60
+      ],
+      "reason": "NOT EGRESS. A policy predicate that decides whether a fetch would be permitted. Sends nothing."
+    },
+    {
+      "file": "packages/detectors-web/src/net-policy.ts",
+      "construct": "assertFetchable(",
+      "count": 2,
+      "lines": [
+        148,
+        181
+      ],
+      "reason": "NOT EGRESS. The SSRF gate itself: throws on private, loopback, link-local and non-http targets. Sends nothing."
+    },
+    {
+      "file": "packages/detectors-web/src/net-policy.ts",
+      "construct": "isFetchable(",
+      "count": 1,
+      "lines": [
+        180
+      ],
+      "reason": "NOT EGRESS. The predicate behind assertFetchable. Sends nothing."
+    },
+    {
+      "file": "packages/detectors-web/src/probe.ts",
+      "construct": ".goto(",
+      "count": 1,
+      "lines": [
+        748
+      ],
+      "reason": "THE ONE PERMITTED EGRESS. Playwright navigating to the URL the user explicitly asked to scan, gated by assertFetchable before and re-checked after redirects. This is the only outbound request in the published artifact."
+    },
+    {
+      "file": "packages/detectors-web/src/probe.ts",
+      "construct": ".request.get(",
+      "count": 3,
+      "lines": [
+        693,
+        725,
+        876
+      ],
+      "reason": "PERMITTED, DERIVED. Three sub-resource reads of the page being scanned: a well-known path probe, a source map named by the page (:693 area), and an image named by the page (:876). Each URL comes from the scanned page, so each goes through the same gate the page did. Never a host the user did not point us at."
+    },
+    {
+      "file": "packages/detectors-web/src/probe.ts",
+      "construct": "assertFetchable(",
+      "count": 2,
+      "lines": [
+        614,
+        759
+      ],
+      "reason": "NOT EGRESS. The SSRF gate applied before navigation and before following a redirect. Sends nothing."
+    },
+    {
+      "file": "packages/detectors-web/src/probe.ts",
+      "construct": "fetch (",
+      "count": 1,
+      "lines": [
+        873
+      ],
+      "reason": "NOT EGRESS. Prose in an inline trailing comment about the image read on the following lines. The actual request is the .request.get( entry above."
+    },
+    {
+      "file": "packages/detectors-web/src/probe.ts",
+      "construct": "isFetchable(",
+      "count": 3,
+      "lines": [
+        661,
+        692,
+        866
+      ],
+      "reason": "NOT EGRESS. The predicate guarding sub-resource reads. Sends nothing."
+    },
+    {
+      "file": "packages/notary/src/opentimestamps.ts",
+      "construct": "fetchImpl(",
+      "count": 1,
+      "lines": [
+        57
+      ],
+      "reason": "INJECTED, not global, and OPT-IN. Submits a digest to an OpenTimestamps calendar only when a caller supplies a transport and asks for a stamp. Sends a hash, never content. This package does NOT travel to the published MCP server."
+    },
+    {
+      "file": "packages/notary/src/tsa.ts",
+      "construct": "fetchImpl(",
+      "count": 1,
+      "lines": [
+        314
+      ],
+      "reason": "INJECTED, not global, and OPT-IN. RFC 3161 timestamp request to an authority the caller names. Sends an imprint (a hash), never content. This package does NOT travel to the published MCP server."
+    },
+    {
+      "file": "packages/provenance/src/fetch-policy.ts",
+      "construct": "decideFetch(",
+      "count": 1,
+      "lines": [
+        59
+      ],
+      "reason": "NOT EGRESS. This IS the fetch policy: it returns a typed refusal or permission. Sends nothing."
+    },
+    {
+      "file": "scripts/fixtures/synthetic-scaffold.mjs",
+      "construct": "fetch(",
+      "count": 1,
+      "lines": [
+        42
+      ],
+      "reason": "NOT EGRESS. A STRING LITERAL inside a generated fixture: this script writes a synthetic scaffold repository to disk for the code corpus, and the line is source text in that fixture, never executed here."
+    },
+    {
+      "file": "scripts/motion-selfcheck.mjs",
+      "construct": ".goto(",
+      "count": 1,
+      "lines": [
+        80
+      ],
+      "reason": "LOCAL ONLY. Drives a locally served apps/web build to measure motion. Developer tooling, never published."
+    },
+    {
+      "file": "scripts/repro-glitch.mjs",
+      "construct": ".goto(",
+      "count": 1,
+      "lines": [
+        79
+      ],
+      "reason": "LOCAL ONLY. Reproduces the hydration glitch of LEARNINGS L-07 against a local build. Developer tooling, never published."
+    },
+    {
+      "file": "scripts/repro-motion.mjs",
+      "construct": ".goto(",
+      "count": 1,
+      "lines": [
+        63
+      ],
+      "reason": "LOCAL ONLY. Reproduces a motion measurement against a local build. Developer tooling, never published."
+    },
+    {
+      "file": "scripts/ui-shots.mjs",
+      "construct": ".goto(",
+      "count": 1,
+      "lines": [
+        50
+      ],
+      "reason": "LOCAL ONLY. Screenshots a locally served apps/web build for the ui-craft pass. Developer tooling, never published."
+    }
+  ]
+}

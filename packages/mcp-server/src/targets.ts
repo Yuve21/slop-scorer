@@ -12,10 +12,46 @@
  * the change rather than a memory of the state before it.
  */
 
-import { buildReport, notAssessed } from "@slop/core";
-import type { Report } from "@slop/core";
-import { CODE_CONFIG, codeDetector } from "@slop/detectors-code";
-import { PlaywrightUnavailableError, webDetector } from "@slop/detectors-web";
+import { buildReport, bucketSize, notAssessed, observationFrom } from "@slop/core";
+import type { CorpusObservation, DetectorResult, Report, ShapeMarker } from "@slop/core";
+import { CODE_CONFIG, CODE_RULES, codeDetector } from "@slop/detectors-code";
+import { PlaywrightUnavailableError, WEB_RULES, webDetector } from "@slop/detectors-web";
+import { observationSinkFromEnv, recordBestEffort } from "./observations.js";
+
+/**
+ * The corpus training loop, stage 1. See `docs/agents/HQ.md`, "Training the corpus".
+ *
+ * Every scan can produce one candidate observation: what fired, what was evaluated and did NOT
+ * fire, the probe denominators, and a coarse shape digest. It is written to a local file and it
+ * never leaves the machine. It is OFF unless the user sets SLOP_OBSERVATIONS_DIR themselves.
+ *
+ * The rule ids are the corpus's own, and passing them in is what lets the leak guard in
+ * `@slop/core` tell one of our ids from a string of unknown provenance.
+ */
+const KNOWN_RULE_IDS: ReadonlySet<string> = new Set([...WEB_RULES.map((r) => r.id), ...CODE_RULES.map((r) => r.id)]);
+
+/**
+ * Recording is best-effort and must never change what a scan returns. A caller gets its Report
+ * whatever happens here, which is why this returns void and swallows nothing else.
+ */
+async function observe(results: readonly DetectorResult[], report: Report, shape: CorpusObservation["shape"]): Promise<void> {
+  const sink = observationSinkFromEnv(process.env, KNOWN_RULE_IDS);
+  if (!sink) return;
+  await recordBestEffort(sink, observationFrom({ results, report, shape, knownRuleIds: KNOWN_RULE_IDS, now: new Date() }));
+}
+
+/**
+ * The shape digest, derived only from what the report already tells us about ITS OWN read.
+ *
+ * Note what is NOT here: the target path, the URL, the hostname, any file name, any dependency
+ * name. The digest is built from probe denominators and coverage, which are counts, and from a
+ * closed marker vocabulary. Building it from the artifact directly would put a path one careless
+ * line away from the file on disk.
+ */
+function shapeOf(report: Report, markers: readonly ShapeMarker[]): CorpusObservation["shape"] {
+  const scanned = report.coverage.probes.reduce((n, p) => n + (p.denominator ?? 0), 0);
+  return { sizeBucket: bucketSize(scanned), extensions: [], markers };
+}
 
 export interface CodeTarget {
   readonly path: string;
@@ -80,7 +116,9 @@ export async function codeReport(t: CodeTarget): Promise<Report> {
       },
     },
   );
-  return buildReport([detectorResult], { config: CODE_CONFIG });
+  const report = buildReport([detectorResult], { config: CODE_CONFIG });
+  await observe([detectorResult], report, shapeOf(report, t.readHistory === false ? [] : ["has-git-history"]));
+  return report;
 }
 
 /** Render and scan a page. Returns `not_assessed` rather than throwing if playwright is absent. */
@@ -91,7 +129,9 @@ export async function uiReport(t: UiTarget): Promise<Report> {
       { kind: "url", url: target },
       { options: { viewport: { width: t.viewportWidth ?? 390, height: t.viewportHeight ?? 844 } } },
     );
-    return buildReport([detectorResult]);
+    const report = buildReport([detectorResult]);
+    await observe([detectorResult], report, shapeOf(report, ["renders-client-side"]));
+    return report;
   } catch (error) {
     if (error instanceof PlaywrightUnavailableError) {
       // NOT an error result and NOT a low score. "We could not render it" and "we rendered it

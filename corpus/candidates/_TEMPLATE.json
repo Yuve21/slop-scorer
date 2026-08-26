@@ -1,0 +1,25 @@
+{
+  "_": "Copy to <rule-id>.json and fill in. Validated by assertWellFormedCandidate in @slop/core. See ./README.md and docs/agents/HQ.md, 'Training the corpus'.",
+  "id": "family.short-kebab-name",
+  "family": "visual-default",
+  "title": "One line, what a reader sees when this fires",
+  "polarity": "signal",
+  "proposedWeight": 0.4,
+  "rationale": "The generator behaviour that produces this tell, and what in the observations pointed at it. Not 'looks generated'. Name the mechanism.",
+  "falsePositiveNote": "REQUIRED. The published condition under which this rule is WRONG. Name a concrete legitimate artifact that trips it, not a hedge. 'May occasionally be wrong' is rejected by name, and so is anything under 40 characters.",
+  "prevention": "What somebody should do instead, if they want to stop tripping it.",
+  "corpus": "web",
+  "proposedSince": "corpus-2026.11",
+  "support": {
+    "observations": 0,
+    "days": [],
+    "note": "observations.length must equal days.length. Five distinct observations is the floor for acceptance."
+  },
+  "status": "proposed",
+  "review": {
+    "corpusSteward": null,
+    "falsePositiveHunter": null,
+    "decidedOn": null,
+    "reason": null
+  }
+}

@@ -111,6 +111,33 @@ export {
   UNTRUSTED_TEXT_CAP,
 } from "./untrusted.js";
 
+export type {
+  CandidateRule,
+  CandidateStatus,
+  CorpusObservation,
+  ObservationSink,
+  ObservationWriter,
+  ScoreBucket,
+  ShapeDigest,
+  ShapeMarker,
+  SizeBucket,
+} from "./observation.js";
+export {
+  assertObservationCarriesNoContent,
+  assertWellFormedCandidate,
+  bucketScore,
+  bucketSize,
+  jsonlLine,
+  MalformedCandidateError,
+  MIN_SUPPORTING_OBSERVATIONS,
+  OBSERVATION_SCHEMA_VERSION,
+  ObservationLeakError,
+  observationFrom,
+  observationSink,
+  SHAPE_MARKERS,
+  SIZE_BUCKETS,
+} from "./observation.js";
+
 export { formatReceipt } from "./receipt.js";
 export { makeFinding } from "./finding.js";
 export { DetectorRegistry } from "./registry.js";

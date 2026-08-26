@@ -1,0 +1,73 @@
+{
+  "_generated": "node scripts/check-corpus-version.mjs --write   (run this WITH a deliberate version bump, never to make a red run go green)",
+  "_note": "sinceAheadOfDeclared is a recorded DEBT, not a target. It is non-zero today because bumping a corpus version regenerates frozen artifacts that need a browser. A move in either direction is a finding. See LEARNINGS L-11.",
+  "corpora": [
+    {
+      "id": "web",
+      "package": "detectors-web",
+      "declaredVersion": "corpus-2026.09",
+      "ruleCount": 51,
+      "digest": "c669292cc089b34e",
+      "sinceAheadOfDeclared": 12,
+      "sinceAheadRules": [
+        "counter.bespoke-keyframe",
+        "counter.motion-restraint",
+        "counter.reduced-motion-honoured",
+        "imgtext.generator-signature",
+        "imgtext.scaffold-placeholder",
+        "imgtext.slop-lexicon",
+        "motion.every-section-reveals",
+        "motion.framework-default-timing",
+        "motion.infinite-decorative-loop",
+        "motion.library-fingerprint",
+        "motion.stagger-ladder",
+        "motion.uniform-timing"
+      ]
+    },
+    {
+      "id": "code",
+      "package": "detectors-code",
+      "declaredVersion": "code-corpus-2026.09",
+      "ruleCount": 19,
+      "digest": "852ffdbdc4c20efe",
+      "sinceAheadOfDeclared": 0,
+      "sinceAheadRules": []
+    },
+    {
+      "id": "image",
+      "package": "detectors-image",
+      "declaredVersion": "image-corpus-2026.09",
+      "ruleCount": 10,
+      "digest": "76032755216e42c6",
+      "sinceAheadOfDeclared": 0,
+      "sinceAheadRules": []
+    },
+    {
+      "id": "video",
+      "package": "detectors-video",
+      "declaredVersion": "video-corpus-2026.09",
+      "ruleCount": 10,
+      "digest": "1cdd4bf31c7e0520",
+      "sinceAheadOfDeclared": 0,
+      "sinceAheadRules": []
+    },
+    {
+      "id": "audio",
+      "package": "detectors-audio",
+      "declaredVersion": "audio-corpus-2026.09",
+      "ruleCount": 9,
+      "digest": "aa0278bd8fe1d88c",
+      "sinceAheadOfDeclared": 0,
+      "sinceAheadRules": []
+    },
+    {
+      "id": "audio-stream",
+      "package": "detectors-audio",
+      "declaredVersion": "audio-stream-corpus-2026.09",
+      "ruleCount": 5,
+      "digest": "8a9a93c8d8c32dc0",
+      "sinceAheadOfDeclared": 0,
+      "sinceAheadRules": []
+    }
+  ]
+}
