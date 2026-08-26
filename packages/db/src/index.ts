@@ -49,13 +49,18 @@ export { PostgrestError, SupabaseDatabase, columnCase } from "./postgrest.js";
 export type { EnvResult, SupabaseEnv } from "./env.js";
 export { ENV_DOCUMENTATION, SUPABASE_ENV_VARS, readSupabaseEnv } from "./env.js";
 
-export type { Migration } from "./migrations.js";
-export {
-  DESTRUCTIVE_PATTERNS,
-  MIGRATIONS_DIR,
-  NON_IDEMPOTENT_PATTERNS,
-  createdTables,
-  executableSql,
-  loadMigrations,
-  tablesWithRls,
-} from "./migrations.js";
+/**
+ * THE MIGRATION LINT IS NOT RE-EXPORTED HERE, and that is load-bearing rather than tidy.
+ *
+ * `./migrations.js` reads `<repo>/supabase/migrations` off the filesystem. Turbopack resolves
+ * `new URL("../../../supabase/migrations/", import.meta.url)` as a static asset reference no
+ * matter what scope it sits in - module body or function body, it is the same syntactic form -
+ * and a directory is not an asset, so the reference fails the build of anything that reaches
+ * this module. `apps/web` reaches it: the gauntlet and notary routes import `InMemoryDatabase`
+ * from this barrel, and a barrel drags every re-export along with the one symbol asked for.
+ *
+ * The migration set is a development and test concern. It has its own entrypoint,
+ * `@slop/db/migrations`, and `test/migrations.test.ts` is its only consumer. Nothing in an app
+ * process has any business resolving a SQL directory, so nothing in an app process can now
+ * reach the code that does.
+ */

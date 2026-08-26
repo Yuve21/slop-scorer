@@ -17,6 +17,9 @@ export default defineConfig({
       "@slop/detectors-image": r("./packages/detectors-image/src/index.ts"),
       "@slop/detectors-video": r("./packages/detectors-video/src/index.ts"),
       "@slop/detectors-audio": r("./packages/detectors-audio/src/index.ts"),
+      // Longest prefix first: Vite's alias list is ordered, and a bare "@slop/db" entry would
+      // swallow "@slop/db/migrations" before this line ever ran.
+      "@slop/db/migrations": r("./packages/db/src/migrations.ts"),
       "@slop/db": r("./packages/db/src/index.ts"),
       "@slop/gauntlet": r("./packages/gauntlet/src/index.ts"),
       "@slop/notary": r("./packages/notary/src/index.ts"),

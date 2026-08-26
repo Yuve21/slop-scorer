@@ -14,7 +14,15 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** Resolves to `<repo>/supabase/migrations` from either `src/` or the built `dist/`, same depth. */
+/**
+ * Resolves to `<repo>/supabase/migrations` from either `src/` or the built `dist/`, same depth.
+ *
+ * THIS MODULE IS NOT REACHABLE FROM `@slop/db`. Turbopack reads the `new URL(..., import.meta.url)`
+ * below as a static asset reference - a directory is not an asset, so the reference fails the
+ * build of any bundle that contains this file - and moving it inside a function does not help,
+ * because the analysis is syntactic. So the barrel does not re-export it and `apps/web` cannot
+ * pull it in behind `InMemoryDatabase`. Import it as `@slop/db/migrations`, from a test.
+ */
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../../supabase/migrations/", import.meta.url));
 
 export interface Migration {

@@ -19,7 +19,9 @@ import {
   executableSql,
   loadMigrations,
   tablesWithRls,
-} from "@slop/db";
+  // A SEPARATE ENTRYPOINT, not the barrel: this module reads the SQL directory off disk, and a
+  // bundler that sees it fails the build of `apps/web`. See the note in `packages/db/src/index.ts`.
+} from "@slop/db/migrations";
 import type {
   GauntletArtifactRow,
   GauntletGuessRow,
