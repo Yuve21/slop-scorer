@@ -13,7 +13,7 @@
  *      is no second compositor in this product, and adding one would be the exact drift this
  *      module exists to prevent;
  *   2. check the LAYOUT for panel symmetry, because an asymmetric figure makes an accusation the
- *      copy underneath cannot retract (`publicity-defamation-risk.md` §2);
+ *      copy underneath cannot retract (the legal risk memo (private) §2);
  *   3. encode to PNG, then decode those same bytes back and require them to be pixel-identical to
  *      what was composed, so an encoder bug cannot ship a figure nobody checked;
  *   4. run `checkDisclaimerProminence` on the DECODED bytes. Not on the composed raster: on the

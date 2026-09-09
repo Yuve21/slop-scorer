@@ -1,7 +1,7 @@
 /**
  * Written consent, captured before any provider call. No consent, no call.
  *
- * `publicity-defamation-risk.md` Tier 1 #5 calls this "the cheapest defence in the memo,
+ * the legal risk memo (private) Tier 1 #5 calls this "the cheapest defence in the memo,
  * defends against the most statutes": it defeats the scienter element of the Tennessee ELVIS Act
  * tool prong and the Utah equivalent, and the "without consent" element of the California and
  * Washington publicity statutes, all at once.

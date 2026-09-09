@@ -1,7 +1,7 @@
 /**
  * The two gates in front of every provider call: consent, then faces.
  *
- * Both are Tier-1 items in `publicity-defamation-risk.md`. The consent gate is called "the cheapest
+ * Both are Tier-1 items in the legal risk memo (private). The consent gate is called "the cheapest
  * defence in the memo, defends against the most statutes" (#5); refusing to regenerate identifiable
  * faces "removes the publicity head almost entirely" (#6). Neither is a setting. Both are tested
  * here through the real pipeline rather than by calling the checker directly, because the property

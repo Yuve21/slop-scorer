@@ -2,7 +2,7 @@
  * You cannot name someone if there is nowhere to put the name.
  *
  * Defamation and false light both require that the plaintiff be identified
- * (`publicity-defamation-risk.md` Tier 1 #1). Every other control against that is a rule somebody
+ * (the legal risk memo (private) Tier 1 #1). Every other control against that is a rule somebody
  * has to follow; this one is a property of the type system, and the only way it degrades is if
  * somebody adds a field. So this test walks the source for creator-shaped property names.
  *

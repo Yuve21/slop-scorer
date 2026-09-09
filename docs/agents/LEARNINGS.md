@@ -695,13 +695,24 @@ Inventing one is worse than an empty line, because this file is read before acti
 - **Status:** FIXED in the docs. HOUSE-KNOWLEDGE's decision list and `README.md`'s "The public MCP
   repository" section now state the real arrangement and separate what changed from what did not.
   The scrubs and the leak audit are unchanged, deliberately.
-- **A live consequence that is NOT fixed and needs a decision:**
-  `publicity-defamation-risk.md` is publicly readable and is a self-authored memo that ranks this
-  product's own legal exposure, rates the side-by-side layout "the single most dangerous design
-  decision", and heads a list "Tier 1 design changes (do before shipping)". A public document
-  showing the operator identified a risk before shipping is the ordinary way knowledge gets proved,
-  and knowledge is what moves damages. Whether every Tier 1 item is done was NOT audited in this
-  pass. Escalated to the founder 2026-09-09.
+- **The consequence that mattered, now closed.** `publicity-defamation-risk.md` was publicly
+  readable and is a self-authored memo that ranks this product's own legal exposure, rates the
+  side-by-side layout "the single most dangerous design decision", and heads a list "Tier 1 design
+  changes (do before shipping)". A public document showing the operator identified a risk before
+  shipping is the ordinary way knowledge gets proved, and knowledge is what moves damages. Founder
+  decided 2026-09-09 to move it: it now lives in the PRIVATE repository
+  `Yuve21/slop-scorer-legal`, is removed from this tree and is gitignored so it cannot drift back.
+  History was deliberately NOT rewritten, because this repository is public and already cloneable,
+  so a force-push would break existing clones to remove something an old clone already has.
+  **Removing the file was the small half of the job.** Sixteen files cited it by bare filename,
+  including eleven SHIPPED source comments, so deleting it alone would have left sixteen citations
+  of a path no reader can open, which is the L-15 defect exactly. All of them now read "the legal
+  risk memo (private)", and `scripts/sync-public-mcp.mjs`'s scrub for the `core/src/assessment.ts`
+  citation was updated in the same commit, because a scrub whose `from:` no longer matches upstream
+  is a hard failure by design and that design is what caught it.
+  **Still NOT audited, and it is the open question:** whether every Tier 1 item in that memo is
+  actually done on the live product. The memo is now private either way, but private does not make
+  a pending mitigation done.
 - **Next time:** a property that a gate's rationale depends on is part of that gate's specification,
   so verify it by execution like any other claim. `gh repo view --json visibility` is one command and
   nobody had run it. The general form, which is L-15's question asked one level up: for every gate,

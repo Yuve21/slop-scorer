@@ -1,7 +1,7 @@
 /**
  * The face gate. Nothing reaches a provider until this has run and cleared it.
  *
- * `publicity-defamation-risk.md` Tier 1 #6: refusing to regenerate identifiable faces "removes
+ * the legal risk memo (private) Tier 1 #6: refusing to regenerate identifiable faces "removes
  * the publicity head almost entirely, plus Washington's 'indistinguishable', Arizona's 'would
  * believe', and Tennessee's 'readily identifiable'". It is the single highest-leverage control in
  * the product and it is one function call, so it is a hard gate in the pipeline rather than a

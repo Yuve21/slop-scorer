@@ -22,3 +22,6 @@ coverage/
 # Local audio corpora built by scripts/capture-audio-corpus.mjs. Measurements of somebody's
 # recording, kept out of the repository on purpose: see packages/detectors-audio/README.md.
 .corpus-cache/audio/
+
+# Kept in the private repo Yuve21/slop-scorer-legal. See LEARNINGS L-20.
+publicity-defamation-risk.md

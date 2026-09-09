@@ -21,7 +21,7 @@
  *     subject is us, the object is the artifact, and the verb is an action we took. It
  *     cannot describe a person, because the inputs it is given never contain one.
  *
- * `publicity-defamation-risk.md` supplies the reason this is a type and not a style guide:
+ * the legal risk memo (private) supplies the reason this is a type and not a style guide:
  * *In re Workado* makes an accuracy claim about an inference a substantiation-bearing
  * statement under FTC Act s5. A sentence that says what we measured is defensible by
  * showing the measurement. A sentence that says what someone did is defensible only by

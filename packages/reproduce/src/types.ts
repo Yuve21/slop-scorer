@@ -9,7 +9,7 @@
  *
  *  1. THERE IS NO FIELD FOR A CREATOR, A CLIENT OR A VENDOR OF THE SUBMITTED ARTIFACT. Anywhere.
  *     Defamation and false light both require that the plaintiff be identified
- *     (`publicity-defamation-risk.md` Tier 1 #1), so the cheapest possible control is to make the
+ *     (the legal risk memo (private) Tier 1 #1), so the cheapest possible control is to make the
  *     information unrepresentable. `providerId` and `model` name OUR suppliers, which is the
  *     opposite direction of travel. A test walks this package's source for creator-shaped field
  *     names, because the control is only as good as its enforcement.

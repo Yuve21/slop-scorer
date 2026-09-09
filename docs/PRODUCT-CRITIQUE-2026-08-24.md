@@ -2,7 +2,7 @@
 
 **Scope:** report only, no code touched. Written after reading `product-spec.md`, `market-research.md`,
 `market-check-reproduction.md`, `novel-mechanics.md`, `image-detection-reality.md`,
-`publicity-defamation-risk.md`, `left-field-additions.md`, `human-verification-licensing.md`,
+the legal risk memo (private), `left-field-additions.md`, `human-verification-licensing.md`,
 `docs/UI-AUDIT-2026-08-24.md`, the root and `packages/mcp-server` READMEs; after running
 `npx vitest run` (1066 passing, 54 files), driving the MCP server over stdio against this repo, and
 reading `https://slop-scorer.vercel.app` live.

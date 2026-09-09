@@ -22,7 +22,7 @@
  *
  * That sentence is not merely unsupported. It is the single most defamatory sentence this
  * whole product could form, it is the one with a criminal statute attached in at least one
- * state (`publicity-defamation-risk.md` on the Tennessee ELVIS Act's tool-liability prong),
+ * state (the legal risk memo (private) on the Tennessee ELVIS Act's tool-liability prong),
  * and we could not substantiate it even if we wanted to, because we cannot legally build the
  * comparison that would be needed to test it.
  *

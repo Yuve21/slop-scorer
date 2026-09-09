@@ -127,7 +127,7 @@ const PUBLIC_OWNED = [
 const SCRUBS = [
   {
     file: "packages/core/src/assessment.ts",
-    from: "`publicity-defamation-risk.md` supplies the reason this is a type and not a style guide:",
+    from: "the legal risk memo (private) supplies the reason this is a type and not a style guide:",
     to: "The reason this is a type and not a style guide, rather than a preference:",
   },
   {

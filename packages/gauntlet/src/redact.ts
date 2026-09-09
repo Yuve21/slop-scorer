@@ -3,7 +3,7 @@
  *
  * Two separate reasons, and they need separate machinery because they fail differently.
  *
- *  1. IDENTITY. `publicity-defamation-risk.md` Tier 1 #1: defamation and false light both require
+ *  1. IDENTITY. the legal risk memo (private) Tier 1 #1: defamation and false light both require
  *     an identified plaintiff. A card that carries `authorEmail` from a commit record, or a
  *     copyright line, or somebody's handle, turns a game round into a statement about a named
  *     person. The corpus is FULL of these - `CommitRecord.authorEmail` is a real field on a real

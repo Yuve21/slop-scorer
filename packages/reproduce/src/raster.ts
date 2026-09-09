@@ -89,7 +89,7 @@ export function vrule(r: Raster, x: number, y: number, h: number, c: Rgb): void 
  * Nearest-neighbour blit, letterboxed inside `box` so aspect ratio survives.
  *
  * Letterboxing matters legally, not just visually: the two panels must be pixel-symmetric
- * (`publicity-defamation-risk.md` §2 - an asymmetric layout makes the accusation the copy then
+ * (the legal risk memo (private) §2 - an asymmetric layout makes the accusation the copy then
  * has to walk back), so both panels get the SAME plate and the same fill, and the content is
  * fitted into it rather than the plate being fitted to the content.
  */

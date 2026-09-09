@@ -13,7 +13,7 @@
  *   could_not_reproduce we tried and failed. That is a result about US, not about the work
  *   refused             we declined on purpose (an identifiable person, a licensed work,
  *                       no consent on file). Refusing is a feature; see
- *                       publicity-defamation-risk.md Tier 1 item 6
+ *                       the legal risk memo (private) Tier 1 item 6
  *   not_configured      no reproduction pipeline is wired for this modality in this build
  *
  * The one rule the type cannot enforce and the component must: whenever `succeeded` puts

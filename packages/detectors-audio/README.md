@@ -29,7 +29,7 @@ That has a direct consequence for detection:
 
 That second sentence is not merely unsupported. It is the single most defamatory sentence this
 product could form, it is the one with a criminal tool-liability statute attached in at least
-one state (`publicity-defamation-risk.md`, the Tennessee ELVIS Act's tool prong), and we could
+one state (the legal risk memo (private), the Tennessee ELVIS Act's tool prong), and we could
 not substantiate it even if we wanted to, because we cannot legally build the comparison that
 would be needed to test it.
 
