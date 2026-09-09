@@ -234,9 +234,10 @@ before-publish local-dev fallback (`npm run install:local`).
 
 ## The public MCP repository
 
-The MCP server is open source at **github.com/Yuve21/slop-scorer-mcp**. Everything else in this
-repository, including every strategy document at the root, `apps/web`, and the reproduction,
-notary, gauntlet, provenance, database and media-detector packages, stays private.
+The MCP server is open source at **github.com/Yuve21/slop-scorer-mcp**, and it is the only
+PUBLISHED artifact: four packages travel into it and the rest do not. This repository is public
+too, so the difference is what gets published to a registry and runs on a stranger's machine, not
+what can be read.
 
 **This repository is authoritative. The public one is a projection of it, regenerated, never
 edited.** Four packages travel: `core`, `detectors-code`, `detectors-web`, `mcp-server`.

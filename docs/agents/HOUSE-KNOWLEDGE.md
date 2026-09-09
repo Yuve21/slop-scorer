@@ -333,6 +333,18 @@ in the open and say you did.
 - **The score is bounded at 99** and abstention is a status, not a band.
 - **Nothing auto-applies a patch.** The host agent disposes.
 - **No accuracy, precision or recall number that the harness cannot re-derive at test time.**
-- **The MCP server is public; everything else in this repository is private,** including every
-  strategy document at the root, `apps/web`, and the reproduction, notary, gauntlet, provenance,
-  database and media-detector packages.
+- **This repository is PUBLIC, deliberately, and that is a founder decision made 2026-09-09** so
+  companies can see work in progress. It was described here as private until then, which was wrong,
+  and the wrong version is worth knowing about because two other things were resting on it (L-20).
+  What that changes: nothing in this repository is a secret, so do not reason as though a strategy
+  document, `apps/web`, or the reproduction, notary, gauntlet, provenance, database and
+  media-detector packages were unreadable by a stranger. Write every root document as though a
+  competitor and a regulator will both read it, because both can.
+  **What it does NOT change, and this is the part that matters:** `packages/mcp-server` is still the
+  only PUBLISHED artifact, and the reason `@slop/reproduce` must stay out of its bundle was never
+  secrecy. The public `@slop/ocr-text` is a module contract, an honest abstention with a stated
+  reason, whose calibration baseline is identical entry for entry (L-04). A published comment citing
+  `scripts/check-no-egress.mjs` is still a guarantee nothing in the public repository backs (L-15).
+  So the scrubs and the leak audit keep their full force; only their THREAT MODEL narrows, from
+  "somebody could read the private source" to "the published package must not claim what it does not
+  ship".

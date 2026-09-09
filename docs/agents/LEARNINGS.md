@@ -55,8 +55,9 @@ moment they were needed.
 
 - **L-08** Two probe tables for one detector state opposite policies, and nothing compares them. **OPEN**
 - **L-09** A claim guard handed attacker-controlled bytes throws on the honest path
+- **L-20** The repository was public while the brain said it was private, and two artifacts rested on the wrong half
 
-_19 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
+_20 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
 
 <!-- END GENERATED INDEX -->
 
@@ -662,3 +663,49 @@ Inventing one is worse than an empty line, because this file is read before acti
   three test-authoring mistakes were a test comment naming a mutation that did not actually fail it
   (the `bucketScore` clamp, and a key-equality assertion placed in the suite where the code under
   test does not run). **Run the mutation you name, at the moment you name it.**
+
+### L-20 · 2026-09-09 · The repository was public while the brain said it was private, and two artifacts rested on the wrong half
+- **Claim:** HOUSE-KNOWLEDGE stated as a settled decision that "the MCP server is public; everything
+  else in this repository is private". `Yuve21/slop-scorer` was in fact PUBLIC, so the sentence every
+  agent reads before acting was false about the single most consequential property of the repository.
+- **Evidence:** measured 2026-09-09. `gh repo view Yuve21/slop-scorer --json visibility` returns
+  `{"visibility":"PUBLIC","isPrivate":false}`. `git ls-files` confirms the public tree carries all
+  nine root strategy documents (`market-research.md`, `product-spec.md`,
+  `publicity-defamation-risk.md`, `human-verification-licensing.md`, `build-plan-optimized.md`,
+  `novel-mechanics.md`, `image-detection-reality.md`, `market-check-reproduction.md`,
+  `left-field-additions.md`), all 10 files of `docs/agents/`, 130 files of `apps/web`, and the
+  packages the sentence named as private: `reproduce` 34 files, `provenance` 34, `notary` 17,
+  `detectors-audio` 17, `gauntlet` 16, `db` 12, `detectors-image` 12, `detectors-video` 12. No
+  `.env.local` is tracked; only `.env.example`, so no credential was exposed.
+- **The founder's answer, which is the resolution and not a defect:** public is DELIBERATE, so
+  companies can see work in progress. The defect was never the visibility. It was that the brain
+  asserted the opposite and nobody checked, and the brain is read before acting.
+- **The part that matters, and it is the reason this is a learning rather than a typo.** Two things
+  were resting on the false half. (a) L-04's whole construction, a separate public repository with a
+  substitute `@slop/ocr-text`, reads as protecting the reproduction pipeline from being READ, and
+  that half of its rationale was never true; what survives, and survives completely, is the module
+  contract: the published bundle must not carry code whose behaviour the public package does not
+  ship. (b) L-15's thirteen scrubs were justified partly as removing citations "the public reader
+  cannot open", and a public reader CAN open `docs/agents/HQ.md`. The half of that rationale that
+  survives is the sharper half and it is untouched: a published comment citing
+  `scripts/check-no-egress.mjs` claims a gate the public repository does not ship, which is L-10's
+  shape. So neither gate was weakened here and neither should be; their threat model narrowed from
+  secrecy to honesty about what the published artifact contains.
+- **Confidence:** high (visibility read from the API, every file count reproduced by `git ls-files`).
+- **Status:** FIXED in the docs. HOUSE-KNOWLEDGE's decision list and `README.md`'s "The public MCP
+  repository" section now state the real arrangement and separate what changed from what did not.
+  The scrubs and the leak audit are unchanged, deliberately.
+- **A live consequence that is NOT fixed and needs a decision:**
+  `publicity-defamation-risk.md` is publicly readable and is a self-authored memo that ranks this
+  product's own legal exposure, rates the side-by-side layout "the single most dangerous design
+  decision", and heads a list "Tier 1 design changes (do before shipping)". A public document
+  showing the operator identified a risk before shipping is the ordinary way knowledge gets proved,
+  and knowledge is what moves damages. Whether every Tier 1 item is done was NOT audited in this
+  pass. Escalated to the founder 2026-09-09.
+- **Next time:** a property that a gate's rationale depends on is part of that gate's specification,
+  so verify it by execution like any other claim. `gh repo view --json visibility` is one command and
+  nobody had run it. The general form, which is L-15's question asked one level up: for every gate,
+  after asking whether it is complete, ask **what it assumes about the world outside the
+  repository**, and go and measure that too. And when a stated decision turns out to be false rather
+  than merely stale, correct the statement and say which downstream rationales half-collapse, because
+  the surviving half is usually the one worth keeping and it is easy to throw out with the rest.
