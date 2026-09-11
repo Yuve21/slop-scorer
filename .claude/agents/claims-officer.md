@@ -125,6 +125,17 @@ that implements it, and asserted without.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `release-verifier` (a gate result is what substantiates a claim, and this seat does not get to run the gates and then grade them), `false-positive-hunter` (any published accuracy figure rests on its denominators)
+- **Reuses:** the last release-verifier report. A claim checked against a re-run of the gates by the same seat that is judging them is the denominator-from-its-own-subject defect.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

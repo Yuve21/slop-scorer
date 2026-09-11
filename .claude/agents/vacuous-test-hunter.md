@@ -110,6 +110,17 @@ asserted without running.
 **Then append to `docs/agents/LEARNINGS.md`.** This seat produces the most durable learnings in the
 project; every entry in the disqualifying-class section came from a run of this kind.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `release-verifier` (its skipped list is the first place a vacuous guarantee hides, since a skip and a pass are indistinguishable to everybody downstream)
+- **Reuses:** the last release-verifier report for which gates skipped and what each one's denominator was. A gate whose denominator was zero is a candidate before any code is read.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

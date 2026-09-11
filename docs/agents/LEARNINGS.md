@@ -57,8 +57,9 @@ moment they were needed.
 - **L-09** A claim guard handed attacker-controlled bytes throws on the honest path
 - **L-20** The repository was public while the brain said it was private, and two artifacts rested on the wrong half
 - **L-21** A guard written for fourteen briefs reported all fourteen as failing it, and the regex was satisfied by the end of its own heading line
+- **L-22** Two dependency cycles appeared the moment the edges were written down, and neither one was real
 
-_21 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
+_22 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
 
 <!-- END GENERATED INDEX -->
 
@@ -759,3 +760,40 @@ with `git checkout -- <file>`, which restored it to HEAD. The stopping contracts
 yet, so the restore silently deleted the thing under test and the control then failed for a reason
 that had nothing to do with the guard. Restore from a copy, not from git, when the subject of the
 test is uncommitted.
+
+### L-22 · 2026-09-11 · Two dependency cycles appeared the moment the edges were written down, and neither one was real
+
+**What happened.** Every brief was given a `## What this run reads first` section with two fields,
+"Builds on" and "Reuses", so fourteen seats pointed at one repository would stop re-deriving each
+other's work. The new cycle check immediately found two loops: `corpus-steward` with
+`false-positive-hunter`, and `corpus-steward` with `detector-coverage`.
+
+Both came from a loose reading of "builds on". The hunter and the coverage seat were written as
+building on the steward because the CORPUS is their subject. The corpus is an artifact. What the
+steward actually waits on is their reports, and that is one direction, not two.
+
+**The rule, and it is the whole value of the exercise.** *Builds on* means this seat reads another
+seat's REPORT. An artifact that several seats read goes in *Reuses* and creates no edge at all. Get
+that distinction wrong and the dependency graph grows cycles that describe nothing, which matters
+because a cycle in a real graph is a scheduling deadlock: two seats each waiting on the other's
+report resolve it in practice by one of them doing the work twice, which is the exact re-derivation
+the edges were added to remove.
+
+**The near miss is the more useful half.** The first response was to add a `DECLARED_LOOPS`
+allowlist and exempt both pairs, on the reasoning that the steward genuinely cannot promote a rule
+without the hunter's review. That is true and it is not a cycle. Had the exemption shipped, this
+file would now carry a standing allowlist for something that was never a loop, the allowlist would
+have needed its own both-directions staleness check, and the first REAL cycle to appear would have
+landed next to two entries saying cycles here are normal. An exemption is a permanent cost paid to
+avoid a one-time correction, and it hides the next instance of what it exempts.
+
+**Evidence.** 14 briefs, 12 builds-on edges, 6 floor seats, 0 cycles after correcting three "Builds
+on" lines. Mutation-tested five ways against `ui-craft` and `release-verifier`: section removed, one
+field removed, an upstream that is not a seat, a reuse path that does not exist, and an invented
+two-seat loop. All five go red and name the seat; the unmutated control is green in the same pass.
+
+**A floor seat is a decision, not an absence.** Six briefs answer "Nothing." and each says why:
+`release-verifier` must not rest on anybody's report, because a gate that trusts a report is no
+longer a gate; `false-positive-hunter` reads the corpus directly, because a hunter working from the
+steward's summary inherits the judgement it exists to challenge. The check accepts "Nothing." only
+when it is written as a sentence, so an empty field and a considered floor are distinguishable.

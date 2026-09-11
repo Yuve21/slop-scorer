@@ -96,6 +96,17 @@ and why. Close with the two lists: verified by running, asserted without running
 **Then append to `docs/agents/LEARNINGS.md`.** An evasion class that worked is a durable lesson about
 the shape of the corpus, not a bug report about one rule.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `detector-coverage` (what the corpus structurally cannot express is where the cheapest evasions already live, and re-finding them is not an attack)
+- **Reuses:** `docs/agents/corpus.lock.json` and the coverage report. Start from the gaps somebody has already named, and spend the budget on the ones nobody has.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

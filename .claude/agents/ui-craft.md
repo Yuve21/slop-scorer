@@ -100,6 +100,17 @@ sweep counts. Close with the two lists: verified in a browser, asserted from sou
 **Then append to `docs/agents/LEARNINGS.md`.** L-07 came from this seat and is the model: two
 measured numbers, before and after, and a mechanism worth remembering.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `claims-officer` (what the site is allowed to say is settled there, so a copy complaint here is out of scope unless the words are new)
+- **Reuses:** the most recent `node scripts/capture-self-scan.mjs` output, which is our own site scored by our own product, before opening a browser to form an opinion about it.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

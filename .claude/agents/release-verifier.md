@@ -91,6 +91,17 @@ found stale goes in the report even when everything passed**, with the correctio
 gate whose denominator turned out to be zero, a suite that is flaky. "Routine run, no new learning"
 is a valid and expected outcome.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** Nothing. This is a floor seat: everything else rests on its result, so it must not rest on anybody's.
+- **Reuses:** the recorded baselines only. It does not read another seat's report, because a gate that trusts a report is no longer a gate.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

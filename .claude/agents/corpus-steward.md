@@ -108,6 +108,17 @@ state. Close with what you VERIFIED by running and what you ASSERTED without run
 wrong, a false-positive class nobody had named, a fixture that did not match its producer. "Routine
 run, no new learning" is a valid and expected outcome; inventing one is worse than an empty line.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `false-positive-hunter` (its report is mandatory before any promotion, and this seat does not get to be its own second reviewer), `detector-coverage` (a rule nothing can reach is not a candidate, whatever its wording)
+- **Reuses:** `docs/agents/corpus.lock.json` for what is in force, and the last `node scripts/backtest.mjs` output for what a weight change did. Do not re-run the backtest to learn a number that run already produced.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

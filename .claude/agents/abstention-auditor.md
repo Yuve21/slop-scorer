@@ -103,6 +103,17 @@ verified by running, asserted without running.
 out to be reachable only by accident is exactly the kind of finding that expires quietly and needs
 writing down.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `detector-coverage` (what the corpus cannot reach is exactly where an honest abstention should appear, so its dead-rule and unreachable-probe list is the map of where to look)
+- **Reuses:** `docs/agents/corpus.lock.json` for the statuses in force, plus the most recent coverage report rather than re-deriving which probes never fire.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

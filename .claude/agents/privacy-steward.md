@@ -115,6 +115,17 @@ running.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** Nothing. This is a floor seat: the no-egress guarantee is established by reading the network surface, not by being told it holds.
+- **Reuses:** `docs/agents/egress-allowlist.json` as the statement of what is permitted, and the last `node scripts/check-no-egress.mjs` output as the measurement against it.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

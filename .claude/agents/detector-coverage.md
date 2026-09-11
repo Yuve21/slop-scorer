@@ -101,6 +101,17 @@ enumerated. Close with the two lists: verified by running, asserted without runn
 canonical example, a hand-enumerated list) is worth far more than the individual rule, because it
 predicts the next one.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** Nothing. This is a floor seat: reachability is decided by reading the rules and probes that actually run, and a second-hand list of what the corpus contains cannot answer what it can express.
+- **Reuses:** `docs/agents/corpus.lock.json` and the probe list it names. Reachability is decided by reading the code that runs, so the artifact to reuse is the rule set, not a pile of scored samples.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

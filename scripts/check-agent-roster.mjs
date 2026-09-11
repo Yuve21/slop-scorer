@@ -45,6 +45,26 @@ const rel = (f) => path.relative(REPO, f).split(path.sep).join("/");
 const problems = [];
 const fail = (m) => problems.push(m);
 
+/** name -> the agents it declares it reads. Filled while the briefs are parsed. */
+const edges = new Map();
+const upstreamRefs = [];
+const reuseRefs = [];
+
+/*
+ * THERE ARE NO DECLARED CYCLES, AND THAT IS A DECISION RATHER THAN AN ABSENCE.
+ *
+ * The first draft of the edges produced two, and neither was real. The cause was
+ * a loose reading of "builds on": `false-positive-hunter` and `detector-coverage`
+ * were written as building on `corpus-steward` because the corpus is their
+ * subject. The corpus is an ARTIFACT, and an artifact belongs in Reuses. What
+ * `corpus-steward` actually waits on is their REPORTS, which is one direction.
+ *
+ * Had the loops been declared instead of fixed, this file would now carry a
+ * permanent exemption for something that was never a loop, and the exemption
+ * would have hidden the next real one. So: builds-on means another seat's
+ * report, every cycle fails, and there is no allowlist to go stale.
+ */
+
 // Phrases that make a stopping condition decorative. Same standard this product
 // already applies to a rule's false-positive note: naming the case is the note,
 // and "may occasionally be wrong" is not.
@@ -123,6 +143,36 @@ for (const f of agentFiles) {
     }
   }
 
+  // THE EDGES. Without them fourteen seats pointed at one repository each
+  // re-derive the same scan, and nothing anywhere says which of them already
+  // did. Two fields: what this seat READS from another seat, and the concrete
+  // artifact it should reuse rather than reproduce.
+  const edgeSplit = body.split(/^## What this run reads first[ \t]*$/m);
+  const edgeBody = edgeSplit.length > 1 ? edgeSplit[1].split(/\n## /)[0] : null;
+  if (edgeBody === null) {
+    fail(`agent "${name || stem}" has no "## What this run reads first" section, so nothing says what it may reuse instead of re-deriving`);
+  } else {
+    const buildsOn = edgeBody.match(/^-\s+\*\*Builds on:\*\*\s*(.+)$/m);
+    const reuses = edgeBody.match(/^-\s+\*\*Reuses:\*\*\s*(.+)$/m);
+    if (!buildsOn) fail(`agent "${name || stem}" declares no "Builds on"`);
+    if (!reuses) fail(`agent "${name || stem}" declares no "Reuses"`);
+    if (reuses && reuses[1].trim().length < 40) fail(`agent "${name || stem}" Reuses is too short to name an artifact anybody could open: "${reuses[1].trim()}"`);
+    if (buildsOn) {
+      // "Nothing." is a legitimate and important answer: a floor seat must not
+      // rest on another seat's report, and saying so is a decision rather than
+      // an omission. It is spelled out so the two cases are distinguishable.
+      const declared = /^Nothing\./.test(buildsOn[1].trim())
+        ? []
+        : [...buildsOn[1].matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+      if (!/^Nothing\./.test(buildsOn[1].trim()) && declared.length === 0) {
+        fail(`agent "${name || stem}" Builds on names no agent and does not say "Nothing.", so it is neither an edge nor a decision`);
+      }
+      edges.set(name || stem, declared);
+      upstreamRefs.push([name || stem, declared]);
+    }
+    if (reuses) reuseRefs.push([name || stem, reuses[1]]);
+  }
+
   agents.set(name || stem, {
     name: name || stem,
     model: get("model"),
@@ -195,6 +245,50 @@ for (const n of agents.keys()) if (!org.has(n)) fail(`agent "${n}" exists but is
 for (const n of org.keys()) if (!agents.has(n)) fail(`the org chart lists "${n}" but .claude/agents/ has no such brief`);
 for (const n of onCadence.keys()) if (!agents.has(n)) fail(`the standing-passes table names "${n}", which has no agent brief`);
 for (const n of agents.keys()) if (!onCadence.has(n)) fail(`agent "${n}" has no row in the standing-passes table, so nothing says when it runs`);
+
+// --- 4b. the edges reconcile ---------------------------------------------------------------------
+
+for (const [who, deps] of upstreamRefs) {
+  for (const d of deps) {
+    if (d === who) fail(`agent "${who}" builds on itself`);
+    else if (!agents.has(d)) fail(`agent "${who}" builds on "${d}", which is not an agent on this roster`);
+  }
+}
+
+// A reuse pointer at a path that does not exist is worse than no pointer: it is
+// read before acting, and the seat that follows it finds nothing and re-derives
+// anyway, having spent the lookup. Only backtick-quoted paths are checked,
+// because prose naming another seat's report is not a path.
+for (const [who, text] of reuseRefs) {
+  for (const m of text.matchAll(/`([^`]+)`/g)) {
+    const token = m[1].replace(/^node\s+/, "").split(/\s/)[0];
+    if (!/[/.]/.test(token)) continue;
+    if (!existsSync(path.join(REPO, token))) fail(`agent "${who}" says to reuse \`${token}\`, which does not exist`);
+  }
+}
+
+// Cycles. Every one that is not declared is a deadlock nobody chose: two seats
+// each waiting on the other's report, which resolves in practice by one of them
+// doing the work twice.
+const cycles = [];
+const seenCycles = new Set();
+const walk = (start, node, trail) => {
+  for (const next of edges.get(node) ?? []) {
+    if (next === start) {
+      // The trail already holds each member once; the key is the distinct set,
+      // so the same loop found from each of its members is reported once.
+      const key = [...new Set(trail)].sort().join(">");
+      if (!seenCycles.has(key)) { seenCycles.add(key); cycles.push([...trail]); }
+    } else if (!trail.includes(next)) {
+      walk(start, next, [...trail, next]);
+    }
+  }
+};
+for (const n of edges.keys()) walk(n, n, [n]);
+
+for (const c of cycles) {
+  fail(`agents ${c.map((x) => `"${x}"`).join(" -> ")} form a builds-on cycle. Two seats waiting on each other's report resolve by one of them doing the work twice, which is the re-derivation these edges exist to remove.`);
+}
 
 // --- 5. the LEARNINGS index must agree with its own entries -------------------------------------
 //
@@ -288,7 +382,13 @@ if (problems.length) {
 const summary =
   `${rows.length} agents across ${new Set(rows.map((r) => r.dept)).size} departments ` +
   `(${depts.length} department headings parsed), ${onCadence.size} on the standing-passes table, ` +
-  `${entryIds.length} LEARNINGS entries, ${proseFiles.length} prose files scanned for em dashes (${emDashHits} found)`;
+  `${entryIds.length} LEARNINGS entries, ${proseFiles.length} prose files scanned for em dashes (${emDashHits} found), ` +
+  // The edge denominator, for the same reason as every other one here. "No
+  // cycles" is only meaningful next to the number of edges it searched: zero
+  // edges also produces zero cycles, and that is the shape this house refuses
+  // to print OK for.
+  `${[...edges.values()].reduce((n, d) => n + d.length, 0)} builds-on edges across ` +
+  `${[...edges.values()].filter((d) => d.length === 0).length} floor seats, ${cycles.length} cycles`;
 
 if (check) {
   const current = existsSync(OUT) ? read(OUT) : null;

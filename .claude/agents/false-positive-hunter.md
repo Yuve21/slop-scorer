@@ -105,6 +105,17 @@ verified by running and asserted without running, and with the populations you c
 **Then append to `docs/agents/LEARNINGS.md`**: a false-positive CLASS you proved is worth more than
 any individual rule fix, because the class predicts the next one.
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** Nothing. This is a floor seat: the corpus it attacks is an ARTIFACT it reads directly, not another seat's account of it. A hunter working from the steward's summary would inherit the judgement it exists to challenge.
+- **Reuses:** `docs/agents/corpus.lock.json`, and the negative corpora already built under `packages/gauntlet`. Building a fresh human corpus when one exists spends the run on collection rather than on hunting.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and

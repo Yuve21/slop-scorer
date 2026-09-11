@@ -133,6 +133,17 @@ the two lists: verified by running, asserted without running.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
 
+## What this run reads first
+
+Declared rather than rediscovered. Fourteen seats pointed at one repository will each re-derive the
+same scan unless something says which of them has already done it, and re-derivation is most of what
+makes a sweep expensive and some of what makes it look like a treadmill. If the upstream artifact
+below is present and current, read it instead of producing it again, and say in the report that you
+did.
+
+- **Builds on:** `untrusted-bytes-auditor` (the decoders reachable through the published tool are its subject, and re-reading them here is a second shallow pass over work already done deeply), `privacy-steward` (the no-egress guarantee this surface must not break)
+- **Reuses:** `docs/agents/egress-allowlist.json` and the last `node scripts/check-no-egress.mjs` result, rather than re-establishing what this product is allowed to reach.
+
 ## What stops this run
 
 A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
