@@ -2,10 +2,16 @@
  * `npm run backtest` — replay every frozen corpus against the CURRENT rules and print the
  * per-artifact delta against the committed baseline.
  *
- * A new or reweighted rule does not ship until this has been run and read. It fails on the
- * two outcomes that must never ship quietly: a human negative moving up a band or over the
- * base rate, and a generated positive falling a band. See `packages/core/src/calibration/
- * backtest.ts` for why those two and not "nothing may move".
+ * A new or reweighted rule does not ship until this has been run and read. TWO gates run and both
+ * must pass:
+ *
+ *   the BAND gate      a human negative moving up a band or over the base rate, and a generated
+ *                      positive falling a band. See `packages/core/src/calibration/backtest.ts`
+ *                      for why those two and not "nothing may move".
+ *   the FINDING gate   a rule newly firing on verified human work, and a rule that stopped firing
+ *                      on generated work. Same question one level down, and it needs no score, so
+ *                      it is the half that survives the verdict surface being retired.
+ *                      See `docs/POSITIONING-2026-09-11.md`.
  *
  *   node scripts/backtest.mjs            # compare and exit non-zero on a regression
  *   node scripts/backtest.mjs --update   # accept the current numbers as the new baseline
@@ -17,7 +23,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { backtest, buildReport, formatBacktest, makeBaseline, runCalibration, toBaselineEntries } from "@slop/core";
+import { backtest, buildReport, findingBacktest, formatBacktest, formatFindingBacktest, makeBaseline, runCalibration, toBaselineEntries } from "@slop/core";
 import { analyzeArtifact, CORPUS_VERSION, NEGATIVE_CORPUS } from "@slop/detectors-web";
 import { analyzeRepoArtifact, CODE_CONFIG } from "@slop/detectors-code";
 import { analyzeImageArtifact, IMAGE_CONFIG, IMAGE_CORPUS } from "@slop/detectors-image";
@@ -129,6 +135,25 @@ if (process.argv.includes("--update") || !existsSync(BASELINE)) {
 }
 
 const previous = read(BASELINE);
+
+/*
+ * TWO GATES, AND BOTH MUST PASS.
+ *
+ * The band gate is the one that has always run. The finding gate asks the same question one level
+ * down, where it was always really being asked: did a rule start firing on verified human work, or
+ * stop firing on generated work. It needs no score, so it is the half that survives the verdict
+ * surface being retired (docs/POSITIONING-2026-09-11.md).
+ *
+ * They run TOGETHER for now, deliberately. Swapping one for the other in a single commit would mean
+ * the only measurement of rule quality in this repository was replaced by something nobody had ever
+ * watched fail on real corpora. Both run until the band gate is removed with the score, and the
+ * finding gate has a history of agreeing with it.
+ */
 const result = backtest(previous, entries);
 console.log(formatBacktest(result, previous));
-process.exit(result.verdict === "pass" ? 0 : 1);
+
+const findings = findingBacktest(previous, entries);
+console.log("");
+console.log(formatFindingBacktest(findings));
+
+process.exit(result.verdict === "pass" && findings.verdict === "pass" ? 0 : 1);

@@ -71,6 +71,14 @@ export {
   toBaselineEntries,
 } from "./calibration/backtest.js";
 
+// The finding-level gate, which asks the corpus-quality question without a score.
+export type {
+  FindingBacktestResult,
+  FindingVerdict,
+  RuleMovement,
+} from "./calibration/findings.js";
+export { findingBacktest, formatFindingBacktest } from "./calibration/findings.js";
+
 export type { DeepPartial, Remediator, Rule, RuleContext, RuleFixtureCase } from "./rule.js";
 export { attachRemedies, ev, patch } from "./rule.js";
 
