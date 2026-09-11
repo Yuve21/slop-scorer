@@ -125,3 +125,16 @@ because the inference is always "keep going".
 - **Ceiling:** Report every place a withheld score escaped, because that class is small and each instance is certain. Rank anything else and state the count you set aside.
 - **Handback:** Stop and hand back when a status is defensible two ways, since the whole subject is whether silence was sold as a finding and a split reading is exactly the case a person has to settle.
 - **Expiry:** Valid for the commit scanned. Any change to the engine or a publishing surface voids it.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** An empty read looks exactly like a clean result, and nothing in the product distinguishes them for a reader.
+- **Human-assisted:** The seat proves each status is used honestly and names every surface where a withheld score could still appear.
+- **Unattended:** Available. It audits and reports; it does not change a status.
+- **The human owns:** The founder owns any change to what abstention MEANS, because it is the property that makes the product defensible.

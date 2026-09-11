@@ -137,3 +137,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every egress path and every deanonymisation route, in full. A ranked subset of a no-egress guarantee is not a guarantee.
 - **Handback:** Hand back on a path that only leaks under a configuration nobody ships, naming the configuration, rather than reporting it as live.
 - **Expiry:** Valid for the commit scanned and the allowlist in force.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** The no-egress guarantee is believed because it was true when it was written, and nothing measures it again.
+- **Human-assisted:** The seat measures the network surface against the allowlist and reports every path that could leave the machine.
+- **Unattended:** Available for the measurement. It never makes a request to test whether one is possible, because the guarantee is the product.
+- **The human owns:** The founder owns the allowlist. Adding an entry is a change to what the product promises, not a configuration detail.

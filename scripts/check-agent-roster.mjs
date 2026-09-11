@@ -48,6 +48,9 @@ const fail = (m) => problems.push(m);
 /** name -> the agents it declares it reads. Filled while the briefs are parsed. */
 const edges = new Map();
 const upstreamRefs = [];
+/** Seats whose Unattended rung refuses the rung. Counted, not assumed: a roster where every
+ * seat may run unattended and a roster where none may look identical from the outside. */
+const gatedSeats = [];
 const reuseRefs = [];
 
 /*
@@ -171,6 +174,35 @@ for (const f of agentFiles) {
       upstreamRefs.push([name || stem, declared]);
     }
     if (reuses) reuseRefs.push([name || stem, reuses[1]]);
+  }
+
+  // THE AUTONOMY LADDER. `kind` and "may this run with nobody watching" are two
+  // axes and this roster was marking one. A mechanical seat can still need a
+  // person to decide what its output means, and a judgement-heavy seat can run
+  // unattended when all it produces is a report. Three rungs plus the sentence
+  // naming what the founder keeps, so moving a seat is a decision rather than a
+  // drift nobody noticed.
+  const ladderSplit = body.split(/^## Autonomy[ \t]*$/m);
+  const ladder = ladderSplit.length > 1 ? ladderSplit[1].split(/\n## /)[0] : null;
+  if (ladder === null) {
+    fail(`agent "${name || stem}" has no "## Autonomy" section, so nothing says what it may do with nobody watching`);
+  } else {
+    const rungs = [];
+    for (const kind of ["Human-led", "Human-assisted", "Unattended", "The human owns"]) {
+      const line = ladder.match(new RegExp(`^-\\s+\\*\\*${kind}:\\*\\*\\s*(.+)$`, "m"));
+      if (!line) { fail(`agent "${name || stem}" declares no "${kind}" rung`); continue; }
+      const text = line[1].trim();
+      if (text.length < 40) fail(`agent "${name || stem}" "${kind}" is too short to say what actually happens at that rung: "${text}"`);
+      for (const re of VAGUE_STOP) {
+        const hit = text.match(re);
+        if (hit) fail(`agent "${name || stem}" "${kind}" is vague ("${hit[0]}")`);
+      }
+      if (kind === "Unattended" && /^Not available/.test(text)) gatedSeats.push(name || stem);
+      if (kind !== "The human owns") rungs.push(text);
+    }
+    // Two rungs saying the same thing is a ladder with two steps drawn as three,
+    // and it reads as a decision that was never made.
+    if (rungs.length === 3 && new Set(rungs).size !== 3) fail(`agent "${name || stem}" has two identical rungs, so its ladder is decorative`);
   }
 
   agents.set(name || stem, {
@@ -388,7 +420,8 @@ const summary =
   // edges also produces zero cycles, and that is the shape this house refuses
   // to print OK for.
   `${[...edges.values()].reduce((n, d) => n + d.length, 0)} builds-on edges across ` +
-  `${[...edges.values()].filter((d) => d.length === 0).length} floor seats, ${cycles.length} cycles`;
+  `${[...edges.values()].filter((d) => d.length === 0).length} floor seats, ${cycles.length} cycles, ` +
+  `${gatedSeats.length} of ${agents.size} seats refuse an unattended rung`;
 
 if (check) {
   const current = existsSync(OUT) ? read(OUT) : null;

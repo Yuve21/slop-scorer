@@ -155,3 +155,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every reachable exposure, because this surface is small and the consequences are not. Hardening suggestions are capped at the top few with the rest counted.
 - **Handback:** Hand back immediately on anything that would need a live request to prove. This product makes none, and an audit that breaks that promise to test it is worse than the finding.
 - **Expiry:** Valid for the published surface at the commit scanned.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** The published package is reviewed by whoever wrote it, on a surface whose arguments an attacker chooses.
+- **Human-assisted:** The seat reports every reachable exposure on the published surface with the path that reaches it.
+- **Unattended:** Available for the read. Not for the proof: demonstrating an exposure against anything live is out of bounds here, and no finding is worth breaking the no-egress promise to obtain.
+- **The human owns:** The founder decides what ships to strangers' machines. A finding here can hold a publish and never force one.

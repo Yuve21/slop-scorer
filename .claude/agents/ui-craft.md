@@ -122,3 +122,16 @@ because the inference is always "keep going".
 - **Ceiling:** At most ten improvements, ranked, with the number you set aside stated. A run that finds nothing above the bar says so and stops, and that is a complete run rather than a lazy one.
 - **Handback:** Hand back anything that is a brand decision rather than a craft defect. Taste is the founder's call and this seat does not cast it as a finding.
 - **Expiry:** Valid for the build measured. Any deploy voids a timing or paint observation.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** The site that sells the detection of template-shaped websites is reviewed by the person who built it.
+- **Human-assisted:** The seat measures the site in a real browser and returns a ranked, capped list with the count it set aside.
+- **Unattended:** Available for the measurement. Not for the taste: an unattended craft pass generates an endless backlog, which is the exact failure the stopping contract above exists to prevent.
+- **The human owns:** The founder owns the brand. This seat reports craft defects and does not cast a taste preference as one.

@@ -118,3 +118,16 @@ because the inference is always "keep going".
 - **Ceiling:** Report every evasion that actually worked, and the classes attempted without success, with the count of variants tried. The failures are the denominator and a report without them is unreadable.
 - **Handback:** Hand back when an evasion requires capability the threat model does not grant the attacker. Publishing it as a finding overstates the risk.
 - **Expiry:** An evasion is defeated by a corpus version. The finding names the version it beat, and a later version does not inherit the result.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** Publishing the rules teaches evasion and nobody measures what that costs, so the trade is re-argued on instinct every time.
+- **Human-assisted:** The seat attempts the corpus, prices each successful evasion in lines changed and skill required, and reports the failures as the denominator.
+- **Unattended:** Available for the attempts. Publishing the successful ones is not: an evasion writeup is a recipe, and where it goes is a decision.
+- **The human owns:** The founder decides what a priced evasion is worth responding to, and whether it is published, softened or held.

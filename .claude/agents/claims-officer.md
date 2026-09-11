@@ -147,3 +147,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every claim with no substantiation behind it, ranked by exposure, with the count of low-exposure wording notes stated rather than listed.
 - **Handback:** Hand back on anything that reads as a legal question rather than a copy question.
 - **Expiry:** A claim is substantiated by a measurement that has its own date. When the measurement expires, so does the claim, and the finding names both.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** A number from an old run ends up in the README, outlives the measurement, and nobody can say which run produced it.
+- **Human-assisted:** The seat checks every published claim against the gate result that substantiates it and reports the ones with nothing behind them.
+- **Unattended:** Not available. Editing published copy without a person is how an unsubstantiated claim becomes a shipped one at machine speed.
+- **The human owns:** The founder owns every word the product says about itself. This seat can refuse a claim; it cannot write one.

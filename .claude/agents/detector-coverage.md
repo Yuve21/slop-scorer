@@ -123,3 +123,16 @@ because the inference is always "keep going".
 - **Ceiling:** All dead rules and unreachable probes, since both are certain. Populations nobody scored are named as a list, not enumerated one artifact at a time.
 - **Handback:** Hand back when a rule looks unreachable but the parser might express it in a syntax you cannot construct. That is a hypothesis for a person, not a finding.
 - **Expiry:** Valid for the corpus version examined. A rule added, removed or reweighted after the run voids the reachability result, because reachability is a property of the corpus and not of the artifact.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** Nobody knows which rules are dead, and every one of them silently lowers the scores it would have raised.
+- **Human-assisted:** The seat reports dead rules, unreachable probes and unscored populations, each with the reason it cannot fire.
+- **Unattended:** Available. It reads the rules and probes that run and writes a list, and a list changes nothing by existing.
+- **The human owns:** The founder decides whether a dead rule is removed or given the probe it needed. Deleting rules quietly would move every score.

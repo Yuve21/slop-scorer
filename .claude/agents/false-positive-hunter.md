@@ -127,3 +127,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every rule that fired on verified human work, plus the false-positive CLASS if one is provable. State the population you could not obtain rather than implying it was clean.
 - **Handback:** Hand back a rule you suspect and cannot trip, as a hypothesis with the measurement that would settle it. Do not launder a suspicion into a finding.
 - **Expiry:** Tied to the weights and the corpus version in force. A weight change voids the run.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** Somebody notices the tool flagged their friend's hand-written code, and the rule gets softened on that one anecdote.
+- **Human-assisted:** The seat scores a negative corpus, reports the rules that fired on verified human work, and proposes the weight or logic change.
+- **Unattended:** Available for the HUNT, because its output is a report and a report harms nobody. The change it proposes still goes through corpus-steward and the founder.
+- **The human owns:** The founder decides whether a false positive is worth the recall it costs. This seat measures the trade; it does not make it.

@@ -126,3 +126,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every break in the chain and every unverifiable proof, since a partial report on a notary is not useful. Nothing is suppressed here, and that is deliberate.
 - **Handback:** Hand back when an authority is unreachable, rather than recording an unverified timestamp as verified.
 - **Expiry:** A verification is true for the moment it ran. Re-verification is cheap and the finding says so.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** The credential is trusted because we minted it, which is the one thing its value does not rest on.
+- **Human-assisted:** The seat verifies the chain, the timestamps and the inclusion proofs as a stranger would, and reports what did not verify.
+- **Unattended:** Available. Verification is read-only by construction and produces the same answer for anybody who runs it.
+- **The human owns:** The founder owns what happens when a chain does not verify, because the answer is a disclosure question before it is an engineering one.

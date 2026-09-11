@@ -132,3 +132,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every guarantee proven vacuous by mutation, with the count of suspicious-but-unproven cases stated separately. A suspicion is not a finding here.
 - **Handback:** Hand back when a test looks vacuous but its mutation cannot be written without changing behaviour the product relies on.
 - **Expiry:** Valid for the commit scanned. Any change to the test or its subject voids the proof.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** A guarantee that reports success without doing its job stays green forever, because green is what everybody is looking for.
+- **Human-assisted:** The seat proves vacuity by mutation and reports each guarantee with the mutation that should have turned it red.
+- **Unattended:** Available for the hunt, including running the mutations, because a mutation is reverted and proves something either way.
+- **The human owns:** The founder decides whether a vacuous check is fixed or deleted. Deleting it quietly removes the only thing claiming that property.

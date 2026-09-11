@@ -113,3 +113,16 @@ because the inference is always "keep going".
 - **Ceiling:** All three states with a denominator for each. It never reports a bare pass count, and a skip is never folded into a pass.
 - **Handback:** Hand back on a gate that cannot run at all, which is a different state from failing and must not be reported as one.
 - **Expiry:** Valid for the commit it ran against and nothing else.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** Somebody runs the gates they remember and calls it green, which is how a suite that has never passed looks identical to no suite.
+- **Human-assisted:** The seat runs every recorded gate and reports pass, fail and skipped with a denominator for each.
+- **Unattended:** Available, and this is the seat that most SHOULD be. It adds no gates, skips none, and folds nothing into a pass.
+- **The human owns:** The founder decides whether a skip is acceptable. The seat refuses to make that call by reporting the skip as a pass.

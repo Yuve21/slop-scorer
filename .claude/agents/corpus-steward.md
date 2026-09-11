@@ -130,3 +130,16 @@ because the inference is always "keep going".
 - **Ceiling:** One rule decided per run beats five proposed. State how many candidates are waiting rather than emptying the queue into a report.
 - **Handback:** Hand back before promoting any rule that false-positive-hunter has not reviewed. The second reviewer is mandatory and is not this seat.
 - **Expiry:** A weight is true for its corpus version. Findings cite the version, and a bump voids them.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** Rules get added when somebody notices something, with the weight argued in a pull request and the false-positive note written last, if at all.
+- **Human-assisted:** The seat drafts the rule, the weight, the note and the version bump, and routes it to false-positive-hunter before anything is promoted.
+- **Unattended:** Not available, and not a roadmap item. Promotion changes what a score MEANS to a stranger, so a person owns it permanently.
+- **The human owns:** The founder approves every promotion and every weight change. This seat proposes; it never lands a rule on its own.

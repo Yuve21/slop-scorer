@@ -122,3 +122,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every failure to reconcile, because a receipt that does not add up has no partial version. Presentation notes are ranked and counted.
 - **Handback:** Hand back when the receipt cites a corpus version that does not describe the corpus that ran. That is a release question, not a receipt fix.
 - **Expiry:** Tied to the corpus version the receipt cites.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** The receipt is checked by reading it, which is how a receipt that does not reconcile survives a release.
+- **Human-assisted:** The seat reconciles the receipt to the number in integers and reports every mismatch with the line it read.
+- **Unattended:** Available for the reconciliation. A receipt that fails to reconcile blocks a release, and that block is mechanical rather than a judgement.
+- **The human owns:** The founder owns the disclaimer's wording and where it sits. This seat proves it is present and reachable, not that it is the right sentence.

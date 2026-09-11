@@ -128,3 +128,16 @@ because the inference is always "keep going".
 - **Ceiling:** Every unchecked length, unbounded allocation and trusted offset found in the family examined. Name the families not examined.
 - **Handback:** Hand back when a defect needs a crafted file you cannot construct safely, as a hypothesis with the construction described.
 - **Expiry:** Valid for the decoder at the commit scanned.
+
+## Autonomy
+
+Three rungs, because "deterministic" and "unattended" are different axes and this roster has been
+marking one of them. A seat can be entirely mechanical and still need a person to decide what its
+output means, and a seat can be judgement-heavy and still run with nobody watching because all it
+produces is a report. The rung this seat is ON today is the assisted one unless the founder says
+otherwise; the other two are written so the move is a decision rather than a drift.
+
+- **Human-led:** A missing unsigned coercion hangs the scanner forever on a 20-byte file, and it is found by somebody scanning a 20-byte file (L-01).
+- **Human-assisted:** The seat reads one decoder family to completion and reports unchecked lengths, unbounded allocations and trusted offsets.
+- **Unattended:** Available for the read and for running crafted fixtures already in the repository. Constructing new hostile inputs is a decision about what to keep on disk.
+- **The human owns:** The founder decides which hardening lands, because a bound that is too tight rejects files people legitimately have.
