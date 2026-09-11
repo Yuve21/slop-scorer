@@ -99,3 +99,15 @@ sweep counts. Close with the two lists: verified in a browser, asserted from sou
 
 **Then append to `docs/agents/LEARNINGS.md`.** L-07 came from this seat and is the model: two
 measured numbers, before and after, and a mechanism worth remembering.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over apps/web at two viewports. Craft observations are unlimited by nature, which is exactly why this one is capped.
+- **Ceiling:** At most ten improvements, ranked, with the number you set aside stated. A run that finds nothing above the bar says so and stops, and that is a complete run rather than a lazy one.
+- **Handback:** Hand back anything that is a brand decision rather than a craft defect. Taste is the founder's call and this seat does not cast it as a finding.
+- **Expiry:** Valid for the build measured. Any deploy voids a timing or paint observation.

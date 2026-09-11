@@ -132,3 +132,15 @@ safe or not safe to `npm publish`, with the leak-audit and `npm pack` results at
 the two lists: verified by running, asserted without running.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the published tool surface, its path containment, and the patch-proposal gate.
+- **Ceiling:** Every reachable exposure, because this surface is small and the consequences are not. Hardening suggestions are capped at the top few with the rest counted.
+- **Handback:** Hand back immediately on anything that would need a live request to prove. This product makes none, and an audit that breaks that promise to test it is worse than the finding.
+- **Expiry:** Valid for the published surface at the commit scanned.

@@ -99,3 +99,15 @@ fix. Then the hand-derived arithmetic for three receipts. Close with the two lis
 running or looking, asserted without.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One receipt reconciled end to end per run, arithmetic included.
+- **Ceiling:** Every failure to reconcile, because a receipt that does not add up has no partial version. Presentation notes are ranked and counted.
+- **Handback:** Hand back when the receipt cites a corpus version that does not describe the corpus that ran. That is a release question, not a receipt fix.
+- **Expiry:** Tied to the corpus version the receipt cites.

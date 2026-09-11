@@ -103,3 +103,15 @@ carried it. Then per finding: `file:line`, the reference value and where it came
 the published-scope diff. Close with the two lists: verified by running, asserted without running.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the chain, the timestamps, the inclusion proofs, the DER parser and the persistence layer.
+- **Ceiling:** Every break in the chain and every unverifiable proof, since a partial report on a notary is not useful. Nothing is suppressed here, and that is deliberate.
+- **Handback:** Hand back when an authority is unreachable, rather than recording an unverified timestamp as verified.
+- **Expiry:** A verification is true for the moment it ran. Re-verification is cheap and the finding says so.

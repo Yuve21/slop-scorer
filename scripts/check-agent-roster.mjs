@@ -45,6 +45,18 @@ const rel = (f) => path.relative(REPO, f).split(path.sep).join("/");
 const problems = [];
 const fail = (m) => problems.push(m);
 
+// Phrases that make a stopping condition decorative. Same standard this product
+// already applies to a rule's false-positive note: naming the case is the note,
+// and "may occasionally be wrong" is not.
+const VAGUE_STOP = [
+  /\bas (needed|appropriate|required)\b/i,
+  /\bwhen (necessary|appropriate)\b/i,
+  /\buse (your )?judg(e)?ment\b/i,
+  /\bas (long as|much as) (you|is) (need|necessary|useful)\b/i,
+  /\breasonable (number|amount)\b/i,
+  /\bTBD\b|\bTODO\b/i,
+];
+
 // --- 1. the agents that exist -------------------------------------------------------------------
 
 if (!existsSync(AGENTS_DIR)) {
@@ -82,6 +94,34 @@ for (const f of agentFiles) {
   if (!/docs\/agents\/HOUSE-KNOWLEDGE\.md/.test(body)) fail(`agent "${name || stem}" does not tell its seat to read HOUSE-KNOWLEDGE.md (the READ half of the learning loop)`);
   if (!/docs\/agents\/LEARNINGS\.md/.test(body)) fail(`agent "${name || stem}" does not tell its seat to read LEARNINGS.md (the READ half of the learning loop)`);
   if (!/[Aa]ppend to `docs\/agents\/LEARNINGS\.md`/.test(body)) fail(`agent "${name || stem}" does not close by requiring an append to LEARNINGS.md (the WRITE half of the learning loop)`);
+
+  // The STOPPING CONTRACT, enforced for the same reason as the learning loop: a
+  // brief that loses it fails nothing else, and the agent keeps working, which
+  // is the whole problem. A pass with no declared stop does not stop, because
+  // "enough" is not a condition it can evaluate, so it is a field rather than a
+  // hope. Four kinds, each named, because a single "know when to stop" line is
+  // the vague version and would be satisfied by its own existence.
+  // Sliced rather than matched with a lazy group: `(?=^## |\s*$)` looks correct
+  // and captures NOTHING, because `\s*$` in multiline mode is satisfied at the
+  // end of the heading line itself. It reported all fourteen briefs as missing
+  // all four kinds, seconds after they had been written into all fourteen.
+  const stopStart = body.split(/^## What stops this run[ \t]*$/m);
+  const stop = stopStart.length > 1 ? [, stopStart[1].split(/\n## /)[0]] : null;
+  if (!stop) {
+    fail(`agent "${name || stem}" has no "## What stops this run" section, so nothing says when a run is finished`);
+  } else {
+    for (const kind of ["Budget", "Ceiling", "Handback", "Expiry"]) {
+      const line = stop[1].match(new RegExp(`^-\\s+\\*\\*${kind}:\\*\\*\\s*(.+)$`, "m"));
+      if (!line) fail(`agent "${name || stem}" declares no ${kind} in its stopping contract`);
+      // A floor, not a style rule. "One pass." satisfies a presence check and
+      // tells the seat nothing about what to do at the boundary.
+      else if (line[1].trim().length < 40) fail(`agent "${name || stem}" ${kind} is too short to be a condition anybody could evaluate: "${line[1].trim()}"`);
+      else for (const re of VAGUE_STOP) {
+        const hit = line[1].match(re);
+        if (hit) fail(`agent "${name || stem}" ${kind} is vague ("${hit[0]}"): the same defect as a false-positive note reading "may occasionally be wrong"`);
+      }
+    }
+  }
 
   agents.set(name || stem, {
     name: name || stem,

@@ -56,8 +56,9 @@ moment they were needed.
 - **L-08** Two probe tables for one detector state opposite policies, and nothing compares them. **OPEN**
 - **L-09** A claim guard handed attacker-controlled bytes throws on the honest path
 - **L-20** The repository was public while the brain said it was private, and two artifacts rested on the wrong half
+- **L-21** A guard written for fourteen briefs reported all fourteen as failing it, and the regex was satisfied by the end of its own heading line
 
-_20 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
+_21 entries. Index is hand-maintained until `scripts/gen-learnings-index.mjs` exists; `scripts/check-agent-roster.mjs --check` asserts the count against the entry headings._
 
 <!-- END GENERATED INDEX -->
 
@@ -720,3 +721,41 @@ Inventing one is worse than an empty line, because this file is read before acti
   repository**, and go and measure that too. And when a stated decision turns out to be false rather
   than merely stale, correct the statement and say which downstream rationales half-collapse, because
   the surviving half is usually the one worth keeping and it is easy to throw out with the rest.
+
+### L-21 · 2026-09-11 · A guard written for fourteen briefs reported all fourteen as failing it, and the regex was satisfied by the end of its own heading line
+
+**What happened.** The stopping contract (`## What stops this run`, four named kinds) was appended to
+all fourteen agent briefs and verified by eye in the files. The new gate in
+`scripts/check-agent-roster.mjs` then reported fifty-six failures: every brief missing every kind.
+The briefs were correct. The section slice was
+
+    body.match(/^## What stops this run$([\s\S]*?)(?=^## |\s*$)/m)
+
+and the lookahead `(?=\s*$)` is satisfied immediately, because in multiline mode `$` matches the end
+of the heading line itself. The lazy group therefore captured the empty string, and every per-kind
+search inside it failed.
+
+**Why it matters beyond the typo.** This is the house failure mode pointed at a guard rather than at
+a product: a check that examined NOTHING and reported confidently. It failed in the loud direction
+this time, which is luck rather than design. The same construction behind a presence test rather
+than an absence test would have passed fourteen empty sections in silence, and the roster would have
+certified a stopping contract that did not exist. That is L-06 wearing the uniform of the thing that
+catches L-06.
+
+**The rule.** A slice that yields the region a check reads gets its denominator asserted, exactly as
+this script already refuses a zero denominator everywhere else. Split on the heading and take the
+remainder, or assert the slice is non-empty before searching inside it. Never write a lookahead that
+the heading itself can satisfy.
+
+**Evidence.** Fourteen briefs, fifty-six reported failures, zero real ones. Fixed by splitting on
+`/^## What stops this run[ \t]*$/m` and cutting at the next `\n## `. Then mutation-tested four ways
+against `ui-craft`: section removed, one kind removed, one kind made vague ("as needed"), one kind
+made too short ("Stop if unsure."). All four go red and name the agent and the kind. The unmutated
+control is green, and it was checked in the same pass, because a mutation suite that never runs its
+control cannot tell a working guard from one that fails on everything.
+
+**A second, smaller one from the same hour.** The first attempt to mutation-test restored the brief
+with `git checkout -- <file>`, which restored it to HEAD. The stopping contracts were not committed
+yet, so the restore silently deleted the thing under test and the control then failed for a reason
+that had nothing to do with the guard. Restore from a copy, not from git, when the subject of the
+test is uncommitted.

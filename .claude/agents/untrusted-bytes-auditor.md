@@ -105,3 +105,15 @@ two lists: verified by running, asserted without running.
 
 **Then append to `docs/agents/LEARNINGS.md`.** The durable lesson is almost never about one parser;
 it is about a primitive that exists twice.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One decoder family per run, read to completion. Breadth across seven formats in one pass produces a shallow read of each.
+- **Ceiling:** Every unchecked length, unbounded allocation and trusted offset found in the family examined. Name the families not examined.
+- **Handback:** Hand back when a defect needs a crafted file you cannot construct safely, as a hypothesis with the construction described.
+- **Expiry:** Valid for the decoder at the commit scanned.

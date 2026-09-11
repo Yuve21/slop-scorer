@@ -102,3 +102,15 @@ verified by running, asserted without running.
 **Then append to `docs/agents/LEARNINGS.md`** when a run teaches something: an abstention that turned
 out to be reachable only by accident is exactly the kind of finding that expires quietly and needs
 writing down.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the scoring engine, the probes and every publishing surface that can print a score. No second sweep in the same run.
+- **Ceiling:** Report every place a withheld score escaped, because that class is small and each instance is certain. Rank anything else and state the count you set aside.
+- **Handback:** Stop and hand back when a status is defensible two ways, since the whole subject is whether silence was sold as a finding and a split reading is exactly the case a person has to settle.
+- **Expiry:** Valid for the commit scanned. Any change to the engine or a publishing surface voids it.

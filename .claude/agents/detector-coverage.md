@@ -100,3 +100,15 @@ enumerated. Close with the two lists: verified by running, asserted without runn
 **Then append to `docs/agents/LEARNINGS.md`.** A blindness CLASS (a regex that cannot express its own
 canonical example, a hand-enumerated list) is worth far more than the individual rule, because it
 predicts the next one.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the corpus and the probes. Reachability is decided by reading the code that runs, not by sampling artifacts until something fires.
+- **Ceiling:** All dead rules and unreachable probes, since both are certain. Populations nobody scored are named as a list, not enumerated one artifact at a time.
+- **Handback:** Hand back when a rule looks unreachable but the parser might express it in a syntax you cannot construct. That is a hypothesis for a person, not a finding.
+- **Expiry:** Valid for the corpus version examined. A rule added, removed or reweighted after the run voids the reachability result, because reachability is a property of the corpus and not of the artifact.

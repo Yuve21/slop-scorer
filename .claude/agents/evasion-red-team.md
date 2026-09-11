@@ -95,3 +95,15 @@ and why. Close with the two lists: verified by running, asserted without running
 
 **Then append to `docs/agents/LEARNINGS.md`.** An evasion class that worked is a durable lesson about
 the shape of the corpus, not a bug report about one rule.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** Twenty evasion attempts per run, or fewer if a class falls early. An unbounded adversarial pass finds an unbounded number of near-misses.
+- **Ceiling:** Report every evasion that actually worked, and the classes attempted without success, with the count of variants tried. The failures are the denominator and a report without them is unreadable.
+- **Handback:** Hand back when an evasion requires capability the threat model does not grant the attacker. Publishing it as a finding overstates the risk.
+- **Expiry:** An evasion is defeated by a corpus version. The finding names the version it beat, and a later version does not inherit the result.

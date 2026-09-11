@@ -109,3 +109,15 @@ asserted without running.
 
 **Then append to `docs/agents/LEARNINGS.md`.** This seat produces the most durable learnings in the
 project; every entry in the disqualifying-class section came from a run of this kind.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the suite. Do not re-derive the same vacuity through a second mechanism in the same run.
+- **Ceiling:** Every guarantee proven vacuous by mutation, with the count of suspicious-but-unproven cases stated separately. A suspicion is not a finding here.
+- **Handback:** Hand back when a test looks vacuous but its mutation cannot be written without changing behaviour the product relies on.
+- **Expiry:** Valid for the commit scanned. Any change to the test or its subject voids the proof.

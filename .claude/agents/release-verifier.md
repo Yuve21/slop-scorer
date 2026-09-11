@@ -90,3 +90,15 @@ found stale goes in the report even when everything passed**, with the correctio
 **Then append to `docs/agents/LEARNINGS.md`** if the run taught something: a baseline that drifted, a
 gate whose denominator turned out to be zero, a suite that is flaky. "Routine run, no new learning"
 is a valid and expected outcome.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One full run of the recorded gate list. It does not add gates and it does not skip them.
+- **Ceiling:** All three states with a denominator for each. It never reports a bare pass count, and a skip is never folded into a pass.
+- **Handback:** Hand back on a gate that cannot run at all, which is a different state from failing and must not be reported as one.
+- **Expiry:** Valid for the commit it ran against and nothing else.

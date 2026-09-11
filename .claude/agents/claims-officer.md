@@ -124,3 +124,15 @@ Then a release verdict on the claims surface. Close with the two lists: verified
 that implements it, and asserted without.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the README, the marketing copy, the disclaimers and the published verification scopes.
+- **Ceiling:** Every claim with no substantiation behind it, ranked by exposure, with the count of low-exposure wording notes stated rather than listed.
+- **Handback:** Hand back on anything that reads as a legal question rather than a copy question.
+- **Expiry:** A claim is substantiated by a measurement that has its own date. When the measurement expires, so does the claim, and the finding names both.

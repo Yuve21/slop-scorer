@@ -107,3 +107,15 @@ state. Close with what you VERIFIED by running and what you ASSERTED without run
 **Then append to `docs/agents/LEARNINGS.md`** if the run taught something: a weight that turned out
 wrong, a false-positive class nobody had named, a fixture that did not match its producer. "Routine
 run, no new learning" is a valid and expected outcome; inventing one is worse than an empty line.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One promotion path per run: observation, candidate, review, decision. Do not open a second candidate before the first is decided.
+- **Ceiling:** One rule decided per run beats five proposed. State how many candidates are waiting rather than emptying the queue into a report.
+- **Handback:** Hand back before promoting any rule that false-positive-hunter has not reviewed. The second reviewer is mandatory and is not this seat.
+- **Expiry:** A weight is true for its corpus version. Findings cite the version, and a bump voids them.

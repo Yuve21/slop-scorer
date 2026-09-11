@@ -114,3 +114,15 @@ instances post, the mutation you ran. Close with the two lists: verified by runn
 running.
 
 **Then append to `docs/agents/LEARNINGS.md`.**
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One pass over the network surface, the observation sink, the redaction path and the gauntlet corpus.
+- **Ceiling:** Every egress path and every deanonymisation route, in full. A ranked subset of a no-egress guarantee is not a guarantee.
+- **Handback:** Hand back on a path that only leaks under a configuration nobody ships, naming the configuration, rather than reporting it as live.
+- **Expiry:** Valid for the commit scanned and the allowlist in force.

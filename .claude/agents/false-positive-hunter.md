@@ -104,3 +104,15 @@ verified by running and asserted without running, and with the populations you c
 
 **Then append to `docs/agents/LEARNINGS.md`**: a false-positive CLASS you proved is worth more than
 any individual rule fix, because the class predicts the next one.
+
+## What stops this run
+
+A pass with no stopping condition does not stop. Findings become work, the work becomes surface, and
+the surface produces findings, which is how a standing pass turns into a treadmill nobody decided to
+get on. The four below are declared here rather than left for whoever reads the report to infer,
+because the inference is always "keep going".
+
+- **Budget:** One negative corpus per run, scored to completion. Do not start a second corpus before the first has its denominator.
+- **Ceiling:** Every rule that fired on verified human work, plus the false-positive CLASS if one is provable. State the population you could not obtain rather than implying it was clean.
+- **Handback:** Hand back a rule you suspect and cannot trip, as a hypothesis with the measurement that would settle it. Do not launder a suspicion into a finding.
+- **Expiry:** Tied to the weights and the corpus version in force. A weight change voids the run.
