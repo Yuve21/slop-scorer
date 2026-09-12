@@ -21,7 +21,6 @@ export default defineConfig({
       // swallow "@slop/db/migrations" before this line ever ran.
       "@slop/db/migrations": r("./packages/db/src/migrations.ts"),
       "@slop/db": r("./packages/db/src/index.ts"),
-      "@slop/gauntlet": r("./packages/gauntlet/src/index.ts"),
       "@slop/notary": r("./packages/notary/src/index.ts"),
       "slop-scorer-mcp": r("./packages/mcp-server/src/index.ts"),
       // The web app's own alias, so a test can import the SHIPPED route handler rather than a

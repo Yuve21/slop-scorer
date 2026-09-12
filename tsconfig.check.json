@@ -20,7 +20,6 @@
       "@slop/detectors-audio": ["packages/detectors-audio/src/index.ts"],
       "@slop/db/migrations": ["packages/db/src/migrations.ts"],
       "@slop/db": ["packages/db/src/index.ts"],
-      "@slop/gauntlet": ["packages/gauntlet/src/index.ts"],
       "@slop/notary": ["packages/notary/src/index.ts"],
       "slop-scorer-mcp": ["packages/mcp-server/src/index.ts"]
     }

@@ -19,7 +19,6 @@
     "clean": "tsc -b --clean",
     "verify": "npm run typecheck && npm run build && npm test && npm run backtest",
     "backtest": "npm run build --silent && node scripts/backtest.mjs",
-    "build:gauntlet-pool": "npm run build --silent && node scripts/build-gauntlet-pool.mjs",
     "measure:list-rules": "npx tsc -b packages/mcp-server --force && node scripts/measure-list-rules.mjs",
     "capture:code-corpus": "npm run build --silent && node scripts/capture-code-corpus.mjs",
     "capture:web-corpus": "npm run build --silent && node scripts/capture-web-corpus.mjs"
