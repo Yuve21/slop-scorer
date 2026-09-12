@@ -1,4 +1,3 @@
-import { MAX_SCORE } from "./assessment.js";
 import { fenceUntrusted, UNTRUSTED_CONTENT_WARNING } from "./untrusted.js";
 import type { Report } from "./score.js";
 
@@ -26,9 +25,20 @@ const quote = (value: string): string => fenceUntrusted(value, { cap: 240 });
  */
 export function formatReceipt(report: Report): string {
   const out: string[] = [];
+  /*
+   * THE HEADLINE WAS A SCORE AND A BAND, and is now the work done. Retirement step 2,
+   * docs/POSITIONING-2026-09-11.md. It used to read: <score> / 99   band: <band>.
+   *
+   * The status line stays, because ASSESSED and INCONCLUSIVE are not a ranking: they say whether
+   * enough of the artifact could be read to report anything at all, which is the property that
+   * makes an abstention actionable. What is gone is the number a reader could quote without
+   * reading a single finding.
+   */
   const head =
-    report.score === null ? `${report.status.toUpperCase()} (score withheld)` : `${report.score} / ${MAX_SCORE}`;
-  out.push(`SLOP RECEIPT  ${head}   band: ${report.bandLabel}`);
+    report.status === "assessed"
+      ? `${report.receipt.lines.length} rule(s) matched`
+      : `${report.status.toUpperCase()} (nothing reported)`;
+  out.push(`RECEIPT  ${head}`);
   out.push(`corpus ${report.corpusVersion}  |  coverage ${Math.round(report.coverage.ratio * 100)}%  |  families fired ${report.familiesFired}`);
   out.push(`evidence kind: ${report.evidenceKinds.join(", ") || "none"}  |  detectors: ${report.detectors.join(", ") || "none"}`);
   out.push("");

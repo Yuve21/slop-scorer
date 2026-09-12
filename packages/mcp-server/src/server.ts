@@ -121,7 +121,11 @@ export interface FullRule {
 export interface RulesListing {
   readonly corpora: readonly { readonly detectorId: string; readonly modality: string; readonly corpusVersion: string }[];
   readonly scoring: {
-    readonly ceiling: number;
+    /*
+     * NO ceiling. Retirement step 2: there is no published number for one to bound.
+     * The families stay, because a family cap is why one kind of evidence cannot dominate a
+     * report, and that is a property of the RULEBOOK rather than of a score.
+     */
     readonly note: string;
     readonly families: readonly {
       readonly id: string;
@@ -203,9 +207,8 @@ export function listRules(args: ListRulesArgs = {}): RulesListing {
   return {
     corpora: sets.map((s) => ({ detectorId: s.detectorId, modality: s.modality, corpusVersion: s.corpusVersion })),
     scoring: {
-      ceiling: 99,
       note:
-        "Scores are bounded at 99 and cannot reach certainty. Rules are grouped into families, each family is capped at a share of the total budget so no family can carry a verdict alone, repeated evidence within a rule decays harmonically, and counter-evidence rules subtract. Low coverage withholds the score entirely rather than reporting a low one.",
+        "Rules are grouped into families, and each family is capped at a share of the total budget so no single kind of evidence can carry a report alone. Repeated evidence within a rule decays harmonically, and counter-evidence rules subtract. Low coverage withholds the result entirely rather than reporting a thin one. No aggregate number is published: every finding cites what was read and where, and that citation is the thing to act on.",
       families: families.map((f) =>
         verbose
           ? { id: f.id, title: f.title, capShare: f.capShare, caveat: f.caveat }

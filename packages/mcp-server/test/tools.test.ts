@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer, listRules, resolveTarget, scanCodebase, scanUi } from "slop-scorer-mcp";
 import { CODE_RULES } from "@slop/detectors-code";
 import { WEB_RULES } from "@slop/detectors-web";
-import { FORBIDDEN_VERDICT_PHRASES, MAX_SCORE } from "@slop/core";
+import { FORBIDDEN_VERDICT_PHRASES } from "@slop/core";
 
 let root: string;
 
@@ -84,7 +84,11 @@ describe("scan_codebase", () => {
     expect(payload.familyCaps.length).toBeGreaterThan(0);
     expect(payload.receipt).toContain("TOTAL");
     expect(payload.receipt).toContain("FAMILY CAPS");
-    expect(payload.scoreCeiling).toBe(MAX_SCORE);
+    // The payload no longer carries a score or a ceiling (retirement step 2). What has to survive
+    // is the arithmetic a reader can re-derive: the family caps and the receipt that reconciles.
+    expect(payload).not.toHaveProperty("score");
+    expect(payload).not.toHaveProperty("scoreCeiling");
+    expect(payload).not.toHaveProperty("band");
     expect(payload.coverage.ratio).toBeGreaterThan(0);
     expect(payload.disclaimer).toContain("not a judgement of the person");
   });
@@ -103,7 +107,16 @@ describe("scan_codebase", () => {
     // neither is a low score.
     const payload = await scanCodebase({ path: root, include: ["never/**/*.zzz"], readHistory: false });
     expect(payload.status).toBe("inconclusive");
-    expect(payload.score).toBeNull();
+    /*
+     * The original assertion here was `score === null`. The property is gone; the INTENT is not.
+     *
+     * CORRECTED WHILE WRITING IT: the first replacement asserted an empty finding list, and that is
+     * wrong. `inconclusive` withheld the SCORE, never the findings, and this scan legitimately
+     * returns four. Removing the score changes what abstention has to be read as, which is the
+     * whole hazard of this retirement: the status and its coded reason now carry alone what the
+     * null score used to carry with them.
+     */
+    expect(payload.abstention.length).toBeGreaterThan(0);
     expect(payload.abstention.map((a) => a.code)).toContain("probe_failed");
     expect(payload.abstention.find((a) => a.code === "probe_failed")?.detail).toContain("source");
     expect(payload.warnings.join(" ")).toContain("not evaluated because the probe");
@@ -129,8 +142,8 @@ describe("scan_ui", () => {
     // clean" produce the same empty finding list and opposite meanings.
     const payload = await scanUi({ port: 1 }).catch(() => null);
     if (payload === null) return; // playwright installed but chromium missing: covered below
-    expect(payload.score).toBeNull();
     expect(["not_assessed", "inconclusive"]).toContain(payload.status);
+    expect(payload.abstention.length).toBeGreaterThan(0);
   }, 60_000);
 });
 
@@ -153,7 +166,8 @@ describe("list_rules", () => {
   });
 
   it("explains the scoring contract, including the ceiling and the caps", () => {
-    expect(listing.scoring.ceiling).toBe(MAX_SCORE);
+    expect(listing.scoring).not.toHaveProperty("ceiling");
+    expect(listing.scoring.note).toContain("No aggregate number is published");
     expect(listing.scoring.note).toMatch(/capped/);
     expect(listing.scoring.note).toMatch(/counter-evidence/);
     expect(listing.scoring.families.length).toBeGreaterThan(6);

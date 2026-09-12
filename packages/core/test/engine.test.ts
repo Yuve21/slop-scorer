@@ -192,6 +192,24 @@ describe("the verdict describes what we did, never who anyone is", () => {
     expect(report.verdict).toMatch(/against \d+ deterministic rules/);
     expect(report.verdict).toMatch(/and \d+ matched/);
   });
+
+  /*
+   * THE RETIREMENT, PINNED. The sentence used to close with: that places it in the "<band>" band at
+   * <score> of 99. Removing it broke NOTHING, which is the part worth recording: the most
+   * consequential clause in the product's output sentence, the one asking a reader to accept a
+   * summary judgement instead of reading the findings, had no test holding it in place. It could
+   * have been changed by anyone at any time and every gate would have stayed green.
+   *
+   * So its ABSENCE gets the test its presence never had. Without this, the clause comes back the
+   * first time somebody thinks the output reads better with a number on it.
+   */
+  it("an assessed verdict states no band and no score", () => {
+    for (const report of cases) {
+      expect(report.verdict).not.toMatch(/\bband\b/i);
+      expect(report.verdict).not.toMatch(/\b\d+ of \d+\b/);
+      expect(report.verdict.toLowerCase()).not.toContain("places it in");
+    }
+  });
 });
 
 describe("the contract is enforced, loudly", () => {

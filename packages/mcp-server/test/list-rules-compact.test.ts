@@ -111,9 +111,11 @@ describe("nothing was lost, it moved", () => {
     expect(verbose.scoring.families.length).toBe(compact.scoring.families.length);
     expect(verbose.scoring.families.every((f) => (f.caveat ?? "").length > 0)).toBe(true);
     expect(compact.scoring.families.every((f) => f.caveat === undefined)).toBe(true);
-    // The scoring note itself is on both: an agent must never read a score without it.
+    // The note is on both forms: it is what stops a family cap being read as a ranking.
     expect(compact.scoring.note).toBe(verbose.scoring.note);
-    expect(compact.scoring.ceiling).toBe(99);
+    // No ceiling on either form. There is no published number for one to bound.
+    expect(compact.scoring).not.toHaveProperty("ceiling");
+    expect(verbose.scoring).not.toHaveProperty("ceiling");
   });
 
   it("ruleIds returns full entries for the named rules and indexes all the rest", () => {

@@ -25,7 +25,6 @@
  */
 
 import {
-  MAX_SCORE,
   applicabilityOf,
   assertWellFormedRemediation,
   isDestructive,
@@ -392,7 +391,6 @@ export interface VerifyFixPayload {
   /** Which probes shrank, and by how much. Empty when nothing did. */
   readonly coverageLost: readonly { readonly probeId: string; readonly before: number; readonly after: number }[];
   readonly scoreDelta: number | null;
-  readonly scoreCeiling: typeof MAX_SCORE;
   readonly headline: string;
   readonly warnings: readonly string[];
   readonly receipt: string;
@@ -503,7 +501,6 @@ function compare(target: string, before: Baseline | undefined, after: Report): V
     evidenceMayHaveBeenRemoved,
     coverageLost: lost,
     scoreDelta,
-    scoreCeiling: MAX_SCORE,
     headline,
     warnings: evidenceMayHaveBeenRemoved
       ? [

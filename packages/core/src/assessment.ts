@@ -170,9 +170,20 @@ export function verdictSentence(v: VerdictInput): string {
       `We read ${Math.round(v.coverageRatio * 100)}% of what we planned to read. ${why}`
     );
   }
+  /*
+   * THE BAND-AND-SCORE CLAUSE WAS REMOVED HERE, 2026-09-11, and this is the first edit of the
+   * retirement in docs/POSITIONING-2026-09-11.md. It used to close with: that places it in the
+   * "<band>" band at <score> of 99.
+   *
+   * What is left is the sentence the new product actually wants, and it was already most of this
+   * function: we checked N rules, M matched, here is the coverage, and every match cites what we
+   * read and where. It reports WORK DONE and points at evidence. The clause that was removed was
+   * the only part that asked the reader to accept a summary judgement instead of reading the
+   * findings.
+   */
   return (
     `We checked this artifact against ${v.rulesEvaluated} deterministic rules from ${v.corpusVersion} ` +
     `and ${v.rulesFired} matched, on ${Math.round(v.coverageRatio * 100)}% coverage. ` +
-    `That places it in the "${v.bandLabel}" band at ${v.score} of ${MAX_SCORE}. Every match below cites what we read and where.`
+    `Every match below cites what we read and where.`
   );
 }

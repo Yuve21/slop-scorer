@@ -19,7 +19,6 @@ import {
   applicabilityOf,
   formatReceipt,
   isDestructive,
-  MAX_SCORE,
   sanitizeUntrusted,
   UNTRUSTED_CONTENT_WARNING,
   UNTRUSTED_EVIDENCE_FIELDS,
@@ -81,9 +80,14 @@ export interface ToolFinding {
 export interface ToolPayload {
   readonly status: Report["status"];
   readonly verdict: string;
-  readonly score: number | null;
-  readonly scoreCeiling: typeof MAX_SCORE;
-  readonly band: string | null;
+  /*
+   * NO score, scoreCeiling OR band. Retirement step 2, docs/POSITIONING-2026-09-11.md.
+   *
+   * This payload IS the product now: it goes to an agent running on somebody else's machine, and
+   * what that agent can do with it is act on a finding or quote a number. The number was the half
+   * nobody could check. Every field below is a citation, the coverage it was read at, or the reason
+   * something was withheld.
+   */
   readonly corpusVersion: string;
   readonly coverage: { readonly ratio: number; readonly examined: string };
   readonly abstention: readonly { readonly code: string; readonly detail: string }[];
@@ -175,9 +179,6 @@ export function toToolPayload(report: Report): ToolPayload {
   return {
     status: report.status,
     verdict: report.verdict,
-    score: report.score,
-    scoreCeiling: MAX_SCORE,
-    band: report.band,
     corpusVersion: report.corpusVersion,
     coverage: { ratio: Number(report.coverage.ratio.toFixed(3)), examined: report.coverage.examined },
     abstention: report.abstention.map((a) => ({ code: a.code, detail: a.detail })),
