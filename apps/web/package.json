@@ -13,7 +13,6 @@
     "@slop/db": "*",
     "@slop/detectors-code": "*",
     "@slop/detectors-web": "*",
-    "@slop/gauntlet": "*",
     "@slop/notary": "*",
     "@slop/reproduce": "*",
     "animejs": "4.5.0",

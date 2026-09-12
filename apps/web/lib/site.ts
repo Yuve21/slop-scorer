@@ -22,13 +22,13 @@ export const absolute = (path: string): string => new URL(path, `${siteUrl()}/`)
  * in design/SURFACES.md; "Sign in" is not among these because there is no account system in
  * this build, and a nav item that leads nowhere is a scaffold artifact.
  *
- * The gauntlet leads, because it is the only surface a first-time visitor can get value out of
- * without supplying anything. `/notary` is deliberately NOT here: it is a real route, linked
- * from `/llms.txt` and from the gauntlet's own copy, but a nav slot is a claim about what this
- * product is for, and today it is for the plugin and the corpus.
+ * The gauntlet used to lead. It was removed on 2026-09-11 with the rest of the verdict surface,
+ * and the nav is now SHORTER rather than backfilled: a nav slot is a claim about what this product
+ * is for, and inventing a replacement before the new surface exists would be a claim we cannot
+ * meet. `/notary` stays deliberately absent for the same reason, though it remains a real route
+ * linked from `/llms.txt`.
  */
 export const NAV: readonly { readonly href: string; readonly label: string }[] = [
-  { href: "/gauntlet", label: "Gauntlet" },
   { href: "/method", label: "Method" },
   // A real route rather than the old `/#mcp` anchor. The founder's complaint was that the
   // downloadable server was nowhere on the site, and a nav item that scrolls to a paragraph is
