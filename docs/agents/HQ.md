@@ -6,11 +6,16 @@ agent team, and the loop that turns real scans into corpus rules. Everything it 
 the repository, so a fresh seat becomes useful without re-learning what past sessions already paid
 for.
 
-**slop-scorer:** deterministic, evidence-cited detection of template and machine-generated tells,
-with an output contract designed so it cannot be quoted as an accusation about a person. Rules as
-data, log-odds scoring, published false-positive conditions per rule, abstention as a first-class
-status, a public MCP server, a reproduction pipeline, a gauntlet and a notary. No model, LLM or
-classifier is a dependency of any package.
+**slop-scorer** (the name is older than the product; see `docs/POSITIONING-2026-09-11.md`): a team
+of specialist agents that find flaws in a codebase, a site and the business around it, delivered as
+an MCP server, where every finding cites a locator a stranger can go and read. Rules as data,
+published false-positive conditions per rule, abstention as a first-class status, a reproduction
+pipeline and a notary. No model, LLM or classifier is a dependency of any package.
+
+**Retired on 2026-09-11, so a seat does not go looking for it:** the 0 to 99 score, the band, the
+verdict sentence about an artifact's origin, and the gauntlet. The engine underneath them is kept
+and is what makes an agent's finding checkable. The internal weighting still exists; what left is
+the PUBLISHED number.
 
 ---
 

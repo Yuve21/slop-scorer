@@ -1,13 +1,27 @@
 # slop-scorer
 
-Deterministic, evidence-cited detection of template and machine-generated tells, with an output
-contract designed so it cannot be quoted as an accusation about a person.
+> **The name is older than the product.** This was a detector: it scored an artifact from 0 to 99
+> and said which band it landed in. That surface was retired on 2026-09-11
+> (`docs/POSITIONING-2026-09-11.md`). What this is now is a team of specialist agents that find
+> flaws in a codebase, a site and the business around it, delivered as an MCP server. The rename is
+> deliberately deferred rather than forgotten: it touches two repositories, an npm package, the
+> tool names and every doc, and renaming twice is worse than renaming late.
 
-**Every finding carries a locator you can go and check.** A file and a line, a CSS selector, a
-computed style value, a dependency name. A finding without one cannot be constructed: the
-`Finding` type requires a non-empty `evidence` array and the runtime validator rejects any
-citation with an empty locator. That is the product, and it is a type constraint rather than a
-convention.
+A team of specialist agents with published rulebooks, delivered over MCP, where **every finding
+carries a locator you can go and check.** A file and a line, a CSS selector, a computed style
+value, a dependency name.
+
+A finding without one cannot be constructed: the `Finding` type requires a non-empty `evidence`
+array and the runtime validator rejects any citation with an empty locator. That is a type
+constraint rather than a convention, and it is the whole differentiator. Anybody can ship agents
+with job titles. The question nobody else answers is what each one knows, and the answer here is a
+rulebook you can read, argue with, and hold us to.
+
+**No aggregate number is published.** There is no score, no band and no verdict about an artifact's
+origin. Every rule carries the condition under which it is WRONG, refused at load time if that note
+is empty or vague. When too little of an artifact can be read, the result is withheld rather than
+reported as clean: abstention is a first-class status, because a guess is unfalsifiable and an
+abstention is actionable.
 
 No model, LLM or classifier is a dependency of any package here.
 
@@ -204,6 +218,14 @@ detector. The pleaded counts: the respondent did not build the model, did not te
 the use cases it advertised, and could not produce substantiation. The guard exists so that
 cannot happen here by accident, and the guard is itself mutation-tested against known-bad
 strings so it cannot go quietly dead.
+
+**This matters MORE now, not less.** The old product was a detector, and the temptation was to
+publish an accuracy figure for it. The product is now a team of agents sold on the claim that they
+are senior, which is a far easier thing to overstate and a far harder thing to substantiate. The
+guard scans for the same numbers either way, and the finding-level backtest
+(`packages/core/src/calibration/findings.ts`) deliberately emits no rate at all: every member of
+these corpora is constructed or hand-labelled, so a rate derived from them would describe the
+corpus rather than the world.
 
 ---
 
